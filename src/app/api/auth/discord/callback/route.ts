@@ -90,7 +90,7 @@ async function resolveApplicationUser(profile: z.infer<typeof discordUserSchema>
   });
 }
 
-export async function GET(request: NextRequest) {
+async function handleCallback(request: NextRequest) {
   const error = request.nextUrl.searchParams.get("error");
   if (error) return loginError(request, error === "access_denied" ? "authorization_denied" : "oauth_error");
 
@@ -155,4 +155,12 @@ export async function GET(request: NextRequest) {
   response.cookies.delete("rlca_oauth_state");
   response.cookies.delete("rlca_oauth_return");
   return response;
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    return await handleCallback(request);
+  } catch {
+    return loginError(request, "oauth_callback_failed");
+  }
 }

@@ -6,7 +6,9 @@ export const runtime = "nodejs";
 
 export function GET(request: NextRequest) {
   const clientId = process.env.DISCORD_CLIENT_ID;
-  if (!clientId) {
+  const clientSecret = process.env.DISCORD_CLIENT_SECRET;
+  const sessionSecret = process.env.SESSION_SECRET ?? process.env.AUTH_SECRET;
+  if (!clientId || !clientSecret || !sessionSecret || sessionSecret.length < 32) {
     return NextResponse.redirect(new URL("/login?error=oauth_not_configured", request.url));
   }
 

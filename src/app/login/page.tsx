@@ -12,6 +12,7 @@ const errorMessages: Record<string, string> = {
   oauth_not_configured: "Discord login is not configured for this environment.",
   token_exchange_failed: "Discord could not complete the secure code exchange.",
   discord_api_failed: "Discord is temporarily unavailable. Please try again.",
+  oauth_callback_failed: "RLCA could not complete login. Please try again or contact league staff.",
   guild_check_not_configured: "RLCA server membership verification is not configured.",
   not_guild_member: "Join the RLCA Discord server before signing in.",
 };
