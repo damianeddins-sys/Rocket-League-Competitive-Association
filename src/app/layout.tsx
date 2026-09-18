@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
-import { auth, signOut } from "@/auth";
+import { getSession } from "@/services/auth/session";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const session = await auth();
+  const session = await getSession();
 
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
@@ -59,12 +59,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 <span className="hidden text-sm font-semibold sm:inline">
                   {session.user.name ?? "Discord member"}
                 </span>
-                <form
-                  action={async () => {
-                    "use server";
-                    await signOut({ redirectTo: "/" });
-                  }}
-                >
+                <form action="/api/auth/logout" method="post">
                   <button className="rounded-md border border-white/20 px-4 py-2 text-sm font-bold">
                     Sign out
                   </button>

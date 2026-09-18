@@ -1,0 +1,34 @@
+import { authorizeAccess, fetchLiveDiscordAccess } from "./authorization";
+import type { Portal } from "./discord-roles";
+import { getSession } from "./session";
+
+export type PortalAccessResult =
+  | { allowed: true; userId: string; franchiseNumber: number | null }
+  | { allowed: false; code: string; reason: string };
+
+export async function checkPortalAccess(
+  portal: Portal,
+  franchiseNumber?: number,
+): Promise<PortalAccessResult> {
+  const session = await getSession();
+  if (!session) {
+    return { allowed: false, code: "AUTHENTICATION_REQUIRED", reason: "Sign in with Discord" };
+  }
+
+  try {
+    const liveAccess = await fetchLiveDiscordAccess(session.user.discordId);
+    const decision = authorizeAccess(liveAccess, { portal, franchiseNumber });
+    if (!decision.allowed) return decision;
+    return {
+      allowed: true,
+      userId: session.user.id,
+      franchiseNumber: liveAccess.franchiseNumber,
+    };
+  } catch {
+    return {
+      allowed: false,
+      code: "ROLE_VERIFICATION_FAILED",
+      reason: "Discord roles could not be verified",
+    };
+  }
+}

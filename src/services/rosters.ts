@@ -1,4 +1,5 @@
 import type { Division } from "./mmr";
+import { SEASON_ONE_RULES } from "./rules";
 
 export type RosterPlayer = {
   playerId: string;
@@ -18,8 +19,16 @@ export function calculateCapRange(playersByDivision: Record<Division, RosterPlay
 
   return {
     expected,
-    floor: Math.ceil((expected * 0.97) / 5) * 5,
-    cap: Math.floor((expected * 1.03) / 5) * 5,
+    floor:
+      Math.ceil(
+        (expected * (1 - SEASON_ONE_RULES.roster.capBandPercent)) /
+          SEASON_ONE_RULES.roster.roundingUnit,
+      ) * SEASON_ONE_RULES.roster.roundingUnit,
+    cap:
+      Math.floor(
+        (expected * (1 + SEASON_ONE_RULES.roster.capBandPercent)) /
+          SEASON_ONE_RULES.roster.roundingUnit,
+      ) * SEASON_ONE_RULES.roster.roundingUnit,
   };
 }
 
@@ -29,7 +38,9 @@ export function validateRoster(
 ): { legal: boolean; value: number; reasons: string[] } {
   const reasons: string[] = [];
   const value = roster.reduce((sum, player) => sum + player.protectedValue, 0);
-  if (roster.length !== 3) reasons.push("Roster must contain exactly three players");
+  if (roster.length !== SEASON_ONE_RULES.roster.size) {
+    reasons.push(`Roster must contain exactly ${SEASON_ONE_RULES.roster.size} players`);
+  }
   for (const division of ["MASTER", "CHALLENGER", "CONTENDER"] as const) {
     const count = roster.filter((player) => player.division === division).length;
     if (count !== 1) reasons.push(`Roster must contain exactly one ${division} player`);
@@ -63,10 +74,10 @@ export function canCompleteRoster(
 }
 
 export function playerEligibility(
-  participatedRegularSeasonSeries: number,
+  participatedRegularSeasonSeriesIds: readonly string[],
   approvedException = false,
 ) {
-  const count = Math.max(0, participatedRegularSeasonSeries);
+  const count = new Set(participatedRegularSeasonSeriesIds.filter(Boolean)).size;
   if (approvedException || count >= 2) {
     return { eligible: true, label: approvedException ? "ELIGIBLE — EXCEPTION APPROVED" : "ELIGIBLE" };
   }

@@ -1,5 +1,7 @@
-export const MAJOR_POINTS = [240, 180, 140, 100, 60, 40, 20, 10] as const;
-export const LAST_CHANCE_POINTS = [120, 90, 70, 50, 30, 20] as const;
+import { SEASON_ONE_RULES } from "./rules";
+
+export const MAJOR_POINTS = SEASON_ONE_RULES.points.major;
+export const LAST_CHANCE_POINTS = SEASON_ONE_RULES.points.lastChance;
 
 export type PointEvent = {
   teamId: string;
@@ -17,9 +19,9 @@ export type TeamRecord = {
 };
 
 export function regularSeasonPoints(result: "WIN" | "LOSS" | "OFFICIAL_TIE") {
-  if (result === "WIN") return 5;
-  if (result === "OFFICIAL_TIE") return 2.5;
-  return 0;
+  if (result === "WIN") return SEASON_ONE_RULES.points.regularSeasonWin;
+  if (result === "OFFICIAL_TIE") return SEASON_ONE_RULES.points.officialTie;
+  return SEASON_ONE_RULES.points.regularSeasonLoss;
 }
 
 export function assertUniquePointEvents(events: PointEvent[]) {
@@ -98,7 +100,13 @@ export function championshipField(
   const eligible = new Set(lastChanceTeamIds);
   const remaining = finalStandings
     .filter((team) => eligible.has(team.teamId))
-    .sort((a, b) => a.rank - b.rank)
+    .sort(
+      (a, b) =>
+        b.qualificationPoints - a.qualificationPoints ||
+        b.seriesWins - a.seriesWins ||
+        b.gameDifferential - a.gameDifferential ||
+        a.teamId.localeCompare(b.teamId),
+    )
     .slice(0, 4)
     .map((team, index) => ({ teamId: team.teamId, seed: index + 3 }));
 
