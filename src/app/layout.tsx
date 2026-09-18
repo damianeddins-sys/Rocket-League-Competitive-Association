@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
+import { auth, signOut } from "@/auth";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -23,7 +24,9 @@ export const metadata: Metadata = {
     "The official home of RLCA 2v2 competition, standings, schedules, franchises, and events.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const session = await auth();
+
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full bg-white text-slate-900">
@@ -51,9 +54,32 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <Link href="/events">Events</Link>
               <Link href="/league">League</Link>
             </nav>
-            <Link href="/signup" className="rounded-md bg-[#1677ff] px-4 py-2 text-sm font-bold">
-              Join RLCA
-            </Link>
+            {session?.user ? (
+              <div className="flex items-center gap-3">
+                <span className="hidden text-sm font-semibold sm:inline">
+                  {session.user.name ?? "Discord member"}
+                </span>
+                <form
+                  action={async () => {
+                    "use server";
+                    await signOut({ redirectTo: "/" });
+                  }}
+                >
+                  <button className="rounded-md border border-white/20 px-4 py-2 text-sm font-bold">
+                    Sign out
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Link href="/login" className="px-2 py-2 text-sm font-bold text-slate-200">
+                  Sign in
+                </Link>
+                <Link href="/signup" className="rounded-md bg-[#1677ff] px-4 py-2 text-sm font-bold">
+                  Join RLCA
+                </Link>
+              </div>
+            )}
           </div>
         </header>
         <main>{children}</main>
