@@ -8,7 +8,7 @@ export default function Home() {
     <>
       <section className="hero-grid relative overflow-hidden bg-[#0b1f3a] text-white">
         <Image
-          src="/branding/rlca-logo-transparent.png"
+          src="/branding/rlca-primary-logo-v2.png"
           alt=""
           width={700}
           height={700}

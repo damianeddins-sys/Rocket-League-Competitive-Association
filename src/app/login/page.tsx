@@ -38,7 +38,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
     <section className="flex min-h-[72vh] items-center bg-[#f4f7fa] px-5 py-16">
       <div className="panel mx-auto w-full max-w-md p-8 text-center">
         <Image
-          src="/branding/rlca-logo-transparent.png"
+          src="/branding/rlca-primary-logo-v2.png"
           alt="RLCA"
           width={180}
           height={180}
