@@ -1,0 +1,18 @@
+{
+  "name": "RLCA League Platform",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "terminals": [
+    {
+      "name": "next-dev",
+      "command": "set -a && . ./.env.local && set +a && exec npm run dev",
+      "description": "Next.js dev server on http://localhost:3000. The public site renders from labeled demo data; PostgreSQL backs migrations and future persistence."
+    }
+  ],
+  "ports": [
+    {
+      "name": "web",
+      "port": 3000
+    }
+  ]
+}
