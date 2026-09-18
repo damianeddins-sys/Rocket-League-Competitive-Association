@@ -4,6 +4,8 @@
   "installCommand": "npm install",
   "buildCommand": "npm run build",
   "env": {
-    "DISCORD_GUILD_ID": "1470225837742882969"
+    "DISCORD_GUILD_ID": "1470225837742882969",
+    "NEXT_PUBLIC_APP_URL": "https://rlcasystem.vercel.app",
+    "DISCORD_REDIRECT_URI": "https://rlcasystem.vercel.app/api/auth/discord/callback"
   }
 }

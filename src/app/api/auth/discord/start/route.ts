@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import {
   canonicalOAuthStartUrl,
   getDiscordOAuthConfig,
+  resolveDiscordRedirectUri,
 } from "@/services/auth/discord-oauth";
 import {
   consumeAuthRateLimit,
@@ -20,15 +21,19 @@ function loginRedirect(request: NextRequest, error: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const config = getDiscordOAuthConfig(request.url);
-  if (!config.ok) {
-    return loginRedirect(request, config.error);
-  }
-  const canonicalStart = canonicalOAuthStartUrl(request.url, config.value.redirectUri);
+  const redirectUri = resolveDiscordRedirectUri(request.url);
+  const canonicalStart = redirectUri
+    ? canonicalOAuthStartUrl(request.url, redirectUri)
+    : null;
   if (canonicalStart) {
     const response = NextResponse.redirect(canonicalStart);
     response.headers.set("Cache-Control", "no-store");
     return response;
+  }
+
+  const config = getDiscordOAuthConfig(request.url);
+  if (!config.ok) {
+    return loginRedirect(request, config.error);
   }
   pruneRateLimitBuckets();
   try {

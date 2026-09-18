@@ -58,3 +58,49 @@ button:focus-visible {
     linear-gradient(90deg, rgb(255 255 255 / 0.035) 1px, transparent 1px);
   background-size: 40px 40px;
 }
+
+.login-grid {
+  background-image:
+    radial-gradient(circle at 15% 20%, rgb(22 119 255 / 0.2), transparent 30rem),
+    linear-gradient(rgb(255 255 255 / 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.025) 1px, transparent 1px);
+  background-size: auto, 48px 48px, 48px 48px;
+}
+
+.mobile-menu > summary {
+  list-style: none;
+}
+
+.mobile-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.mobile-menu[open] > summary {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.page-enter {
+  animation: page-enter 280ms ease-out;
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter {
+    animation: none;
+  }
+
+  a,
+  button {
+    transition: none;
+  }
+}

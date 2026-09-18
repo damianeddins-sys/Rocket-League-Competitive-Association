@@ -2,8 +2,19 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
+import { Menu } from "lucide-react";
 import { getSession } from "@/services/auth/session";
 import "./globals.css";
+
+const navigation = [
+  ["Standings", "/standings"],
+  ["Schedule", "/schedule"],
+  ["Teams", "/teams"],
+  ["Players", "/players"],
+  ["Events", "/events"],
+  ["Coach", "/coach"],
+  ["League", "/league"],
+] as const;
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -48,16 +59,14 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               </span>
             </Link>
             <nav className="hidden items-center gap-6 text-sm font-semibold text-slate-200 md:flex">
-              <Link href="/standings">Standings</Link>
-              <Link href="/schedule">Schedule</Link>
-              <Link href="/teams">Teams</Link>
-              <Link href="/players">Players</Link>
-              <Link href="/events">Events</Link>
-              <Link href="/coach">Coach</Link>
-              <Link href="/league">League</Link>
+              {navigation.map(([label, href]) => (
+                <Link key={href} href={href} className="hover:text-white">
+                  {label}
+                </Link>
+              ))}
             </nav>
             {session?.user ? (
-              <div className="flex items-center gap-3">
+              <div className="hidden items-center gap-3 md:flex">
                 <span className="hidden text-sm font-semibold sm:inline">
                   {session.user.name ?? "Discord member"}
                 </span>
@@ -68,7 +77,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 </form>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="hidden items-center gap-2 md:flex">
                 <Link href="/login" className="px-2 py-2 text-sm font-bold text-slate-200">
                   Sign in
                 </Link>
@@ -77,9 +86,47 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 </Link>
               </div>
             )}
+            <details className="mobile-menu relative md:hidden">
+              <summary className="flex cursor-pointer items-center justify-center rounded-lg border border-white/15 p-2.5 text-white">
+                <Menu size={22} />
+                <span className="sr-only">Open navigation</span>
+              </summary>
+              <div className="absolute right-0 top-[calc(100%+1rem)] w-72 overflow-hidden rounded-xl border border-white/10 bg-[#0a1b31] p-3 shadow-2xl">
+                <nav className="grid">
+                  {navigation.map(([label, href]) => (
+                    <Link key={href} href={href} className="rounded-lg px-4 py-3 text-sm font-semibold text-slate-200 hover:bg-white/10 hover:text-white">
+                      {label}
+                    </Link>
+                  ))}
+                </nav>
+                <div className="mt-3 grid gap-2 border-t border-white/10 pt-3">
+                  {session?.user ? (
+                    <>
+                      <p className="px-4 py-2 text-sm font-semibold text-slate-300">
+                        {session.user.name ?? "Discord member"}
+                      </p>
+                      <form action="/api/auth/logout" method="post">
+                        <button className="w-full rounded-lg border border-white/15 px-4 py-3 text-sm font-bold">
+                          Sign out
+                        </button>
+                      </form>
+                    </>
+                  ) : (
+                    <>
+                      <Link href="/login" className="rounded-lg border border-white/15 px-4 py-3 text-center text-sm font-bold">
+                        Sign in
+                      </Link>
+                      <Link href="/signup" className="rounded-lg bg-[#1677ff] px-4 py-3 text-center text-sm font-bold">
+                        Join RLCA
+                      </Link>
+                    </>
+                  )}
+                </div>
+              </div>
+            </details>
           </div>
         </header>
-        <main>{children}</main>
+        <main className="page-enter">{children}</main>
         <footer className="bg-[#07172b] text-slate-300">
           <div className="mx-auto grid max-w-7xl gap-8 px-5 py-10 sm:grid-cols-2 lg:px-8">
             <div>
