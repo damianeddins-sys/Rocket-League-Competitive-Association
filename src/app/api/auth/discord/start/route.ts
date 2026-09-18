@@ -1,35 +1,57 @@
 import { randomBytes } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { getDiscordOAuthConfig } from "@/services/auth/discord-oauth";
+import {
+  consumeRateLimit,
+  pruneRateLimitBuckets,
+  requestClientIp,
+} from "@/services/auth/rate-limit";
 
 export const runtime = "nodejs";
 
+function loginRedirect(request: NextRequest, error: string) {
+  const response = NextResponse.redirect(new URL(`/login?error=${error}`, request.url));
+  response.headers.set("Cache-Control", "no-store");
+  return response;
+}
+
 export function GET(request: NextRequest) {
-  const clientId = process.env.DISCORD_CLIENT_ID;
-  const clientSecret = process.env.DISCORD_CLIENT_SECRET;
-  const sessionSecret = process.env.SESSION_SECRET ?? process.env.AUTH_SECRET;
-  if (!clientId || !clientSecret || !sessionSecret || sessionSecret.length < 32) {
-    return NextResponse.redirect(new URL("/login?error=oauth_not_configured", request.url));
-  }
-  if (!process.env.DISCORD_GUILD_ID || !process.env.DISCORD_BOT_TOKEN) {
-    return NextResponse.redirect(new URL("/login?error=guild_check_not_configured", request.url));
+  pruneRateLimitBuckets();
+  const rateLimit = consumeRateLimit({
+    key: `oauth-start:${requestClientIp(request.headers)}`,
+    limit: 20,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return loginRedirect(request, "auth_rate_limited");
   }
 
-  const redirectUri =
-    process.env.DISCORD_REDIRECT_URI ??
-    new URL("/api/auth/discord/callback", request.url).toString();
+  const config = getDiscordOAuthConfig(request.url);
+  if (!config.ok) {
+    return loginRedirect(request, config.error);
+  }
+
   const state = randomBytes(32).toString("base64url");
   const returnTo = request.nextUrl.searchParams.get("returnTo");
   const authorizationUrl = new URL("https://discord.com/oauth2/authorize");
   authorizationUrl.searchParams.set("response_type", "code");
-  authorizationUrl.searchParams.set("client_id", clientId);
+  authorizationUrl.searchParams.set("client_id", config.value.clientId);
   authorizationUrl.searchParams.set("scope", "identify email");
   authorizationUrl.searchParams.set("state", state);
-  authorizationUrl.searchParams.set("redirect_uri", redirectUri);
+  authorizationUrl.searchParams.set("redirect_uri", config.value.redirectUri);
   authorizationUrl.searchParams.set("prompt", "consent");
 
   const response = NextResponse.redirect(authorizationUrl);
+  response.headers.set("Cache-Control", "no-store");
   response.cookies.set("rlca_oauth_state", state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 10 * 60,
+  });
+  response.cookies.set("rlca_oauth_redirect", config.value.redirectUri, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

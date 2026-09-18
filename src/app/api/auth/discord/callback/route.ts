@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
@@ -6,30 +6,32 @@ import { z } from "zod";
 import { getDatabase } from "@/db";
 import { discordMembers, discordRoleSnapshots, users } from "@/db/schema";
 import { fetchDiscord } from "@/services/auth/discord-api";
+import {
+  discordGuildMemberSchema,
+  discordTokenSchema,
+  discordUserSchema,
+  getDiscordOAuthConfig,
+} from "@/services/auth/discord-oauth";
 import { resolveDiscordAccess } from "@/services/auth/discord-roles";
+import { consumeRateLimit, requestClientIp } from "@/services/auth/rate-limit";
 import { createSessionToken, sessionCookie, type AuthenticatedUser } from "@/services/auth/session";
 
 export const runtime = "nodejs";
 
-const tokenSchema = z.object({ access_token: z.string().min(1) });
-const discordUserSchema = z.object({
-  id: z.string().min(1),
-  username: z.string().min(1),
-  global_name: z.string().nullable().optional(),
-  email: z.string().email().nullable().optional(),
-  avatar: z.string().nullable().optional(),
-});
-const guildMemberSchema = z.object({
-  roles: z.array(z.string()),
-  joined_at: z.string().datetime().nullable().optional(),
-});
 type IdentityUser = Omit<AuthenticatedUser, "access" | "rolesCheckedAt">;
 
 function loginError(request: NextRequest, code: string) {
   const response = NextResponse.redirect(new URL(`/login?error=${code}`, request.url));
+  response.headers.set("Cache-Control", "no-store");
   response.cookies.delete("rlca_oauth_state");
   response.cookies.delete("rlca_oauth_return");
+  response.cookies.delete("rlca_oauth_redirect");
   return response;
+}
+
+function validOAuthState(actual: string | null, expected: string | undefined) {
+  if (!actual || !expected || actual.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
 }
 
 async function resolveApplicationUser(profile: z.infer<typeof discordUserSchema>) {
@@ -70,7 +72,9 @@ async function resolveApplicationUser(profile: z.infer<typeof discordUserSchema>
       } satisfies IdentityUser;
     }
 
-    const email = profile.email ?? `discord-${profile.id}@pending.rlca.invalid`;
+    // Discord ID is the only automatic account-link key. Email-based merging
+    // could attach a new Discord identity to a pre-provisioned staff account.
+    const email = `discord-${profile.id}@pending.rlca.invalid`;
     const [user] = await tx
       .insert(users)
       .values({ email, displayName: profile.global_name ?? profile.username })
@@ -144,34 +148,51 @@ async function handleCallback(request: NextRequest) {
   const state = request.nextUrl.searchParams.get("state");
   const expectedState = request.cookies.get("rlca_oauth_state")?.value;
   if (!code) return loginError(request, "missing_code");
-  if (!state || !expectedState || state !== expectedState) {
+  if (!validOAuthState(state, expectedState)) {
     return loginError(request, "invalid_state");
   }
 
-  const clientId = process.env.DISCORD_CLIENT_ID;
-  const clientSecret = process.env.DISCORD_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return loginError(request, "oauth_not_configured");
+  const rateLimit = consumeRateLimit({
+    key: `oauth-callback:${requestClientIp(request.headers)}`,
+    limit: 30,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) return loginError(request, "auth_rate_limited");
 
-  const redirectUri =
-    process.env.DISCORD_REDIRECT_URI ??
-    new URL("/api/auth/discord/callback", request.url).toString();
+  const config = getDiscordOAuthConfig(request.url);
+  if (!config.ok) return loginError(request, config.error);
+  const pinnedRedirectUri = request.cookies.get("rlca_oauth_redirect")?.value;
+  if (!pinnedRedirectUri || pinnedRedirectUri !== config.value.redirectUri) {
+    return loginError(request, "invalid_state");
+  }
+
   const tokenResponse = await fetchDiscord("https://discord.com/api/v10/oauth2/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
+      client_id: config.value.clientId,
+      client_secret: config.value.clientSecret,
       grant_type: "authorization_code",
       code,
-      redirect_uri: redirectUri,
+      redirect_uri: config.value.redirectUri,
     }),
     cache: "no-store",
   });
   if (tokenResponse.status === 429) return loginError(request, "discord_rate_limited");
-  if (tokenResponse.status === 400) return loginError(request, "expired_code");
+  if (tokenResponse.status === 400 || tokenResponse.status === 401) {
+    const tokenError = z
+      .object({ error: z.string().optional() })
+      .safeParse(await tokenResponse.json().catch(() => null));
+    return loginError(
+      request,
+      tokenError.success && tokenError.data.error === "invalid_client"
+        ? "discord_client_invalid"
+        : "oauth_code_invalid",
+    );
+  }
   if (!tokenResponse.ok) return loginError(request, "token_exchange_failed");
 
-  const parsedToken = tokenSchema.safeParse(await tokenResponse.json());
+  const parsedToken = discordTokenSchema.safeParse(await tokenResponse.json());
   if (!parsedToken.success) return loginError(request, "token_exchange_failed");
 
   const userResponse = await fetchDiscord("https://discord.com/api/v10/users/@me", {
@@ -185,26 +206,23 @@ async function handleCallback(request: NextRequest) {
   if (!parsedUser.success) return loginError(request, "discord_api_failed");
 
   let access = resolveDiscordAccess([]);
-  const guildId = process.env.DISCORD_GUILD_ID;
-  const botToken = process.env.DISCORD_BOT_TOKEN;
-  if (!guildId || !botToken) return loginError(request, "guild_check_not_configured");
   const membership = await fetchDiscord(
-    `https://discord.com/api/v10/guilds/${guildId}/members/${parsedUser.data.id}`,
-    { headers: { Authorization: `Bot ${botToken}` }, cache: "no-store" },
+    `https://discord.com/api/v10/guilds/${config.value.guildId}/members/${parsedUser.data.id}`,
+    { headers: { Authorization: `Bot ${config.value.botToken}` }, cache: "no-store" },
   );
   if (membership.status === 404) return loginError(request, "not_guild_member");
   if (membership.status === 429) return loginError(request, "discord_rate_limited");
   if (membership.status === 401 || membership.status === 403) {
-    return loginError(request, "guild_check_not_configured");
+    return loginError(request, "guild_check_failed");
   }
   if (!membership.ok) return loginError(request, "discord_api_failed");
-  const parsedMembership = guildMemberSchema.safeParse(await membership.json());
+  const parsedMembership = discordGuildMemberSchema.safeParse(await membership.json());
   if (!parsedMembership.success) return loginError(request, "discord_api_failed");
   access = resolveDiscordAccess(parsedMembership.data.roles);
   const identity = await resolveApplicationUser(parsedUser.data);
   await persistRoleSnapshot(
     parsedUser.data.id,
-    guildId,
+    config.value.guildId,
     parsedMembership.data.roles,
     parsedMembership.data.joined_at ?? null,
     access,
@@ -218,9 +236,11 @@ async function handleCallback(request: NextRequest) {
   const token = await createSessionToken(user);
   const returnTo = request.cookies.get("rlca_oauth_return")?.value ?? "/";
   const response = NextResponse.redirect(new URL(returnTo, request.url));
+  response.headers.set("Cache-Control", "no-store");
   response.cookies.set(sessionCookie.name, token, sessionCookie.options);
   response.cookies.delete("rlca_oauth_state");
   response.cookies.delete("rlca_oauth_return");
+  response.cookies.delete("rlca_oauth_redirect");
   return response;
 }
 

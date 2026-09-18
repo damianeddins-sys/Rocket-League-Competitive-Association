@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { cookies } from "next/headers";
 import { EncryptJWT, jwtDecrypt } from "jose";
+import { getSessionSecret } from "./discord-oauth";
 import type { DiscordAccess } from "./discord-roles";
 
 const SESSION_COOKIE = "rlca_session";
@@ -17,7 +18,7 @@ export type AuthenticatedUser = {
 };
 
 function sessionKey() {
-  const secret = process.env.SESSION_SECRET ?? process.env.AUTH_SECRET;
+  const secret = getSessionSecret();
   if (!secret || secret.length < 32) {
     throw new Error("SESSION_SECRET or AUTH_SECRET must contain at least 32 characters");
   }

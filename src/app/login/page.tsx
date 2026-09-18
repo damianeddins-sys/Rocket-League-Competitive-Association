@@ -7,15 +7,23 @@ export const metadata: Metadata = { title: "Sign in" };
 
 const errorMessages: Record<string, string> = {
   authorization_denied: "Discord authorization was cancelled.",
+  oauth_error: "Discord rejected the authorization request. Please try again.",
   invalid_state: "The login request expired or could not be verified. Please try again.",
   missing_code: "Discord did not return an authorization code.",
   oauth_not_configured: "Discord login is not configured for this environment.",
+  discord_client_not_configured: "The Discord application credentials are not configured.",
+  discord_client_invalid: "Discord rejected the application credentials. League staff must rotate and update them.",
+  session_not_configured: "Secure website sessions are not configured.",
+  redirect_not_configured: "The Discord callback address is not configured.",
   expired_code: "The Discord authorization code expired. Please sign in again.",
+  oauth_code_invalid: "The Discord login code or callback address is invalid. Please start again.",
   token_exchange_failed: "Discord could not complete the secure code exchange.",
   discord_rate_limited: "Discord is receiving too many requests. Please try again shortly.",
+  auth_rate_limited: "Too many login attempts were made. Please wait before trying again.",
   discord_api_failed: "Discord is temporarily unavailable. Please try again.",
   oauth_callback_failed: "RLCA could not complete login. Please try again or contact league staff.",
   guild_check_not_configured: "RLCA server membership verification is not configured.",
+  guild_check_failed: "RLCA could not verify server membership. League staff must check the bot configuration.",
   not_guild_member: "Join the RLCA Discord server before signing in.",
 };
 

@@ -47,6 +47,8 @@ https://YOUR_DOMAIN/api/auth/discord/callback
 
 Set `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI`, and `SESSION_SECRET` only in local `.env.local` or Vercel Environment Variables. `DISCORD_BOT_TOKEN` is used server-side only when guild membership enforcement is enabled.
 
+Use an explicit `DISCORD_REDIRECT_URI` for production and register that exact value in Discord. Preview deployments should use separate credentials and databases; never expose production Discord secrets or production data to untrusted preview branches. OAuth configuration is trimmed and validated server-side, callback addresses are pinned for the duration of login, and failures identify which configuration boundary needs attention without exposing credential values.
+
 Discord commands use the signed HTTP interactions endpoint, which is compatible with Vercel's serverless runtime and remains available without a permanent Gateway process:
 
 ```text
