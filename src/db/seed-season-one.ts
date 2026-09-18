@@ -6,9 +6,11 @@ import {
   events,
   seasons,
   seasonWeeks,
+  teams,
 } from "./schema";
 import { buildSeasonOneEvents, buildSeasonOneWeeks } from "../services/season-calendar";
 import { DISCORD_CHANNELS } from "../services/discord/channels";
+import { SEASON_ONE_FRANCHISES } from "../services/franchises";
 
 export async function seedSeasonOne(startsAt: Date) {
   const weeks = buildSeasonOneWeeks(startsAt);
@@ -43,6 +45,29 @@ export async function seedSeasonOne(startsAt: Date) {
       .insert(seasonWeeks)
       .values(weeks.map((week) => ({ seasonId: existingSeason.id, ...week })))
       .onConflictDoNothing();
+    for (const franchise of SEASON_ONE_FRANCHISES) {
+      await tx
+        .insert(teams)
+        .values({
+          franchiseNumber: franchise.number,
+          discordFranchiseRoleId: franchise.discordRoleId,
+          name: franchise.name,
+          slug: franchise.slug,
+          shortName: franchise.shortName,
+          primaryColor: franchise.color,
+        })
+        .onConflictDoUpdate({
+          target: teams.franchiseNumber,
+          set: {
+            discordFranchiseRoleId: franchise.discordRoleId,
+            name: franchise.name,
+            slug: franchise.slug,
+            shortName: franchise.shortName,
+            primaryColor: franchise.color,
+            active: true,
+          },
+        });
+    }
     await tx
       .insert(divisions)
       .values([
@@ -84,6 +109,7 @@ export async function seedSeasonOne(startsAt: Date) {
       seasonId: existingSeason.id,
       weeks: weeks.length,
       events: seasonEvents.length,
+      franchises: SEASON_ONE_FRANCHISES.length,
       channels: channelValues.length,
     };
   });

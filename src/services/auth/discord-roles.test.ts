@@ -95,6 +95,23 @@ describe("authoritative Discord role resolver", () => {
     })).toEqual({ allowed: true });
   });
 
+  it("keeps Owner authorization independent from inactive player status", () => {
+    const owner = resolveDiscordAccess([
+      DISCORD_ROLE_IDS.RLCA_LEAGUE_OWNER,
+      DISCORD_ROLE_IDS.INACTIVE_RESERVE,
+    ]);
+    expect(owner.statusRoles).toEqual(["INACTIVE_RESERVE"]);
+    expect(owner.portals).toEqual(expect.arrayContaining([
+      "PLAYER",
+      "SIGN_UP_MANAGER",
+      "FRANCHISE_MANAGER",
+      "LEAGUE_OPERATIONS",
+      "PRODUCTION",
+      "STATISTICS",
+    ]));
+    expect(owner.permissions).toContain("league.full");
+  });
+
   it("resolves tier and official status roles by ID", () => {
     const access = resolveDiscordAccess([
       DISCORD_ROLE_IDS.MASTER_TIER,

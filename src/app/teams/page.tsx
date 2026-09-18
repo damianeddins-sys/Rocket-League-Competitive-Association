@@ -8,6 +8,9 @@ export const dynamic = "force-dynamic";
 
 export default async function TeamsPage() {
   const data = await loadPublicLeagueData();
+  const franchises = data.status === "ready"
+    ? [...data.standings].sort((a, b) => a.franchiseNumber - b.franchiseNumber)
+    : [];
 
   return (
     <div className="min-h-screen bg-[#f4f7fa]">
@@ -27,7 +30,7 @@ export default async function TeamsPage() {
           <LeagueDataState state={data.reason} />
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {data.standings.map((team, index) => (
+            {franchises.map((team) => (
               <Link href={`/teams/${team.slug}`} key={team.id} className="panel overflow-hidden">
                 <div className="h-2" style={{ backgroundColor: team.color }} />
                 <div className="p-6">
@@ -37,7 +40,7 @@ export default async function TeamsPage() {
                   >
                     {team.shortName}
                   </span>
-                  <p className="eyebrow mt-5 text-slate-400">Seed {index + 1}</p>
+                  <p className="eyebrow mt-5 text-slate-400">Official franchise {team.franchiseNumber}</p>
                   <h2 className="mt-1 text-xl font-black text-[#0b1f3a]">{team.name}</h2>
                   <p className="mt-1 text-sm font-semibold text-slate-500">
                     {team.wins}–{team.losses} · {team.points} points

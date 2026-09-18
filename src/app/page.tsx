@@ -16,7 +16,7 @@ export default async function Home() {
     <>
       <section className="hero-grid relative overflow-hidden bg-[#0b1f3a] text-white">
         <Image
-          src="/branding/rlca-primary-logo-final.png"
+          src="/branding/rlca-primary-logo-v4.png"
           alt=""
           width={700}
           height={700}

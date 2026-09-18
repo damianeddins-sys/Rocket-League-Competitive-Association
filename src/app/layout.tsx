@@ -13,6 +13,7 @@ const navigation = [
   ["Players", "/players"],
   ["Events", "/events"],
   ["Coach", "/coach"],
+  ["Applications", "/applications"],
   ["League", "/league"],
 ] as const;
 
@@ -45,7 +46,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <div className="mx-auto flex h-18 max-w-7xl items-center gap-7 px-5 lg:px-8">
             <Link href="/" className="mr-auto flex items-center gap-3" aria-label="RLCA home">
               <Image
-                src="/branding/rlca-primary-logo-final.png"
+                src="/branding/rlca-primary-logo-v4.png"
                 alt="RLCA"
                 width={92}
                 height={92}
@@ -58,7 +59,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 Competitive Association
               </span>
             </Link>
-            <nav className="hidden items-center gap-6 text-sm font-semibold text-slate-200 md:flex">
+            <nav className="hidden items-center gap-4 text-xs font-semibold text-slate-200 xl:gap-6 xl:text-sm md:flex">
               {navigation.map(([label, href]) => (
                 <Link key={href} href={href} className="hover:text-white">
                   {label}
@@ -81,7 +82,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 <Link href="/login" className="px-2 py-2 text-sm font-bold text-slate-200">
                   Sign in
                 </Link>
-                <Link href="/signup" className="rounded-md bg-[#1677ff] px-4 py-2 text-sm font-bold">
+                <Link href="/applications" className="rounded-md bg-[#1677ff] px-4 py-2 text-sm font-bold">
                   Join RLCA
                 </Link>
               </div>
@@ -116,7 +117,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                       <Link href="/login" className="rounded-lg border border-white/15 px-4 py-3 text-center text-sm font-bold">
                         Sign in
                       </Link>
-                      <Link href="/signup" className="rounded-lg bg-[#1677ff] px-4 py-3 text-center text-sm font-bold">
+                      <Link href="/applications" className="rounded-lg bg-[#1677ff] px-4 py-3 text-center text-sm font-bold">
                         Join RLCA
                       </Link>
                     </>
@@ -130,7 +131,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <footer className="bg-[#07172b] text-slate-300">
           <div className="mx-auto grid max-w-7xl gap-8 px-5 py-10 sm:grid-cols-2 lg:px-8">
             <div>
-              <Image src="/branding/rlca-primary-logo-final.png" alt="" width={120} height={120} className="h-14 w-auto" />
+              <Image src="/branding/rlca-primary-logo-v4.png" alt="" width={120} height={120} className="h-14 w-auto" />
               <p className="mt-3 max-w-md text-sm leading-6">
                 One league. One official record. Built for competitive Rocket League 2v2.
               </p>

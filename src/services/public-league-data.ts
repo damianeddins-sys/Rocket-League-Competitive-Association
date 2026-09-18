@@ -8,9 +8,12 @@ import {
   seasonWeeks,
   teams,
 } from "../db/schema";
+import { competitionEvent } from "./competition-events";
+import { seasonOneFranchise } from "./franchises";
 
 export type PublicTeamStanding = {
   id: string;
+  franchiseNumber: number;
   slug: string;
   name: string;
   shortName: string;
@@ -45,7 +48,20 @@ export type PublicEvent = {
   name: string;
   startsAt: string;
   endsAt: string;
-  state: "UPCOMING" | "ACTIVE" | "COMPLETE";
+  startWeek: number;
+  endWeek: number;
+  teams: number;
+  award: string;
+  format: string;
+  slug: string;
+  state: "UPCOMING" | "ACTIVE" | "COMPLETE" | "QUALIFICATION_LOCKED";
+};
+
+export type PublicSeasonWeek = {
+  number: number;
+  phase: string;
+  startsAt: string;
+  endsAt: string;
 };
 
 export type PublicLeagueData =
@@ -53,6 +69,7 @@ export type PublicLeagueData =
       status: "ready";
       season: { id: string; name: string; slug: string };
       currentWeek: { number: number; phase: string } | null;
+      weeks: PublicSeasonWeek[];
       standings: PublicTeamStanding[];
       matches: PublicMatch[];
       events: PublicEvent[];
@@ -61,7 +78,13 @@ export type PublicLeagueData =
   | { status: "unavailable"; reason: "DATABASE_NOT_CONFIGURED" | "DATABASE_UNAVAILABLE" }
   | { status: "empty"; reason: "NO_ACTIVE_SEASON" };
 
-function eventState(startsAt: Date, endsAt: Date, now: Date): PublicEvent["state"] {
+function eventState(
+  startsAt: Date,
+  endsAt: Date,
+  now: Date,
+  bracketLockedAt: Date | null,
+): PublicEvent["state"] {
+  if (bracketLockedAt && now < startsAt) return "QUALIFICATION_LOCKED";
   if (now < startsAt) return "UPCOMING";
   if (now > endsAt) return "COMPLETE";
   return "ACTIVE";
@@ -107,13 +130,17 @@ export async function loadPublicLeagueData(now = new Date()): Promise<PublicLeag
     }
 
     const standingMap = new Map<string, PublicTeamStanding>(
-      teamRows.map((team) => [
-        team.id,
-        {
+      teamRows.flatMap((team) => {
+        const franchise = seasonOneFranchise(team.franchiseNumber);
+        if (!franchise) return [];
+        return [[
+          team.id,
+          {
           id: team.id,
-          slug: team.slug,
-          name: team.name,
-          shortName: team.shortName,
+          franchiseNumber: franchise.number,
+          slug: franchise.slug,
+          name: franchise.name,
+          shortName: franchise.shortName,
           color: team.primaryColor,
           logoUrl: team.logoUrl,
           wins: 0,
@@ -124,8 +151,9 @@ export async function loadPublicLeagueData(now = new Date()): Promise<PublicLeag
           gameDifferential: 0,
           points: pointTotals.get(team.id) ?? 0,
           status: "ACTIVE",
-        },
-      ]),
+          },
+        ] as const];
+      }),
     );
 
     for (const match of matchRows) {
@@ -210,16 +238,32 @@ export async function loadPublicLeagueData(now = new Date()): Promise<PublicLeag
       currentWeek: currentWeek
         ? { number: currentWeek.weekNumber, phase: currentWeek.phase }
         : null,
+      weeks: weekRows.map((week) => ({
+        number: week.weekNumber,
+        phase: week.phase,
+        startsAt: week.startsAt.toISOString(),
+        endsAt: week.endsAt.toISOString(),
+      })),
       standings,
       matches: publicMatches,
-      events: eventRows.map((event) => ({
-        id: event.id,
-        type: event.type,
-        name: event.name,
-        startsAt: event.startsAt.toISOString(),
-        endsAt: event.endsAt.toISOString(),
-        state: eventState(event.startsAt, event.endsAt, now),
-      })),
+      events: eventRows.flatMap((event) => {
+        const presentation = competitionEvent(event.type);
+        if (!presentation) return [];
+        return [{
+          id: event.id,
+          type: event.type,
+          name: presentation.name,
+          startsAt: event.startsAt.toISOString(),
+          endsAt: event.endsAt.toISOString(),
+          startWeek: presentation.startWeek,
+          endWeek: presentation.endWeek,
+          teams: presentation.teams,
+          award: presentation.award,
+          format: presentation.format,
+          slug: presentation.slug,
+          state: eventState(event.startsAt, event.endsAt, now, event.bracketLockedAt),
+        }];
+      }),
       updatedAt: now.toISOString(),
     };
   } catch {
