@@ -43,7 +43,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           <div className="absolute -right-28 -top-24 h-80 w-80 rounded-full bg-blue-500/15 blur-3xl" />
           <div className="relative">
             <Image
-              src="/branding/rlca-primary-logo-v4.png"
+              src="/branding/rlca-logo-transparent.png"
               alt="RLCA"
               width={260}
               height={260}

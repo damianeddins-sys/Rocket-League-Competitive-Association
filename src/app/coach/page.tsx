@@ -1,45 +1,137 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BrainCircuit, Goal, LineChart, Video } from "lucide-react";
+import { BrainCircuit, CheckCircle2, Clock3, Goal, LineChart, LockKeyhole, Video } from "lucide-react";
+import { CoachReplayUploader } from "@/components/coach-replay-uploader";
+import { getSession } from "@/services/auth/session";
+import { loadCoachData } from "@/services/coach-data";
 
 export const metadata: Metadata = { title: "Coach" };
 
-export default function CoachPage() {
+const features = [
+  [Video, "Replay evidence", "Upload and track replays with timestamped observations."],
+  [Goal, "Rank goals", "Choose improvement, Champion, GC, SSL, or a custom direction—not a guarantee."],
+  [LineChart, "Progress trends", "Compare early and recent analyzed matches using durable metrics."],
+  [BrainCircuit, "Supported guidance", "Every specific coaching claim must point back to replay evidence."],
+] as const;
+
+export default async function CoachPage() {
+  const session = await getSession();
+  const coach = session?.user ? await loadCoachData(session.user.id) : null;
+
   return (
     <div className="min-h-screen bg-[#f4f7fa]">
       <section className="bg-[#0b1f3a] px-5 py-16 text-white">
         <div className="mx-auto max-w-6xl">
           <p className="eyebrow text-blue-300">Replay evidence · Player progress</p>
-          <h1 className="mt-3 max-w-3xl text-5xl font-black">RLCA Coach</h1>
+          <h1 className="mt-3 max-w-3xl text-5xl font-black tracking-tight">RLCA Coach</h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
             Evidence-based coaching built from your analyzed Rocket League replays—not generic promises or invented statistics.
           </p>
+          {session?.user && (
+            <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-4 py-2 text-xs font-black text-emerald-200">
+              <CheckCircle2 size={15} /> Player workspace active for {session.user.name}
+            </div>
+          )}
         </div>
       </section>
-      <section className="mx-auto grid max-w-6xl gap-5 px-5 py-14 md:grid-cols-2">
-        {[
-          [Video, "Replay evidence", "Upload and track replays with timestamped observations."],
-          [Goal, "Rank goals", "Choose improvement, Champion, GC, or SSL as a direction—not a guarantee."],
-          [LineChart, "Progress trends", "Compare early and recent analyzed matches using durable metrics."],
-          [BrainCircuit, "Supported guidance", "Every strong coaching claim must point back to available evidence."],
-        ].map(([Icon, title, text]) => {
+      <section className="mx-auto max-w-7xl px-5 py-14 lg:px-8">
+        {!session?.user ? (
+          <>
+            <div className="grid gap-5 md:grid-cols-2">
+              {features.map(([Icon, title, text]) => {
+                const FeatureIcon = Icon as typeof Video;
+                return (
+                  <article key={title} className="panel p-7">
+                    <FeatureIcon className="text-[#1683ff]" />
+                    <h2 className="mt-5 text-xl font-black text-[#081e3a]">{title}</h2>
+                    <p className="mt-3 leading-7 text-slate-600">{text}</p>
+                  </article>
+                );
+              })}
+            </div>
+            <div className="panel mt-5 p-8 text-center">
+              <LockKeyhole className="mx-auto text-[#1683ff]" />
+              <h2 className="mt-4 text-2xl font-black text-[#081e3a]">Your private development workspace</h2>
+              <p className="mt-2 text-slate-600">Sign in to view your own replays, evidence, goals, and progress.</p>
+              <Link href="/login?returnTo=/coach" className="mt-6 inline-flex rounded-lg bg-[#1683ff] px-5 py-3 font-bold text-white">
+                Sign in with Discord
+              </Link>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="grid gap-5 sm:grid-cols-3">
+              {[
+                ["Skill baseline", "Awaiting verified replay metrics"],
+                ["Current goal", "Set after player profile activation"],
+                ["Replays analyzed", coach?.status === "READY" ? String(coach.replays.filter((replay) => replay.status === "COMPLETE").length) : "—"],
+              ].map(([label, value]) => (
+                <div key={label} className="panel p-6">
+                  <p className="eyebrow text-slate-400">{label}</p>
+                  <p className="mt-3 text-lg font-black text-[#081e3a]">{value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 grid gap-6 lg:grid-cols-[1.05fr_.95fr]">
+              <section id="replays" className="panel p-6 sm:p-8">
+                <p className="eyebrow text-[#1683ff]">Replay pipeline</p>
+                <h2 className="mt-2 text-2xl font-black text-[#081e3a]">Evidence library</h2>
+                {coach?.status === "READY" ? (
+                  <>
+                    <div className="mt-6"><CoachReplayUploader /></div>
+                    <div className="mt-7 space-y-3">
+                      {coach.replays.map((replay) => (
+                        <div key={replay.id} className="flex items-center justify-between rounded-lg border border-slate-200 p-4">
+                          <div>
+                            <p className="font-mono text-xs font-bold text-slate-500">{replay.id.slice(0, 8)}</p>
+                            <p className="mt-1 text-sm text-slate-600">{new Date(replay.submittedAt).toLocaleString()}</p>
+                          </div>
+                          <span className="rounded-full bg-blue-50 px-3 py-1.5 text-[10px] font-black text-blue-700">{replay.status}</span>
+                        </div>
+                      ))}
+                      {coach.replays.length === 0 && (
+                        <p className="rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-500">No replay evidence submitted yet.</p>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-5">
+                    <p className="font-bold text-amber-950">
+                      {coach?.status === "PLAYER_PROFILE_REQUIRED"
+                        ? "A verified RLCA player profile is required before replay uploads."
+                        : coach?.status === "DATABASE_NOT_CONFIGURED"
+                          ? "The Coach database is not configured."
+                          : "Coach data is temporarily unavailable."}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-amber-800">Your Coach tab remains available; the missing backend dependency is shown instead of hiding it.</p>
+                  </div>
+                )}
+              </section>
+
+              <section id="progress" className="panel p-6 sm:p-8">
+                <p className="eyebrow text-[#1683ff]">Player development</p>
+                <h2 className="mt-2 text-2xl font-black text-[#081e3a]">Focus and progress</h2>
+                <div className="mt-6 space-y-4">
+                  {features.slice(1).map(([Icon, title, text]) => {
           const FeatureIcon = Icon as typeof Video;
           return (
-            <article key={title as string} className="panel p-7">
-              <FeatureIcon className="text-[#1677ff]" />
-              <h2 className="mt-5 text-xl font-black text-[#0b1f3a]">{title as string}</h2>
-              <p className="mt-3 leading-7 text-slate-600">{text as string}</p>
-            </article>
+                      <article key={title} className="rounded-lg border border-slate-200 p-5">
+                        <FeatureIcon className="text-[#1683ff]" size={20} />
+                        <h3 className="mt-3 font-black text-[#081e3a]">{title}</h3>
+                        <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
+                      </article>
           );
         })}
-        <div className="panel p-8 text-center md:col-span-2">
-          <p className="font-semibold text-slate-600">
-            Replay processing is not configured yet. No coaching report will be generated without verified replay evidence.
-          </p>
-          <Link href="/login?returnTo=/coach" className="mt-6 inline-flex rounded-md bg-[#1677ff] px-5 py-3 font-bold text-white">
-            Sign in with Discord
-          </Link>
-        </div>
+                </div>
+                <div className="mt-6 flex items-start gap-3 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
+                  <Clock3 className="shrink-0 text-slate-400" size={18} />
+                  Trend comparisons appear only after multiple successfully analyzed replays.
+                </div>
+              </section>
+            </div>
+          </>
+        )}
       </section>
     </div>
   );

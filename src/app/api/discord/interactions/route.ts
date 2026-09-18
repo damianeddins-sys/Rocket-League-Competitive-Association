@@ -3,14 +3,15 @@ import {
   respondToDiscordInteraction,
   verifyDiscordInteraction,
 } from "@/services/discord/interactions";
+import { getDiscordBotHealth } from "@/services/discord/bot-health";
 
 export const runtime = "nodejs";
 
-export function GET() {
-  return NextResponse.json({
-    status: "online",
-    mode: "discord-interactions",
-    configured: Boolean(process.env.DISCORD_PUBLIC_KEY),
+export async function GET() {
+  const health = await getDiscordBotHealth();
+  return NextResponse.json(health, {
+    status: health.status === "HEALTHY" ? 200 : 503,
+    headers: { "Cache-Control": "no-store" },
   });
 }
 

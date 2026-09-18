@@ -1,9 +1,15 @@
 import { authorizeAccess, fetchLiveDiscordAccess } from "./authorization";
-import type { Portal } from "./discord-roles";
+import type { Permission, Portal } from "./discord-roles";
 import { getSession } from "./session";
 
 export type PortalAccessResult =
-  | { allowed: true; userId: string; franchiseNumber: number | null }
+  | {
+      allowed: true;
+      userId: string;
+      franchiseNumber: number | null;
+      portals: Portal[];
+      permissions: Permission[];
+    }
   | { allowed: false; code: string; reason: string };
 
 export async function checkPortalAccess(
@@ -23,6 +29,8 @@ export async function checkPortalAccess(
       allowed: true,
       userId: session.user.id,
       franchiseNumber: liveAccess.franchiseNumber,
+      portals: liveAccess.portals,
+      permissions: liveAccess.permissions,
     };
   } catch {
     return {

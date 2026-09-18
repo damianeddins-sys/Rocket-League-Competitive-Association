@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, CalendarDays, LockKeyhole, Play, Trophy } from "lucide-react";
+import { ArrowRight, BrainCircuit, CalendarDays, Gavel, LockKeyhole, Play, ScanSearch, Trophy, UserPlus } from "lucide-react";
 import { LeagueDataState } from "@/components/league-data-state";
 import { loadPublicLeagueData } from "@/services/public-league-data";
 
@@ -16,7 +16,7 @@ export default async function Home() {
     <>
       <section className="hero-grid relative overflow-hidden bg-[#0b1f3a] text-white">
         <Image
-          src="/branding/rlca-primary-logo-v4.png"
+          src="/branding/rlca-logo-transparent.png"
           alt=""
           width={700}
           height={700}
@@ -141,6 +141,54 @@ export default async function Home() {
       </section>
 
       <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
+        <div className="max-w-2xl">
+          <p className="eyebrow text-[#1683ff]">The RLCA journey</p>
+          <h2 className="mt-2 text-3xl font-black tracking-tight text-[#081e3a] sm:text-4xl">
+            A clear path from application to Championship.
+          </h2>
+          <p className="mt-4 leading-7 text-slate-600">
+            Registration, verified placement, franchise competition, and every postseason event share one official league record.
+          </p>
+        </div>
+        <div className="mt-9 grid gap-4 md:grid-cols-4">
+          {[
+            [UserPlus, "01", "Apply", "Connect Discord and enter the correct Player, GM/AGM, or Staff path."],
+            [ScanSearch, "02", "Verify & place", "Complete ranked evidence and Combine review for an official tier."],
+            [Gavel, "03", "Draft & compete", "Join one of eight franchises and play two official Sunday series."],
+            [Trophy, "04", "Qualify", "Earn points through weekly play, Majors, Last Chance, and Championship."],
+          ].map(([Icon, step, title, text]) => {
+            const JourneyIcon = Icon as typeof UserPlus;
+            return (
+              <article key={step as string} className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-6">
+                <span className="absolute right-4 top-2 text-5xl font-black text-slate-100">{step as string}</span>
+                <JourneyIcon className="relative text-[#1683ff]" size={23} />
+                <h3 className="relative mt-7 text-lg font-black text-[#081e3a]">{title as string}</h3>
+                <p className="relative mt-2 text-sm leading-6 text-slate-600">{text as string}</p>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="bg-[#061426] text-white">
+        <div className="hero-grid mx-auto grid max-w-7xl gap-10 px-5 py-16 lg:grid-cols-[.85fr_1.15fr] lg:items-center lg:px-8">
+          <div className="flex h-64 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+            <BrainCircuit className="text-blue-300" size={92} strokeWidth={1.2} />
+          </div>
+          <div>
+            <p className="eyebrow text-blue-300">Signature player product</p>
+            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Coach turns replay evidence into a development plan.</h2>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
+              Upload your own replays, track processing, review timestamped observations, and compare trends without invented statistics or rank guarantees.
+            </p>
+            <Link href="/coach" className="mt-7 inline-flex items-center gap-2 rounded-lg bg-[#1683ff] px-5 py-3 font-black">
+              Explore RLCA Coach <ArrowRight size={17} />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
         <div className="overflow-hidden rounded-xl bg-[#1677ff] px-7 py-10 text-white sm:px-12 sm:py-14">
           <p className="eyebrow text-blue-100">Your path starts here</p>
           <div className="mt-3 flex flex-col justify-between gap-7 sm:flex-row sm:items-end">
@@ -148,7 +196,7 @@ export default async function Home() {
               <h2 className="max-w-2xl text-3xl font-black tracking-tight sm:text-4xl">Ready to compete in RLCA 2v2?</h2>
               <p className="mt-3 max-w-2xl text-blue-100">Register, verify 75 ranked games across 21 days, and earn your place in the Combine.</p>
             </div>
-            <Link href="/signup" className="shrink-0 rounded-md bg-white px-5 py-3 font-bold text-[#0b1f3a]">Start registration</Link>
+            <Link href="/applications" className="shrink-0 rounded-md bg-white px-5 py-3 font-bold text-[#0b1f3a]">Choose application</Link>
           </div>
         </div>
       </section>

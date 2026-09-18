@@ -3,9 +3,13 @@
 :root {
   --background: #ffffff;
   --foreground: #122033;
-  --navy: #0b1f3a;
-  --blue: #1677ff;
-  --silver: #a8b3c2;
+  --navy: #081e3a;
+  --deep-navy: #061426;
+  --blue: #1683ff;
+  --bright-blue: #2c8cff;
+  --silver: #c9d2dc;
+  --soft-background: #f3f6fa;
+  --border: #d7dfe8;
 }
 
 @theme inline {
@@ -47,10 +51,19 @@ button:focus-visible {
 }
 
 .panel {
-  border: 1px solid #e2e8f0;
-  border-radius: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
   background: white;
-  box-shadow: 0 8px 30px rgb(15 23 42 / 0.06);
+  box-shadow: 0 10px 35px rgb(6 20 38 / 0.055);
+}
+
+a.panel {
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+a.panel:hover {
+  border-color: rgb(22 131 255 / 0.45);
+  box-shadow: 0 18px 45px rgb(6 20 38 / 0.11);
 }
 
 .hero-grid {

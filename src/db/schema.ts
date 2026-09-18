@@ -668,7 +668,8 @@ export const replays = pgTable(
   "replays",
   {
     id: id(),
-    matchId: uuid("match_id").notNull().references(() => matches.id),
+    matchId: uuid("match_id").references(() => matches.id),
+    playerId: uuid("player_id").references(() => players.id),
     submittedBy: uuid("submitted_by").notNull().references(() => users.id),
     contentHash: text("content_hash").notNull(),
     storageKey: text("storage_key").notNull(),
@@ -680,7 +681,10 @@ export const replays = pgTable(
     deletionBatchId: uuid("deletion_batch_id"),
     submittedAt: createdAt(),
   },
-  (table) => [uniqueIndex("replay_content_hash").on(table.contentHash)],
+  (table) => [
+    uniqueIndex("replay_content_hash").on(table.contentHash),
+    index("replay_player_status").on(table.playerId, table.status, table.submittedAt),
+  ],
 );
 
 export const replayAnalyses = pgTable("replay_analyses", {

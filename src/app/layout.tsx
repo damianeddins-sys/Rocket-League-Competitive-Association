@@ -12,9 +12,17 @@ const navigation = [
   ["Teams", "/teams"],
   ["Players", "/players"],
   ["Events", "/events"],
-  ["Coach", "/coach"],
   ["Applications", "/applications"],
   ["League", "/league"],
+] as const;
+
+const playerNavigation = [
+  ["Dashboard", "/dashboard"],
+  ["My Team", "/teams"],
+  ["My Stats", "/players"],
+  ["Coach", "/coach"],
+  ["Replays", "/coach#replays"],
+  ["Progress", "/coach#progress"],
 ] as const;
 
 const geistSans = Geist({
@@ -38,6 +46,17 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const session = await getSession();
+  const hasOperations = session?.user.access.portals.some((portal) => portal !== "PLAYER") ?? false;
+  const isOwner = session?.user.access.permissions.includes("league.full") ?? false;
+  const operationsHref = session?.user.access.portals.includes("LEAGUE_OPERATIONS")
+    ? "/operations"
+    : session?.user.access.portals.includes("SIGN_UP_MANAGER")
+      ? "/operations/signup"
+      : session?.user.access.portals.includes("FRANCHISE_MANAGER")
+        ? "/operations/franchise"
+        : session?.user.access.portals.includes("STATISTICS")
+          ? "/operations/statistics"
+          : "/operations/production";
 
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
@@ -46,7 +65,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <div className="mx-auto flex h-18 max-w-7xl items-center gap-7 px-5 lg:px-8">
             <Link href="/" className="mr-auto flex items-center gap-3" aria-label="RLCA home">
               <Image
-                src="/branding/rlca-primary-logo-v4.png"
+                src="/branding/rlca-logo-transparent.png"
                 alt="RLCA"
                 width={92}
                 height={92}
@@ -71,6 +90,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 <span className="hidden text-sm font-semibold sm:inline">
                   {session.user.name ?? "Discord member"}
                 </span>
+                {isOwner && (
+                  <span className="rounded-full bg-blue-500/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-blue-200">
+                    Owner
+                  </span>
+                )}
                 <form action="/api/auth/logout" method="post">
                   <button className="rounded-md border border-white/20 px-4 py-2 text-sm font-bold">
                     Sign out
@@ -106,6 +130,18 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                       <p className="px-4 py-2 text-sm font-semibold text-slate-300">
                         {session.user.name ?? "Discord member"}
                       </p>
+                      <div className="border-y border-white/10 py-2">
+                        {playerNavigation.map(([label, href]) => (
+                          <Link key={href} href={href} className="block rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/10">
+                            {label}
+                          </Link>
+                        ))}
+                        {hasOperations && (
+                          <Link href={operationsHref} className="mt-1 block rounded-lg bg-blue-500/15 px-4 py-2.5 text-sm font-black text-blue-200">
+                            Operations {isOwner ? "· Owner" : ""}
+                          </Link>
+                        )}
+                      </div>
                       <form action="/api/auth/logout" method="post">
                         <button className="w-full rounded-lg border border-white/15 px-4 py-3 text-sm font-bold">
                           Sign out
@@ -126,12 +162,29 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               </div>
             </details>
           </div>
+          {session?.user && (
+            <div className="hidden border-t border-white/10 bg-[#061426]/95 md:block">
+              <div className="mx-auto flex h-11 max-w-7xl items-center gap-1 px-5 lg:px-8">
+                <span className="mr-3 text-[10px] font-black uppercase tracking-[0.18em] text-blue-300">Player</span>
+                {playerNavigation.map(([label, href]) => (
+                  <Link key={href} href={href} className="rounded-md px-3 py-2 text-xs font-bold text-slate-300 hover:bg-white/10 hover:text-white">
+                    {label}
+                  </Link>
+                ))}
+                {hasOperations && (
+                  <Link href={operationsHref} className="ml-auto rounded-md bg-blue-500/15 px-3 py-2 text-xs font-black text-blue-200 hover:bg-blue-500/25">
+                    Operations {isOwner ? "· Owner" : ""}
+                  </Link>
+                )}
+              </div>
+            </div>
+          )}
         </header>
         <main className="page-enter">{children}</main>
         <footer className="bg-[#07172b] text-slate-300">
           <div className="mx-auto grid max-w-7xl gap-8 px-5 py-10 sm:grid-cols-2 lg:px-8">
             <div>
-              <Image src="/branding/rlca-primary-logo-v4.png" alt="" width={120} height={120} className="h-14 w-auto" />
+              <Image src="/branding/rlca-logo-transparent.png" alt="" width={120} height={120} className="h-14 w-auto" />
               <p className="mt-3 max-w-md text-sm leading-6">
                 One league. One official record. Built for competitive Rocket League 2v2.
               </p>

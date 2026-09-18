@@ -57,6 +57,13 @@
       "when": 1789767891138,
       "tag": "0007_free_felicia_hardy",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789774670918,
+      "tag": "0008_hesitant_ultimates",
+      "breakpoints": true
     }
   ]
 }
