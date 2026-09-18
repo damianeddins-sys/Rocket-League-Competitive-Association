@@ -47,6 +47,20 @@ https://YOUR_DOMAIN/api/auth/discord/callback
 
 Set `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI`, and `SESSION_SECRET` only in local `.env.local` or Vercel Environment Variables. `DISCORD_BOT_TOKEN` is used server-side only when guild membership enforcement is enabled.
 
+Discord commands use the signed HTTP interactions endpoint, which is compatible with Vercel's serverless runtime and remains available without a permanent Gateway process:
+
+```text
+https://YOUR_DOMAIN/api/discord/interactions
+```
+
+Set that URL as the Discord application's **Interactions Endpoint URL**, configure `DISCORD_PUBLIC_KEY`, and register the initial guild commands from a protected local environment:
+
+```bash
+npm run discord:register
+```
+
+The included `/status`, `/standings`, `/schedule`, and `/help` commands wake the Vercel function on demand. Vercel cannot maintain a continuous Discord Gateway connection or green presence indicator; features requiring Gateway events must run in a separate persistent worker.
+
 Replay uploads will use Vercel Blob through `BLOB_READ_WRITE_TOKEN`. As of September 2026, Vercel Hobby includes 1 GB-month of Blob storage, 10,000 simple operations, 2,000 advanced operations, and 10 GB of transfer per month. Hobby access pauses when limits are exceeded rather than generating overage charges.
 
 ## Architecture
