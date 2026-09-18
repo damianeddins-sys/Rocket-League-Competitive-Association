@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDatabase } from "@/db";
 import { discordMembers, discordRoleSnapshots, users } from "@/db/schema";
+import { fetchDiscord } from "@/services/auth/discord-api";
 import { resolveDiscordAccess } from "@/services/auth/discord-roles";
 import { createSessionToken, sessionCookie, type AuthenticatedUser } from "@/services/auth/session";
 
@@ -18,7 +19,10 @@ const discordUserSchema = z.object({
   email: z.string().email().nullable().optional(),
   avatar: z.string().nullable().optional(),
 });
-const guildMemberSchema = z.object({ roles: z.array(z.string()) });
+const guildMemberSchema = z.object({
+  roles: z.array(z.string()),
+  joined_at: z.string().datetime().nullable().optional(),
+});
 type IdentityUser = Omit<AuthenticatedUser, "access" | "rolesCheckedAt">;
 
 function loginError(request: NextRequest, code: string) {
@@ -98,6 +102,7 @@ async function persistRoleSnapshot(
   discordUserId: string,
   guildId: string,
   roleIds: string[],
+  joinedAt: string | null,
   resolvedAccess: ReturnType<typeof resolveDiscordAccess>,
 ) {
   if (!process.env.DATABASE_URL) return;
@@ -121,7 +126,12 @@ async function persistRoleSnapshot(
     });
     await tx
       .update(discordMembers)
-      .set({ lastRoleSyncAt: new Date() })
+      .set({
+        roleIds: normalizedRoleIds,
+        rolesFetchedAt: new Date(),
+        lastRoleSyncAt: new Date(),
+        ...(joinedAt ? { guildMemberSince: new Date(joinedAt) } : {}),
+      })
       .where(eq(discordMembers.id, member.id));
   });
 }
@@ -145,7 +155,7 @@ async function handleCallback(request: NextRequest) {
   const redirectUri =
     process.env.DISCORD_REDIRECT_URI ??
     new URL("/api/auth/discord/callback", request.url).toString();
-  const tokenResponse = await fetch("https://discord.com/api/v10/oauth2/token", {
+  const tokenResponse = await fetchDiscord("https://discord.com/api/v10/oauth2/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -157,15 +167,18 @@ async function handleCallback(request: NextRequest) {
     }),
     cache: "no-store",
   });
+  if (tokenResponse.status === 429) return loginError(request, "discord_rate_limited");
+  if (tokenResponse.status === 400) return loginError(request, "expired_code");
   if (!tokenResponse.ok) return loginError(request, "token_exchange_failed");
 
   const parsedToken = tokenSchema.safeParse(await tokenResponse.json());
   if (!parsedToken.success) return loginError(request, "token_exchange_failed");
 
-  const userResponse = await fetch("https://discord.com/api/v10/users/@me", {
+  const userResponse = await fetchDiscord("https://discord.com/api/v10/users/@me", {
     headers: { Authorization: `Bearer ${parsedToken.data.access_token}` },
     cache: "no-store",
   });
+  if (userResponse.status === 429) return loginError(request, "discord_rate_limited");
   if (!userResponse.ok) return loginError(request, "discord_api_failed");
 
   const parsedUser = discordUserSchema.safeParse(await userResponse.json());
@@ -175,23 +188,28 @@ async function handleCallback(request: NextRequest) {
   const guildId = process.env.DISCORD_GUILD_ID;
   const botToken = process.env.DISCORD_BOT_TOKEN;
   if (!guildId || !botToken) return loginError(request, "guild_check_not_configured");
-  const membership = await fetch(
+  const membership = await fetchDiscord(
     `https://discord.com/api/v10/guilds/${guildId}/members/${parsedUser.data.id}`,
     { headers: { Authorization: `Bot ${botToken}` }, cache: "no-store" },
   );
   if (membership.status === 404) return loginError(request, "not_guild_member");
+  if (membership.status === 429) return loginError(request, "discord_rate_limited");
+  if (membership.status === 401 || membership.status === 403) {
+    return loginError(request, "guild_check_not_configured");
+  }
   if (!membership.ok) return loginError(request, "discord_api_failed");
   const parsedMembership = guildMemberSchema.safeParse(await membership.json());
   if (!parsedMembership.success) return loginError(request, "discord_api_failed");
   access = resolveDiscordAccess(parsedMembership.data.roles);
+  const identity = await resolveApplicationUser(parsedUser.data);
   await persistRoleSnapshot(
     parsedUser.data.id,
     guildId,
     parsedMembership.data.roles,
+    parsedMembership.data.joined_at ?? null,
     access,
   );
 
-  const identity = await resolveApplicationUser(parsedUser.data);
   const user: AuthenticatedUser = {
     ...identity,
     access,

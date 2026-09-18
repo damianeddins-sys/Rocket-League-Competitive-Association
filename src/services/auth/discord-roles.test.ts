@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authorizeAccess } from "./authorization";
+import { authorizeAccess, authorizeFranchiseAction } from "./authorization";
 import {
   DISCORD_ROLE_IDS,
   planDiscordRoleSync,
@@ -43,6 +43,28 @@ describe("authoritative Discord role resolver", () => {
       permission: "franchise.submit_transaction",
       franchiseNumber: 1,
     })).toMatchObject({ allowed: false, code: "AMBIGUOUS_FRANCHISE" });
+  });
+
+  it("requires Discord scope and an official database assignment for franchise writes", () => {
+    const access = resolveDiscordAccess([
+      DISCORD_ROLE_IDS.GM,
+      DISCORD_ROLE_IDS.FRANCHISE_3,
+    ]);
+    expect(authorizeFranchiseAction(
+      access,
+      { permission: "franchise.submit_transaction", franchiseNumber: 3 },
+      [3],
+    )).toEqual({ allowed: true });
+    expect(authorizeFranchiseAction(
+      access,
+      { permission: "franchise.submit_transaction", franchiseNumber: 3 },
+      [4],
+    )).toMatchObject({ allowed: false, code: "FRANCHISE_ASSIGNMENT_DENIED" });
+    expect(authorizeFranchiseAction(
+      access,
+      { permission: "franchise.submit_transaction", franchiseNumber: 4 },
+      [4],
+    )).toMatchObject({ allowed: false, code: "FRANCHISE_SCOPE_DENIED" });
   });
 
   it("allows captains to report matches but never submit roster transactions", () => {

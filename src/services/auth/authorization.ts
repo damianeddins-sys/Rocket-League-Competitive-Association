@@ -5,6 +5,7 @@ import {
   type Permission,
   type Portal,
 } from "./discord-roles";
+import { fetchDiscord } from "./discord-api";
 import type { AuthenticatedUser } from "./session";
 
 const guildMemberSchema = z.object({ roles: z.array(z.string()) });
@@ -44,13 +45,36 @@ export function authorizeAccess(
   return { allowed: true };
 }
 
+/**
+ * Franchise mutations must pass both Discord scope and an active database
+ * assignment. Callers load assignments server-side; request-body team IDs are
+ * never accepted as proof of scope.
+ */
+export function authorizeFranchiseAction(
+  access: DiscordAccess,
+  requirement: { permission: Permission; franchiseNumber: number },
+  assignedFranchiseNumbers: readonly number[],
+): AuthorizationDecision {
+  const roleDecision = authorizeAccess(access, requirement);
+  if (!roleDecision.allowed) return roleDecision;
+  if (access.permissions.includes("league.full")) return roleDecision;
+  if (!assignedFranchiseNumbers.includes(requirement.franchiseNumber)) {
+    return {
+      allowed: false,
+      code: "FRANCHISE_ASSIGNMENT_DENIED",
+      reason: "Discord scope does not match an active league assignment",
+    };
+  }
+  return roleDecision;
+}
+
 export async function fetchLiveDiscordAccess(discordId: string) {
   const guildId = process.env.DISCORD_GUILD_ID;
   const botToken = process.env.DISCORD_BOT_TOKEN;
   if (!guildId || !botToken) {
     throw new Error("Discord guild authorization is not configured");
   }
-  const response = await fetch(
+  const response = await fetchDiscord(
     `https://discord.com/api/v10/guilds/${guildId}/members/${discordId}`,
     { headers: { Authorization: `Bot ${botToken}` }, cache: "no-store" },
   );

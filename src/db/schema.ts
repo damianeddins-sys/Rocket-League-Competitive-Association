@@ -1,4 +1,5 @@
 import {
+  type AnyPgColumn,
   boolean,
   index,
   integer,
@@ -116,7 +117,7 @@ export const roleAssignments = pgTable(
     id: id(),
     userId: uuid("user_id").notNull().references(() => users.id),
     seasonId: uuid("season_id").references(() => seasons.id),
-    teamId: uuid("team_id"),
+    teamId: uuid("team_id").references((): AnyPgColumn => teams.id),
     role: roleCode("role").notNull(),
     grantedBy: uuid("granted_by").references(() => users.id),
     grantedAt: createdAt(),
@@ -131,6 +132,8 @@ export const discordMembers = pgTable("discord_members", {
   userId: uuid("user_id").notNull().references(() => users.id),
   discordUserId: text("discord_user_id").notNull().unique(),
   guildMemberSince: timestamp("guild_member_since", { withTimezone: true }),
+  roleIds: jsonb("role_ids").$type<string[]>().default([]).notNull(),
+  rolesFetchedAt: timestamp("roles_fetched_at", { withTimezone: true }),
   lastRoleSyncAt: timestamp("last_role_sync_at", { withTimezone: true }),
 });
 
@@ -229,6 +232,8 @@ export const divisions = pgTable(
 
 export const teams = pgTable("teams", {
   id: id(),
+  franchiseNumber: integer("franchise_number").unique(),
+  discordFranchiseRoleId: text("discord_franchise_role_id").unique(),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   shortName: text("short_name").notNull(),
@@ -715,6 +720,8 @@ export const auditLogs = pgTable(
     entityId: text("entity_id").notNull(),
     previousState: jsonb("previous_state"),
     nextState: jsonb("next_state"),
+    previousStateHash: text("previous_state_hash"),
+    nextStateHash: text("next_state_hash"),
     reason: text("reason"),
     requestId: text("request_id"),
     createdAt: createdAt(),
