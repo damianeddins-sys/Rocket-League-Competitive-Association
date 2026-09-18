@@ -34,9 +34,11 @@ export const matchStatus = pgEnum("match_status", [
 export const transactionStatus = pgEnum("transaction_status", [
   "PENDING",
   "MORE_INFO_REQUIRED",
+  "ON_HOLD",
   "EXCEPTION_REQUIRED",
   "APPROVED",
   "DENIED",
+  "EXPIRED",
   "CANCELLED",
 ]);
 export const replayStatus = pgEnum("replay_status", [
@@ -83,6 +85,23 @@ export const placementCycleStatus = pgEnum("placement_cycle_status", [
   "CANCELLED",
 ]);
 export const waiverStatus = pgEnum("waiver_status", ["OPEN", "CLAIMED", "EXPIRED", "CANCELLED"]);
+export const roleCode = pgEnum("role_code", [
+  "LEAGUE_OWNER",
+  "LEAGUE_OPERATIONS_MANAGER",
+  "HEAD_LEAGUE_ADMIN",
+  "SENIOR_LEAGUE_ADMIN",
+  "LEAGUE_ADMIN",
+  "SIGN_UP_MANAGER",
+  "ROSTER_ADMIN",
+  "STATISTICS_ANALYST",
+  "PRODUCTION_DIRECTOR",
+  "PRODUCTION_CREW",
+  "MODERATOR",
+  "MODERATOR_TRAINEE",
+  "GENERAL_MANAGER",
+  "ASSISTANT_GENERAL_MANAGER",
+  "TEAM_CAPTAIN",
+]);
 
 export const users = pgTable("users", {
   id: id(),
@@ -90,6 +109,22 @@ export const users = pgTable("users", {
   displayName: text("display_name").notNull(),
   createdAt: createdAt(),
 });
+
+export const roleAssignments = pgTable(
+  "role_assignments",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    seasonId: uuid("season_id").references(() => seasons.id),
+    teamId: uuid("team_id"),
+    role: roleCode("role").notNull(),
+    grantedBy: uuid("granted_by").references(() => users.id),
+    grantedAt: createdAt(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [index("role_user_scope").on(table.userId, table.seasonId, table.teamId)],
+);
 
 export const discordMembers = pgTable("discord_members", {
   id: id(),

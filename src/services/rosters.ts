@@ -74,10 +74,10 @@ export function canCompleteRoster(
 }
 
 export function playerEligibility(
-  participatedRegularSeasonSeries: number,
+  participatedRegularSeasonSeriesIds: readonly string[],
   approvedException = false,
 ) {
-  const count = Math.max(0, participatedRegularSeasonSeries);
+  const count = new Set(participatedRegularSeasonSeriesIds.filter(Boolean)).size;
   if (approvedException || count >= 2) {
     return { eligible: true, label: approvedException ? "ELIGIBLE — EXCEPTION APPROVED" : "ELIGIBLE" };
   }

@@ -100,7 +100,13 @@ export function championshipField(
   const eligible = new Set(lastChanceTeamIds);
   const remaining = finalStandings
     .filter((team) => eligible.has(team.teamId))
-    .sort((a, b) => a.rank - b.rank)
+    .sort(
+      (a, b) =>
+        b.qualificationPoints - a.qualificationPoints ||
+        b.seriesWins - a.seriesWins ||
+        b.gameDifferential - a.gameDifferential ||
+        a.teamId.localeCompare(b.teamId),
+    )
     .slice(0, 4)
     .map((team, index) => ({ teamId: team.teamId, seed: index + 3 }));
 

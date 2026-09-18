@@ -73,6 +73,19 @@ describe("qualification", () => {
     expect(field).toHaveLength(6);
     expect(field[2]).toEqual({ teamId: "team-8", seed: 3 });
   });
+
+  it("seeds Last Chance qualifiers from final points rather than a stale rank", () => {
+    const { locked, lastChanceTeamIds } = lockTopTwo(standings);
+    const staleRanks = standings.map((team) =>
+      team.teamId === "team-8"
+        ? { ...team, rank: 8, qualificationPoints: 999 }
+        : team,
+    );
+    expect(championshipField(locked, staleRanks, lastChanceTeamIds)[2]).toEqual({
+      teamId: "team-8",
+      seed: 3,
+    });
+  });
 });
 
 describe("brackets", () => {
@@ -201,10 +214,11 @@ describe("rosters and transactions", () => {
   });
 
   it("reports eligibility without erasing exception history", () => {
-    expect(playerEligibility(0).eligible).toBe(false);
-    expect(playerEligibility(1).label).toContain("1 OF 2");
-    expect(playerEligibility(2).eligible).toBe(true);
-    expect(playerEligibility(0, true).label).toContain("EXCEPTION APPROVED");
+    expect(playerEligibility([]).eligible).toBe(false);
+    expect(playerEligibility(["series-1"]).label).toContain("1 OF 2");
+    expect(playerEligibility(["series-1", "series-1"]).eligible).toBe(false);
+    expect(playerEligibility(["series-1", "series-2"]).eligible).toBe(true);
+    expect(playerEligibility([], true).label).toContain("EXCEPTION APPROVED");
   });
 
   it("closes transactions only for Major 1 and Major 2", () => {
