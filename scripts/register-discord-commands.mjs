@@ -13,6 +13,8 @@ const commands = [
   { name: "status", description: "Check whether RLCA systems are available" },
   { name: "standings", description: "Show current RLCA standings" },
   { name: "schedule", description: "Show upcoming RLCA series" },
+  { name: "teams", description: "Show official RLCA franchises" },
+  { name: "events", description: "Show the current RLCA event circuit" },
   { name: "help", description: "Show available RLCA commands" },
 ];
 

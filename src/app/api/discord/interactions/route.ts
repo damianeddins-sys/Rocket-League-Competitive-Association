@@ -43,6 +43,8 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json(
-    respondToDiscordInteraction(interaction as Parameters<typeof respondToDiscordInteraction>[0]),
+    await respondToDiscordInteraction(
+      interaction as Parameters<typeof respondToDiscordInteraction>[0],
+    ),
   );
 }

@@ -4,6 +4,32 @@ import {
   respondToDiscordInteraction,
   verifyDiscordInteraction,
 } from "./interactions";
+import type { PublicLeagueData } from "../public-league-data";
+
+const leagueData: PublicLeagueData = {
+  status: "ready",
+  season: { id: "season-1", name: "Season 1", slug: "season-1" },
+  currentWeek: { number: 1, phase: "REGULAR_SPLIT_1" },
+  standings: [{
+    id: "team-1",
+    slug: "nova",
+    name: "Nova",
+    shortName: "NVA",
+    color: "#1677ff",
+    logoUrl: null,
+    wins: 0,
+    losses: 0,
+    ties: 0,
+    gamesWon: 0,
+    gamesLost: 0,
+    gameDifferential: 0,
+    points: 0,
+    status: "ACTIVE",
+  }],
+  matches: [],
+  events: [],
+  updatedAt: "2026-01-01T00:00:00.000Z",
+};
 
 describe("Discord interactions", () => {
   it("accepts current Discord signatures and rejects tampering", () => {
@@ -56,18 +82,31 @@ describe("Discord interactions", () => {
     })).toBe(false);
   });
 
-  it("handles Discord pings and public league commands", () => {
-    expect(respondToDiscordInteraction({ type: 1 })).toEqual({ type: 1 });
-    expect(respondToDiscordInteraction({
+  it("handles Discord pings and database-backed public league commands", async () => {
+    await expect(respondToDiscordInteraction({ type: 1 })).resolves.toEqual({ type: 1 });
+    await expect(respondToDiscordInteraction({
       type: 2,
       data: { name: "standings" },
-    })).toMatchObject({
+    }, async () => leagueData)).resolves.toMatchObject({
       type: 4,
       data: { content: expect.stringContaining("RLCA Standings") },
     });
-    expect(respondToDiscordInteraction({
+    await expect(respondToDiscordInteraction({
       type: 2,
       data: { name: "help" },
-    })).toMatchObject({ type: 4, data: { flags: 64 } });
+    })).resolves.toMatchObject({ type: 4, data: { flags: 64 } });
+  });
+
+  it("never substitutes demonstration standings when the database is unavailable", async () => {
+    await expect(respondToDiscordInteraction({
+      type: 2,
+      data: { name: "standings" },
+    }, async () => ({
+      status: "unavailable",
+      reason: "DATABASE_NOT_CONFIGURED",
+    }))).resolves.toMatchObject({
+      type: 4,
+      data: { flags: 64, content: expect.stringContaining("unavailable") },
+    });
   });
 });

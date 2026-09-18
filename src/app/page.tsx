@@ -1,23 +1,33 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, CalendarDays, LockKeyhole, Play, Trophy } from "lucide-react";
-import { teams, upcomingMatches } from "@/lib/demo-data";
+import { LeagueDataState } from "@/components/league-data-state";
+import { loadPublicLeagueData } from "@/services/public-league-data";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const data = await loadPublicLeagueData();
+  const upcomingMatches =
+    data.status === "ready"
+      ? data.matches.filter((match) => match.status === "SCHEDULED").slice(0, 2)
+      : [];
   return (
     <>
       <section className="hero-grid relative overflow-hidden bg-[#0b1f3a] text-white">
         <Image
-          src="/branding/rlca-primary-logo-v2.png"
+          src="/branding/rlca-primary-logo-final.png"
           alt=""
           width={700}
-          height={700}
+          height={529}
           className="pointer-events-none absolute -right-20 top-1/2 w-[480px] -translate-y-1/2 opacity-[0.09] lg:right-8 lg:w-[620px]"
           priority
         />
         <div className="relative mx-auto grid min-h-[600px] max-w-7xl items-center gap-12 px-5 py-20 lg:grid-cols-[1.15fr_.85fr] lg:px-8">
           <div>
-            <p className="eyebrow mb-5 text-blue-300">Season 1 · RLCA 2v2</p>
+            <p className="eyebrow mb-5 text-blue-300">
+              {data.status === "ready" ? data.season.name : "Season 1"} · RLCA 2v2
+            </p>
             <h1 className="max-w-3xl text-5xl font-black leading-[0.98] tracking-[-0.04em] sm:text-6xl lg:text-7xl">
               Where every series shapes the road to the title.
             </h1>
@@ -38,18 +48,29 @@ export default function Home() {
             <div className="flex items-center justify-between border-b border-white/15 pb-5">
               <div>
                 <p className="eyebrow text-blue-300">Next match night</p>
-                <h2 className="mt-2 text-2xl font-bold">Regular Season · Week 8</h2>
+                <h2 className="mt-2 text-2xl font-bold">
+                  {data.status === "ready" && data.currentWeek
+                    ? `Week ${data.currentWeek.number} · ${data.currentWeek.phase.replaceAll("_", " ")}`
+                    : "Official schedule"}
+                </h2>
               </div>
               <CalendarDays className="text-blue-300" />
             </div>
             <div className="divide-y divide-white/10">
-              {upcomingMatches.slice(0, 2).map((match) => (
+              {upcomingMatches.map((match) => (
                 <div key={match.id} className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 py-5">
-                  <span className="text-right font-bold">{match.home.short}</span>
+                  <span className="text-right font-bold">{match.teamA.shortName}</span>
                   <span className="rounded bg-white/10 px-3 py-1 text-xs font-black text-blue-200">VS</span>
-                  <span className="font-bold">{match.away.short}</span>
+                  <span className="font-bold">{match.teamB.shortName}</span>
                 </div>
               ))}
+              {upcomingMatches.length === 0 && (
+                <p className="py-8 text-center text-sm text-slate-300">
+                  {data.status === "ready"
+                    ? "No upcoming official series."
+                    : "Official league data is unavailable."}
+                </p>
+              )}
             </div>
             <p className="mt-1 text-center text-xs font-semibold uppercase tracking-widest text-slate-400">
               Sunday · 8:00 PM
@@ -79,25 +100,27 @@ export default function Home() {
             Full table <ArrowRight size={16} />
           </Link>
         </div>
-        <div className="panel overflow-hidden">
+        {data.status !== "ready" ? (
+          <LeagueDataState state={data.reason} />
+        ) : <div className="panel overflow-hidden">
           <div className="hidden grid-cols-[60px_1fr_120px_150px] bg-[#0b1f3a] px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-300 sm:grid">
             <span>Seed</span><span>Franchise</span><span>Points</span><span>Status</span>
           </div>
-          {teams.slice(0, 6).map((team, index) => (
+          {data.standings.slice(0, 6).map((team, index) => (
             <div key={team.id} className="grid grid-cols-[42px_1fr_auto] items-center gap-3 border-b border-slate-100 px-5 py-4 last:border-0 sm:grid-cols-[60px_1fr_120px_150px]">
               <span className="text-lg font-black text-slate-400">{index + 1}</span>
               <div className="flex items-center gap-3 font-bold">
-                <span className="flex h-9 w-9 items-center justify-center rounded-md text-xs text-white" style={{ backgroundColor: team.color }}>{team.short}</span>
+                <span className="flex h-9 w-9 items-center justify-center rounded-md text-xs text-white" style={{ backgroundColor: team.color }}>{team.shortName}</span>
                 {team.name}
               </div>
               <span className="font-mono font-bold">{team.points}</span>
-              <span className={`col-start-2 text-xs font-extrabold sm:col-auto ${index < 2 ? "text-emerald-700" : "text-amber-700"}`}>
-                {index < 2 && <LockKeyhole className="mr-1 inline" size={13} />}
+              <span className={`col-start-2 text-xs font-extrabold sm:col-auto ${team.status.startsWith("LOCKED") ? "text-emerald-700" : "text-amber-700"}`}>
+                {team.status.startsWith("LOCKED") && <LockKeyhole className="mr-1 inline" size={13} />}
                 {team.status}
               </span>
             </div>
           ))}
-        </div>
+        </div>}
       </section>
 
       <section className="bg-[#f4f7fa]">

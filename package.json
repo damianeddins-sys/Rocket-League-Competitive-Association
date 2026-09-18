@@ -13,6 +13,7 @@
     "discord:register": "node --env-file-if-exists=.env.local scripts/register-discord-commands.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:seed": "tsx --env-file-if-exists=.env.local scripts/seed-season-one.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
@@ -38,6 +39,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "tailwindcss": "^4",
+    "tsx": "^4.23.13",
     "typescript": "^5",
     "vitest": "^5.0.1"
   }

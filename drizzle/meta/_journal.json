@@ -50,6 +50,13 @@
       "when": 1789762964856,
       "tag": "0006_hesitant_marten_broadcloak",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789767891138,
+      "tag": "0007_free_felicia_hardy",
+      "breakpoints": true
     }
   ]
 }

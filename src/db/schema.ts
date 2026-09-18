@@ -55,6 +55,14 @@ export const replayStatus = pgEnum("replay_status", [
 ]);
 export const decisionStatus = pgEnum("decision_status", ["PENDING", "APPROVED", "DENIED"]);
 export const seasonStatus = pgEnum("season_status", ["DRAFT", "ACTIVE", "ARCHIVED"]);
+export const seasonWeekPhase = pgEnum("season_week_phase", [
+  "REGULAR_SPLIT_1",
+  "MAJOR_1",
+  "REGULAR_SPLIT_2",
+  "MAJOR_2",
+  "LAST_CHANCE",
+  "CHAMPIONSHIP",
+]);
 export const playerStatus = pgEnum("player_status", [
   "APPLIED",
   "VERIFICATION_PENDING",
@@ -148,6 +156,18 @@ export const discordRoleConfigurations = pgTable("discord_role_configurations", 
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const discordChannelConfigurations = pgTable("discord_channel_configurations", {
+  id: id(),
+  key: text("key").notNull().unique(),
+  channelId: text("channel_id").notNull().unique(),
+  displayName: text("display_name").notNull(),
+  category: text("category").notNull(),
+  division: text("division"),
+  persistentMessageId: text("persistent_message_id"),
+  active: boolean("active").default(true).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const discordRoleSnapshots = pgTable(
   "discord_role_snapshots",
   {
@@ -200,6 +220,19 @@ export const seasons = pgTable("seasons", {
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   settings: jsonb("settings").$type<Record<string, unknown>>().default({}).notNull(),
 });
+
+export const seasonWeeks = pgTable(
+  "season_weeks",
+  {
+    id: id(),
+    seasonId: uuid("season_id").notNull().references(() => seasons.id),
+    weekNumber: integer("week_number").notNull(),
+    phase: seasonWeekPhase("phase").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [uniqueIndex("season_week_number").on(table.seasonId, table.weekNumber)],
+);
 
 export const seasonRulesets = pgTable(
   "season_rulesets",
@@ -461,16 +494,20 @@ export const scheduleVersions = pgTable("schedule_versions", {
   createdAt: createdAt(),
 });
 
-export const events = pgTable("events", {
-  id: id(),
-  seasonId: uuid("season_id").notNull().references(() => seasons.id),
-  type: eventType("type").notNull(),
-  name: text("name").notNull(),
-  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
-  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
-  bracketLockedAt: timestamp("bracket_locked_at", { withTimezone: true }),
-  seedSnapshot: jsonb("seed_snapshot").$type<Array<{ seed: number; teamId: string }>>(),
-});
+export const events = pgTable(
+  "events",
+  {
+    id: id(),
+    seasonId: uuid("season_id").notNull().references(() => seasons.id),
+    type: eventType("type").notNull(),
+    name: text("name").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    bracketLockedAt: timestamp("bracket_locked_at", { withTimezone: true }),
+    seedSnapshot: jsonb("seed_snapshot").$type<Array<{ seed: number; teamId: string }>>(),
+  },
+  (table) => [uniqueIndex("event_season_type").on(table.seasonId, table.type)],
+);
 
 export const matches = pgTable(
   "matches",

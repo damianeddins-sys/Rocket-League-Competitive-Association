@@ -19,7 +19,7 @@ Production-oriented foundation for the RLCA 2v2 league platform. The website is 
   - player event eligibility and Major transaction windows
 - Automated tests for the critical league invariants
 
-Public data currently uses clearly labeled demonstration records. Production writes must be added through authenticated server actions/API handlers backed by PostgreSQL; competitive state must never be accepted directly from a browser.
+Public standings, schedules, franchises, events, match details, and Discord read commands use the same PostgreSQL read model. If the database or active season is unavailable, the product shows an explicit unavailable/empty state instead of presenting demonstration records as official.
 
 ## Local development
 
@@ -35,7 +35,10 @@ Set `DATABASE_URL` before generating or applying migrations:
 ```bash
 npm run db:generate
 npm run db:migrate
+npm run db:seed
 ```
+
+`db:seed` requires `RLCA_SEASON_ONE_STARTS_AT` as an ISO timestamp. It idempotently creates the 16-week Season 1 calendar, active divisions, five event windows, and all authoritative Discord channel configuration records. Franchise identities and official matches remain empty until real league records are entered; the seed never fabricates competitive results.
 
 ### Discord and Vercel Blob
 

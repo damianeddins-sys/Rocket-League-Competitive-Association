@@ -2,8 +2,9 @@
 
 Apply specifications in this order:
 
-1. `RLCA_MASTER_BUILD_SPEC.md` — V2 top-level competitive rules and formulas.
-2. `RLCA_DISCORD_ROLES_PORTALS_SPEC.md` — authoritative Discord role IDs, role-to-portal authorization, and Discord automation behavior.
-3. `OPEN_RULE_DECISIONS.md` — unresolved details only; it cannot override either authoritative specification.
+1. `RLCA_MASTER_PRODUCT_AND_DISCORD_SPEC_FINAL.md` — final product, website, portal, Discord, data, season, and competitive implementation contract.
+2. `RLCA_MASTER_BUILD_SPEC.md` — prior V2 detail only where the final contract does not supersede it.
+3. `RLCA_DISCORD_ROLES_PORTALS_SPEC.md` — prior authorization detail only where the final contract does not supersede it.
+4. `OPEN_RULE_DECISIONS.md` — unresolved details only; it cannot override an authoritative specification.
 
-The Discord roles specification contains repeated league context for implementation convenience. Where that repeated context conflicts with V2 competitive rules—including Last Chance or Championship bracket paths—V2 controls. Discord, portals, and public pages must call the same V2 backend rules engine rather than implement the repeated prose independently.
+The final contract is authoritative over older prompts, mockups, demo records, and previous implementations. Discord, portals, and public pages must call the same backend rules engine and relational source of truth rather than implement repeated prose independently.

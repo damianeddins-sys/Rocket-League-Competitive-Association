@@ -38,10 +38,10 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
     <section className="flex min-h-[72vh] items-center bg-[#f4f7fa] px-5 py-16">
       <div className="panel mx-auto w-full max-w-md p-8 text-center">
         <Image
-          src="/branding/rlca-primary-logo-v2.png"
+          src="/branding/rlca-primary-logo-final.png"
           alt="RLCA"
           width={180}
-          height={180}
+          height={136}
           className="mx-auto h-24 w-auto"
         />
         <p className="eyebrow mt-5 text-[#1677ff]">Official league account</p>
