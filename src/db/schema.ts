@@ -183,6 +183,12 @@ export const discordRoleSyncJobs = pgTable(
   (table) => [index("discord_role_sync_queue").on(table.status, table.nextAttemptAt)],
 );
 
+export const authRateLimits = pgTable("auth_rate_limits", {
+  key: text("key").primaryKey(),
+  count: integer("count").default(0).notNull(),
+  resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
+});
+
 export const seasons = pgTable("seasons", {
   id: id(),
   name: text("name").notNull(),

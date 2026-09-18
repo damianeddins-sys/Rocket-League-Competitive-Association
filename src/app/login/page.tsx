@@ -25,6 +25,7 @@ const errorMessages: Record<string, string> = {
   guild_check_not_configured: "RLCA server membership verification is not configured.",
   guild_check_failed: "RLCA could not verify server membership. League staff must check the bot configuration.",
   not_guild_member: "Join the RLCA Discord server before signing in.",
+  database_not_ready: "The RLCA database is not ready for sign-in. League staff must apply the latest database migration.",
 };
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {

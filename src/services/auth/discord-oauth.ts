@@ -37,15 +37,45 @@ function validUrl(value: string | undefined) {
   }
 }
 
+function secureForEnvironment(url: URL, env: Environment) {
+  return env.NODE_ENV !== "production" || url.protocol === "https:";
+}
+
+export function canonicalOAuthStartUrl(requestUrl: string, redirectUri: string) {
+  const request = new URL(requestUrl);
+  const callback = new URL(redirectUri);
+  if (request.origin === callback.origin) return null;
+  const canonicalStart = new URL("/api/auth/discord/start", callback.origin);
+  const returnTo = request.searchParams.get("returnTo");
+  if (returnTo?.startsWith("/") && !returnTo.startsWith("//")) {
+    canonicalStart.searchParams.set("returnTo", returnTo);
+  }
+  return canonicalStart.toString();
+}
+
 export function resolveDiscordRedirectUri(
   requestUrl: string,
   env: Environment = process.env,
 ) {
-  const explicit = validUrl(env.DISCORD_REDIRECT_URI);
-  if (explicit) return explicit.toString();
+  if (env.DISCORD_REDIRECT_URI?.trim()) {
+    const explicit = validUrl(env.DISCORD_REDIRECT_URI);
+    if (
+      !explicit ||
+      !secureForEnvironment(explicit, env) ||
+      explicit.pathname !== "/api/auth/discord/callback" ||
+      explicit.search ||
+      explicit.hash
+    ) {
+      return null;
+    }
+    return explicit.toString();
+  }
 
-  const appUrl = validUrl(env.NEXT_PUBLIC_APP_URL);
-  if (appUrl) return new URL("/api/auth/discord/callback", appUrl).toString();
+  if (env.NEXT_PUBLIC_APP_URL?.trim()) {
+    const appUrl = validUrl(env.NEXT_PUBLIC_APP_URL);
+    if (!appUrl || !secureForEnvironment(appUrl, env)) return null;
+    return new URL("/api/auth/discord/callback", appUrl).toString();
+  }
 
   const vercelHost =
     (env.VERCEL_ENV === "production" && env.VERCEL_PROJECT_PRODUCTION_URL) ||
@@ -100,5 +130,34 @@ export function getDiscordOAuthConfig(
   return {
     ok: true,
     value: { clientId, clientSecret, sessionSecret, guildId, botToken, redirectUri },
+  };
+}
+
+export function getDiscordOAuthHealth(
+  requestUrl: string,
+  env: Environment = process.env,
+) {
+  const sessionSecret = getSessionSecret(env);
+  const redirectUri = resolveDiscordRedirectUri(requestUrl, env);
+  const checks = {
+    discordClient: Boolean(
+      (env.DISCORD_CLIENT_ID || env.DISCORD_APPLICATION_ID)?.trim() &&
+        env.DISCORD_CLIENT_SECRET?.trim(),
+    ),
+    secureSession: Boolean(sessionSecret && sessionSecret.length >= 32),
+    guildMembership: Boolean(env.DISCORD_GUILD_ID?.trim() && env.DISCORD_BOT_TOKEN?.trim()),
+    redirectUri: Boolean(redirectUri),
+  };
+  const missing = Object.entries(checks)
+    .filter(([, configured]) => !configured)
+    .map(([name]) => name);
+  return {
+    status: missing.length === 0 ? "ready" : "misconfigured",
+    environment: env.VERCEL_ENV || env.NODE_ENV || "unknown",
+    checks,
+    missing,
+    callbackOrigin: redirectUri ? new URL(redirectUri).origin : null,
+    databaseConfigured: Boolean(env.DATABASE_URL?.trim()),
+    rateLimitMode: env.DATABASE_URL?.trim() ? "database" : "instance-memory",
   };
 }

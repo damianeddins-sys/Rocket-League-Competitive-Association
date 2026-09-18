@@ -1,9 +1,12 @@
 import { randomBytes } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { getDiscordOAuthConfig } from "@/services/auth/discord-oauth";
 import {
-  consumeRateLimit,
+  canonicalOAuthStartUrl,
+  getDiscordOAuthConfig,
+} from "@/services/auth/discord-oauth";
+import {
+  consumeAuthRateLimit,
   pruneRateLimitBuckets,
   requestClientIp,
 } from "@/services/auth/rate-limit";
@@ -16,20 +19,27 @@ function loginRedirect(request: NextRequest, error: string) {
   return response;
 }
 
-export function GET(request: NextRequest) {
-  pruneRateLimitBuckets();
-  const rateLimit = consumeRateLimit({
-    key: `oauth-start:${requestClientIp(request.headers)}`,
-    limit: 20,
-    windowMs: 10 * 60 * 1000,
-  });
-  if (!rateLimit.allowed) {
-    return loginRedirect(request, "auth_rate_limited");
-  }
-
+export async function GET(request: NextRequest) {
   const config = getDiscordOAuthConfig(request.url);
   if (!config.ok) {
     return loginRedirect(request, config.error);
+  }
+  const canonicalStart = canonicalOAuthStartUrl(request.url, config.value.redirectUri);
+  if (canonicalStart) {
+    const response = NextResponse.redirect(canonicalStart);
+    response.headers.set("Cache-Control", "no-store");
+    return response;
+  }
+  pruneRateLimitBuckets();
+  try {
+    const rateLimit = await consumeAuthRateLimit({
+      key: `oauth-start:${requestClientIp(request.headers)}`,
+      limit: 20,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) return loginRedirect(request, "auth_rate_limited");
+  } catch {
+    return loginRedirect(request, "database_not_ready");
   }
 
   const state = randomBytes(32).toString("base64url");

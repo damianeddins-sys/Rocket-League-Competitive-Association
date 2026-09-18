@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
@@ -13,7 +13,7 @@ import {
   getDiscordOAuthConfig,
 } from "@/services/auth/discord-oauth";
 import { resolveDiscordAccess } from "@/services/auth/discord-roles";
-import { consumeRateLimit, requestClientIp } from "@/services/auth/rate-limit";
+import { consumeAuthRateLimit, requestClientIp } from "@/services/auth/rate-limit";
 import { createSessionToken, sessionCookie, type AuthenticatedUser } from "@/services/auth/session";
 
 export const runtime = "nodejs";
@@ -152,15 +152,18 @@ async function handleCallback(request: NextRequest) {
     return loginError(request, "invalid_state");
   }
 
-  const rateLimit = consumeRateLimit({
-    key: `oauth-callback:${requestClientIp(request.headers)}`,
-    limit: 30,
-    windowMs: 10 * 60 * 1000,
-  });
-  if (!rateLimit.allowed) return loginError(request, "auth_rate_limited");
-
   const config = getDiscordOAuthConfig(request.url);
   if (!config.ok) return loginError(request, config.error);
+  try {
+    const rateLimit = await consumeAuthRateLimit({
+      key: `oauth-callback:${requestClientIp(request.headers)}`,
+      limit: 30,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) return loginError(request, "auth_rate_limited");
+  } catch {
+    return loginError(request, "database_not_ready");
+  }
   const pinnedRedirectUri = request.cookies.get("rlca_oauth_redirect")?.value;
   if (!pinnedRedirectUri || pinnedRedirectUri !== config.value.redirectUri) {
     return loginError(request, "invalid_state");
@@ -219,14 +222,24 @@ async function handleCallback(request: NextRequest) {
   const parsedMembership = discordGuildMemberSchema.safeParse(await membership.json());
   if (!parsedMembership.success) return loginError(request, "discord_api_failed");
   access = resolveDiscordAccess(parsedMembership.data.roles);
-  const identity = await resolveApplicationUser(parsedUser.data);
-  await persistRoleSnapshot(
-    parsedUser.data.id,
-    config.value.guildId,
-    parsedMembership.data.roles,
-    parsedMembership.data.joined_at ?? null,
-    access,
-  );
+  let identity: IdentityUser;
+  try {
+    identity = await resolveApplicationUser(parsedUser.data);
+    await persistRoleSnapshot(
+      parsedUser.data.id,
+      config.value.guildId,
+      parsedMembership.data.roles,
+      parsedMembership.data.joined_at ?? null,
+      access,
+    );
+  } catch (error) {
+    const requestId = randomUUID();
+    console.error("Discord OAuth database operation failed", {
+      requestId,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+    return loginError(request, "database_not_ready");
+  }
 
   const user: AuthenticatedUser = {
     ...identity,

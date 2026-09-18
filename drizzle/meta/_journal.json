@@ -43,6 +43,13 @@
       "when": 1789757728967,
       "tag": "0005_lyrical_stature",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789762964856,
+      "tag": "0006_hesitant_marten_broadcloak",
+      "breakpoints": true
     }
   ]
 }

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  canonicalOAuthStartUrl,
   discordGuildMemberSchema,
   discordUserSchema,
   getDiscordOAuthConfig,
+  getDiscordOAuthHealth,
   getSessionSecret,
   resolveDiscordRedirectUri,
 } from "./discord-oauth";
@@ -63,6 +65,25 @@ describe("Discord OAuth configuration", () => {
     expect(resolveDiscordRedirectUri("https://untrusted.example/login", {
       NODE_ENV: "production",
     })).toBeNull();
+    expect(resolveDiscordRedirectUri("https://rlca.example/login", {
+      NODE_ENV: "production",
+      DISCORD_REDIRECT_URI: "http://localhost:3000/api/auth/discord/callback",
+    })).toBeNull();
+    expect(resolveDiscordRedirectUri("https://rlca.example/login", {
+      NODE_ENV: "production",
+      DISCORD_REDIRECT_URI: "https://rlca.example/wrong-path",
+    })).toBeNull();
+  });
+
+  it("moves OAuth start to the callback origin so state cookies return", () => {
+    expect(canonicalOAuthStartUrl(
+      "https://www.rlca.example/api/auth/discord/start?returnTo=%2Fsignup",
+      "https://rlca.example/api/auth/discord/callback",
+    )).toBe("https://rlca.example/api/auth/discord/start?returnTo=%2Fsignup");
+    expect(canonicalOAuthStartUrl(
+      "https://rlca.example/api/auth/discord/start",
+      "https://rlca.example/api/auth/discord/callback",
+    )).toBeNull();
   });
 
   it("accepts Discord timestamps with timezone offsets and normalizes empty email", () => {
@@ -75,5 +96,26 @@ describe("Discord OAuth configuration", () => {
       username: "player",
       email: "",
     }).email).toBeNull();
+  });
+
+  it("reports deployment readiness without returning secret values", () => {
+    const health = getDiscordOAuthHealth(
+      "https://rlca.example/api/auth/discord/health",
+      configuredEnvironment,
+    );
+    expect(health).toMatchObject({
+      status: "ready",
+      checks: {
+        discordClient: true,
+        secureSession: true,
+        guildMembership: true,
+        redirectUri: true,
+      },
+      missing: [],
+      callbackOrigin: "https://rlca.example",
+    });
+    expect(JSON.stringify(health)).not.toContain(configuredEnvironment.DISCORD_CLIENT_SECRET);
+    expect(JSON.stringify(health)).not.toContain(configuredEnvironment.SESSION_SECRET);
+    expect(JSON.stringify(health)).not.toContain(configuredEnvironment.DISCORD_BOT_TOKEN);
   });
 });
