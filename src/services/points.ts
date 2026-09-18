@@ -77,6 +77,22 @@ export function calculateStandings(records: TeamRecord[], events: PointEvent[]):
 
 export type LockedSeed = { teamId: string; seed: 1 | 2 };
 
+export function resolveChampionshipLockIds(input: {
+  now: Date;
+  majorTwoEndsAt: Date | null;
+  persistedSeedSnapshot?: Array<{ seed: number; teamId: string }> | null;
+  preLastChanceTeamIds: string[];
+}) {
+  const persisted = input.persistedSeedSnapshot
+    ?.filter((seed) => seed.seed === 1 || seed.seed === 2)
+    .sort((a, b) => a.seed - b.seed);
+  if (persisted?.length === 2) return [persisted[0].teamId, persisted[1].teamId];
+  if (input.majorTwoEndsAt && input.now > input.majorTwoEndsAt) {
+    return input.preLastChanceTeamIds.slice(0, 2);
+  }
+  return [];
+}
+
 export function lockTopTwo(preLastChance: Standing[]): {
   locked: [LockedSeed, LockedSeed];
   lastChanceTeamIds: string[];

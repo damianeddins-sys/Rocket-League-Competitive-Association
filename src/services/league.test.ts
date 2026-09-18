@@ -23,6 +23,7 @@ import {
   championshipField,
   lockTopTwo,
   regularSeasonPoints,
+  resolveChampionshipLockIds,
   type Standing,
 } from "./points";
 import { calculateCapRange, canCompleteRoster, playerEligibility, transactionWindow, validateRoster } from "./rosters";
@@ -72,6 +73,29 @@ describe("qualification", () => {
     expect(field.slice(0, 2)).toEqual(locked);
     expect(field).toHaveLength(6);
     expect(field[2]).toEqual({ teamId: "team-8", seed: 3 });
+  });
+
+  it("activates immutable Championship locks immediately after Major 2", () => {
+    const majorTwoEndsAt = new Date("2026-06-01T00:00:00Z");
+    expect(resolveChampionshipLockIds({
+      now: new Date("2026-05-31T23:59:59Z"),
+      majorTwoEndsAt,
+      preLastChanceTeamIds: ["team-1", "team-2", "team-3"],
+    })).toEqual([]);
+    expect(resolveChampionshipLockIds({
+      now: new Date("2026-06-01T00:00:01Z"),
+      majorTwoEndsAt,
+      preLastChanceTeamIds: ["team-1", "team-2", "team-8"],
+    })).toEqual(["team-1", "team-2"]);
+    expect(resolveChampionshipLockIds({
+      now: new Date("2026-07-01T00:00:00Z"),
+      majorTwoEndsAt,
+      persistedSeedSnapshot: [
+        { seed: 2, teamId: "team-2" },
+        { seed: 1, teamId: "team-1" },
+      ],
+      preLastChanceTeamIds: ["team-8", "team-7"],
+    })).toEqual(["team-1", "team-2"]);
   });
 
   it("seeds Last Chance qualifiers from final points rather than a stale rank", () => {

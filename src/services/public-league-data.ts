@@ -10,6 +10,7 @@ import {
 } from "../db/schema";
 import { competitionEvent } from "./competition-events";
 import { seasonOneFranchise } from "./franchises";
+import { resolveChampionshipLockIds } from "./points";
 
 export type PublicTeamStanding = {
   id: string;
@@ -179,7 +180,7 @@ export async function loadPublicLeagueData(now = new Date()): Promise<PublicLeag
       }
     }
 
-    const standings = [...standingMap.values()]
+    let standings = [...standingMap.values()]
       .map((team) => ({
         ...team,
         gameDifferential: team.gamesWon - team.gamesLost,
@@ -192,10 +193,83 @@ export async function loadPublicLeagueData(now = new Date()): Promise<PublicLeag
           a.name.localeCompare(b.name),
       );
 
+    const majorTwo = eventRows.find((event) => event.type === "MAJOR_2");
     const lastChance = eventRows.find((event) => event.type === "LAST_CHANCE");
-    if (lastChance?.bracketLockedAt) {
-      if (standings[0]) standings[0].status = "LOCKED #1";
-      if (standings[1]) standings[1].status = "LOCKED #2";
+    let lockedTeamIds = resolveChampionshipLockIds({
+      now,
+      majorTwoEndsAt: majorTwo?.endsAt ?? null,
+      persistedSeedSnapshot: lastChance?.seedSnapshot,
+      preLastChanceTeamIds: [],
+    });
+
+    if (lockedTeamIds.length === 0 && majorTwo && now > majorTwo.endsAt) {
+      const preLastChanceEventIds = new Set(
+        eventRows
+          .filter((event) => event.type !== "LAST_CHANCE" && event.type !== "CHAMPIONSHIP")
+          .map((event) => event.id),
+      );
+      const preLastChancePoints = new Map<string, number>();
+      for (const point of pointRows) {
+        if (point.eventId && !preLastChanceEventIds.has(point.eventId)) continue;
+        preLastChancePoints.set(
+          point.teamId,
+          (preLastChancePoints.get(point.teamId) ?? 0) + Number(point.points),
+        );
+      }
+      const preLastChanceRecords = new Map(
+        teamRows.map((team) => [team.id, { wins: 0, gamesWon: 0, gamesLost: 0 }]),
+      );
+      for (const match of matchRows) {
+        if (
+          match.week > 12 ||
+          match.status !== "VERIFIED" ||
+          match.teamAScore === null ||
+          match.teamBScore === null
+        ) continue;
+        const teamA = preLastChanceRecords.get(match.teamAId);
+        const teamB = preLastChanceRecords.get(match.teamBId);
+        if (!teamA || !teamB) continue;
+        teamA.gamesWon += match.teamAScore;
+        teamA.gamesLost += match.teamBScore;
+        teamB.gamesWon += match.teamBScore;
+        teamB.gamesLost += match.teamAScore;
+        if (!match.officialTie) {
+          if (match.teamAScore > match.teamBScore) teamA.wins += 1;
+          else teamB.wins += 1;
+        }
+      }
+      const preLastChanceTeamIds = [...standingMap.values()]
+        .sort((a, b) => {
+          const aRecord = preLastChanceRecords.get(a.id)!;
+          const bRecord = preLastChanceRecords.get(b.id)!;
+          return (
+            (preLastChancePoints.get(b.id) ?? 0) - (preLastChancePoints.get(a.id) ?? 0) ||
+            bRecord.wins - aRecord.wins ||
+            (bRecord.gamesWon - bRecord.gamesLost) - (aRecord.gamesWon - aRecord.gamesLost) ||
+            a.name.localeCompare(b.name)
+          );
+        })
+        .map((team) => team.id);
+      lockedTeamIds = resolveChampionshipLockIds({
+        now,
+        majorTwoEndsAt: majorTwo.endsAt,
+        persistedSeedSnapshot: null,
+        preLastChanceTeamIds,
+      });
+    }
+
+    if (lockedTeamIds.length === 2) {
+      const lockedOne = standingMap.get(lockedTeamIds[0]);
+      const lockedTwo = standingMap.get(lockedTeamIds[1]);
+      if (lockedOne && lockedTwo) {
+        lockedOne.status = "LOCKED #1";
+        lockedTwo.status = "LOCKED #2";
+        standings = [
+          lockedOne,
+          lockedTwo,
+          ...standings.filter((team) => !lockedTeamIds.includes(team.id)),
+        ];
+      }
     }
 
     const teamSummary = new Map(

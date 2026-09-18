@@ -10,6 +10,8 @@ export const dynamic = "force-dynamic";
 export default async function StandingsPage() {
   const data = await loadPublicLeagueData();
   const seasonName = data.status === "ready" ? data.season.name : "Season 1";
+  const championshipLocked = data.status === "ready"
+    && data.standings.slice(0, 2).every((team) => team.status.startsWith("LOCKED"));
 
   return (
     <div className="min-h-screen bg-[#f4f7fa]">
@@ -34,7 +36,12 @@ export default async function StandingsPage() {
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-5">
                 <p className="eyebrow text-emerald-700">Championship lock</p>
                 <p className="mt-2 font-bold text-emerald-950">
-                  Seeds #1 and #2 lock only when the official Last Chance field is finalized.
+                  {championshipLocked
+                    ? "Top 2 Locked — Seeds #1 and #2 are secured."
+                    : "Seeds #1 and #2 lock immediately after Major 2 concludes."}
+                </p>
+                <p className="mt-1 text-sm text-emerald-800">
+                  Once secured, Last Chance results cannot change either locked seed.
                 </p>
               </div>
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-5">
