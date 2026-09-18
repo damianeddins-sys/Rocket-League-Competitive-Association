@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { cookies } from "next/headers";
 import { EncryptJWT, jwtDecrypt } from "jose";
+import type { DiscordAccess } from "./discord-roles";
 
 const SESSION_COOKIE = "rlca_session";
 const SESSION_DURATION_SECONDS = 60 * 60 * 24 * 7;
@@ -11,6 +12,8 @@ export type AuthenticatedUser = {
   name: string;
   email: string | null;
   image: string | null;
+  access: DiscordAccess;
+  rolesCheckedAt: string;
 };
 
 function sessionKey() {

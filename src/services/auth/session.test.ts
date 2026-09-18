@@ -8,6 +8,18 @@ const user: AuthenticatedUser = {
   name: "RLCA Player",
   email: "player@example.com",
   image: null,
+  access: {
+    roleIds: [],
+    recognizedRoles: [],
+    portals: ["PLAYER"],
+    permissions: ["player.self"],
+    franchiseNumber: null,
+    ambiguousFranchise: false,
+    tier: null,
+    ambiguousTier: false,
+    statusRoles: [],
+  },
+  rolesCheckedAt: "2026-01-01T00:00:00.000Z",
 };
 
 describe("encrypted Discord session", () => {

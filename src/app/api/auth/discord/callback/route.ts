@@ -1,9 +1,11 @@
+import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDatabase } from "@/db";
-import { discordMembers, users } from "@/db/schema";
+import { discordMembers, discordRoleSnapshots, users } from "@/db/schema";
+import { resolveDiscordAccess } from "@/services/auth/discord-roles";
 import { createSessionToken, sessionCookie, type AuthenticatedUser } from "@/services/auth/session";
 
 export const runtime = "nodejs";
@@ -16,6 +18,8 @@ const discordUserSchema = z.object({
   email: z.string().email().nullable().optional(),
   avatar: z.string().nullable().optional(),
 });
+const guildMemberSchema = z.object({ roles: z.array(z.string()) });
+type IdentityUser = Omit<AuthenticatedUser, "access" | "rolesCheckedAt">;
 
 function loginError(request: NextRequest, code: string) {
   const response = NextResponse.redirect(new URL(`/login?error=${code}`, request.url));
@@ -36,7 +40,7 @@ async function resolveApplicationUser(profile: z.infer<typeof discordUserSchema>
       name: profile.global_name ?? profile.username,
       email: profile.email ?? null,
       image,
-    } satisfies AuthenticatedUser;
+    } satisfies IdentityUser;
   }
 
   const db = getDatabase();
@@ -59,7 +63,7 @@ async function resolveApplicationUser(profile: z.infer<typeof discordUserSchema>
         name: existing.name,
         email: existing.email,
         image,
-      } satisfies AuthenticatedUser;
+      } satisfies IdentityUser;
     }
 
     const email = profile.email ?? `discord-${profile.id}@pending.rlca.invalid`;
@@ -86,7 +90,39 @@ async function resolveApplicationUser(profile: z.infer<typeof discordUserSchema>
       name: user.name,
       email: user.email,
       image,
-    } satisfies AuthenticatedUser;
+    } satisfies IdentityUser;
+  });
+}
+
+async function persistRoleSnapshot(
+  discordUserId: string,
+  guildId: string,
+  roleIds: string[],
+  resolvedAccess: ReturnType<typeof resolveDiscordAccess>,
+) {
+  if (!process.env.DATABASE_URL) return;
+  const db = getDatabase();
+  const [member] = await db
+    .select({ id: discordMembers.id })
+    .from(discordMembers)
+    .where(eq(discordMembers.discordUserId, discordUserId))
+    .limit(1);
+  if (!member) return;
+  const normalizedRoleIds = [...new Set(roleIds)].sort();
+  await db.transaction(async (tx) => {
+    await tx.insert(discordRoleSnapshots).values({
+      discordMemberId: member.id,
+      guildId,
+      roleIds: normalizedRoleIds,
+      resolvedAccess: { ...resolvedAccess } as Record<string, unknown>,
+      roleSetHash: createHash("sha256").update(JSON.stringify(normalizedRoleIds)).digest("hex"),
+      source: "OAUTH_LOGIN",
+      fetchedAt: new Date(),
+    });
+    await tx
+      .update(discordMembers)
+      .set({ lastRoleSyncAt: new Date() })
+      .where(eq(discordMembers.id, member.id));
   });
 }
 
@@ -135,19 +171,32 @@ async function handleCallback(request: NextRequest) {
   const parsedUser = discordUserSchema.safeParse(await userResponse.json());
   if (!parsedUser.success) return loginError(request, "discord_api_failed");
 
+  let access = resolveDiscordAccess([]);
   const guildId = process.env.DISCORD_GUILD_ID;
-  if (guildId) {
-    const botToken = process.env.DISCORD_BOT_TOKEN;
-    if (!botToken) return loginError(request, "guild_check_not_configured");
-    const membership = await fetch(
-      `https://discord.com/api/v10/guilds/${guildId}/members/${parsedUser.data.id}`,
-      { headers: { Authorization: `Bot ${botToken}` }, cache: "no-store" },
-    );
-    if (membership.status === 404) return loginError(request, "not_guild_member");
-    if (!membership.ok) return loginError(request, "discord_api_failed");
-  }
+  const botToken = process.env.DISCORD_BOT_TOKEN;
+  if (!guildId || !botToken) return loginError(request, "guild_check_not_configured");
+  const membership = await fetch(
+    `https://discord.com/api/v10/guilds/${guildId}/members/${parsedUser.data.id}`,
+    { headers: { Authorization: `Bot ${botToken}` }, cache: "no-store" },
+  );
+  if (membership.status === 404) return loginError(request, "not_guild_member");
+  if (!membership.ok) return loginError(request, "discord_api_failed");
+  const parsedMembership = guildMemberSchema.safeParse(await membership.json());
+  if (!parsedMembership.success) return loginError(request, "discord_api_failed");
+  access = resolveDiscordAccess(parsedMembership.data.roles);
+  await persistRoleSnapshot(
+    parsedUser.data.id,
+    guildId,
+    parsedMembership.data.roles,
+    access,
+  );
 
-  const user = await resolveApplicationUser(parsedUser.data);
+  const identity = await resolveApplicationUser(parsedUser.data);
+  const user: AuthenticatedUser = {
+    ...identity,
+    access,
+    rolesCheckedAt: new Date().toISOString(),
+  };
   const token = await createSessionToken(user);
   const returnTo = request.cookies.get("rlca_oauth_return")?.value ?? "/";
   const response = NextResponse.redirect(new URL(returnTo, request.url));

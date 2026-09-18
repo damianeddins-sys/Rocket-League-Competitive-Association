@@ -11,6 +11,9 @@ export function GET(request: NextRequest) {
   if (!clientId || !clientSecret || !sessionSecret || sessionSecret.length < 32) {
     return NextResponse.redirect(new URL("/login?error=oauth_not_configured", request.url));
   }
+  if (!process.env.DISCORD_GUILD_ID || !process.env.DISCORD_BOT_TOKEN) {
+    return NextResponse.redirect(new URL("/login?error=guild_check_not_configured", request.url));
+  }
 
   const redirectUri =
     process.env.DISCORD_REDIRECT_URI ??

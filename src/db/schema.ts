@@ -131,7 +131,54 @@ export const discordMembers = pgTable("discord_members", {
   userId: uuid("user_id").notNull().references(() => users.id),
   discordUserId: text("discord_user_id").notNull().unique(),
   guildMemberSince: timestamp("guild_member_since", { withTimezone: true }),
+  lastRoleSyncAt: timestamp("last_role_sync_at", { withTimezone: true }),
 });
+
+export const discordRoleConfigurations = pgTable("discord_role_configurations", {
+  id: id(),
+  key: text("key").notNull().unique(),
+  roleId: text("role_id").notNull().unique(),
+  displayName: text("display_name").notNull(),
+  category: text("category").notNull(),
+  active: boolean("active").default(true).notNull(),
+  updatedBy: uuid("updated_by").references(() => users.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const discordRoleSnapshots = pgTable(
+  "discord_role_snapshots",
+  {
+    id: id(),
+    discordMemberId: uuid("discord_member_id").notNull().references(() => discordMembers.id),
+    guildId: text("guild_id").notNull(),
+    roleIds: jsonb("role_ids").$type<string[]>().notNull(),
+    resolvedAccess: jsonb("resolved_access").$type<Record<string, unknown>>().notNull(),
+    roleSetHash: text("role_set_hash").notNull(),
+    source: text("source").notNull(),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
+    error: text("error"),
+  },
+  (table) => [index("discord_role_snapshot_member").on(table.discordMemberId, table.fetchedAt)],
+);
+
+export const discordRoleSyncJobs = pgTable(
+  "discord_role_sync_jobs",
+  {
+    id: id(),
+    discordMemberId: uuid("discord_member_id").notNull().references(() => discordMembers.id),
+    desiredRoleIds: jsonb("desired_role_ids").$type<string[]>().notNull(),
+    sourceEntityType: text("source_entity_type").notNull(),
+    sourceEntityId: text("source_entity_id").notNull(),
+    status: text("status").default("PENDING").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    createdAt: createdAt(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [index("discord_role_sync_queue").on(table.status, table.nextAttemptAt)],
+);
 
 export const seasons = pgTable("seasons", {
   id: id(),
@@ -661,6 +708,8 @@ export const auditLogs = pgTable(
   {
     id: id(),
     actorId: uuid("actor_id").references(() => users.id),
+    actorDiscordRoleIds: jsonb("actor_discord_role_ids").$type<string[]>(),
+    actorFranchiseNumber: integer("actor_franchise_number"),
     action: text("action").notNull(),
     entityType: text("entity_type").notNull(),
     entityId: text("entity_id").notNull(),
