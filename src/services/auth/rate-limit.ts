@@ -66,7 +66,10 @@ export async function consumeAuthRateLimit(input: {
   `);
   const row = rows[0];
   const count = Number(row.count);
-  const rowResetAt = new Date(row.reset_at).getTime();
+  const rowResetAt =
+    row.reset_at instanceof Date
+      ? row.reset_at.getTime()
+      : new Date(String(row.reset_at)).getTime();
   const allowed = count <= input.limit;
   return {
     allowed,
