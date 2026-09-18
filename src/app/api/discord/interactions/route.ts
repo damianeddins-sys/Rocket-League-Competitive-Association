@@ -3,12 +3,12 @@ import {
   respondToDiscordInteraction,
   verifyDiscordInteraction,
 } from "@/services/discord/interactions";
-import { getDiscordBotHealth } from "@/services/discord/bot-health";
+import { getCachedDiscordBotHealth } from "@/services/discord/bot-health";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  const health = await getDiscordBotHealth();
+  const health = await getCachedDiscordBotHealth();
   return NextResponse.json(health, {
     status: health.status === "HEALTHY" ? 200 : 503,
     headers: { "Cache-Control": "no-store" },

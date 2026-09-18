@@ -24,6 +24,10 @@ export type DiscordBotHealth = {
   checkedAt: string;
 };
 
+const HEALTH_CACHE_MS = 30_000;
+let cachedHealth: { expiresAt: number; value: DiscordBotHealth } | null = null;
+let pendingHealth: Promise<DiscordBotHealth> | null = null;
+
 export async function getDiscordBotHealth(): Promise<DiscordBotHealth> {
   const botToken = process.env.DISCORD_BOT_TOKEN;
   const applicationId = process.env.DISCORD_APPLICATION_ID ?? process.env.DISCORD_CLIENT_ID;
@@ -87,4 +91,19 @@ export async function getDiscordBotHealth(): Promise<DiscordBotHealth> {
     checks,
     checkedAt: new Date().toISOString(),
   };
+}
+
+export async function getCachedDiscordBotHealth() {
+  const now = Date.now();
+  if (cachedHealth && cachedHealth.expiresAt > now) return cachedHealth.value;
+  if (pendingHealth) return pendingHealth;
+  pendingHealth = getDiscordBotHealth()
+    .then((value) => {
+      cachedHealth = { value, expiresAt: Date.now() + HEALTH_CACHE_MS };
+      return value;
+    })
+    .finally(() => {
+      pendingHealth = null;
+    });
+  return pendingHealth;
 }

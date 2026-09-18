@@ -11,12 +11,17 @@ import { getSession } from "@/services/auth/session";
 export const runtime = "nodejs";
 
 const MAX_REPLAY_BYTES = 4_000_000;
+const MAX_MULTIPART_BYTES = MAX_REPLAY_BYTES + 512_000;
 const uuidSchema = z.string().uuid();
 
 export async function POST(request: Request) {
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
+  }
+  const contentLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > MAX_MULTIPART_BYTES) {
+    return NextResponse.json({ error: "Replay upload is too large" }, { status: 413 });
   }
   const session = await getSession();
   if (!session?.user) {
