@@ -44,9 +44,9 @@ export default async function ScrimsPage() {
           <p className="mt-3 text-sm leading-6 text-slate-600">
             Open the official channel to coordinate while the website remains the authoritative record.
           </p>
-          <a href="/api/discord/channels/scrims" className="mt-6 flex items-center justify-center gap-2 rounded-lg bg-[#5865f2] px-4 py-3 text-sm font-black text-white">
+          <Link href="/api/discord/channels/scrims" className="mt-6 flex items-center justify-center gap-2 rounded-lg bg-[#5865f2] px-4 py-3 text-sm font-black text-white">
             Open Discord <ExternalLink size={15} />
-          </a>
+          </Link>
         </aside>
       </main>
     </div>

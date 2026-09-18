@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CalendarDays, ChevronRight, Clock3, Dumbbell, Swords, Trophy } from "lucide-react";
 import { LeagueDataState } from "@/components/league-data-state";
-import { competitionEvent, seasonWeekLabel } from "@/services/competition-events";
+import { seasonWeekLabel } from "@/services/competition-events";
 import { loadPublicLeagueData } from "@/services/public-league-data";
 import type { PublicMatch } from "@/services/public-league-data";
 

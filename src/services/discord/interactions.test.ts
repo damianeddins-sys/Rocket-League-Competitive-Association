@@ -10,8 +10,15 @@ const leagueData: PublicLeagueData = {
   status: "ready",
   season: { id: "season-1", name: "Season 1", slug: "season-1" },
   currentWeek: { number: 1, phase: "REGULAR_SPLIT_1" },
+  weeks: [{
+    number: 1,
+    phase: "REGULAR_SPLIT_1",
+    startsAt: "2026-01-01T00:00:00.000Z",
+    endsAt: "2026-01-07T23:59:59.999Z",
+  }],
   standings: [{
     id: "team-1",
+    franchiseNumber: 1,
     slug: "nova",
     name: "Nova",
     shortName: "NVA",
