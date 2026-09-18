@@ -76,6 +76,26 @@ export const seasons = pgTable("seasons", {
   settings: jsonb("settings").$type<Record<string, unknown>>().default({}).notNull(),
 });
 
+export const seasonRulesets = pgTable(
+  "season_rulesets",
+  {
+    id: id(),
+    seasonId: uuid("season_id").notNull().references(() => seasons.id),
+    version: integer("version").notNull(),
+    rules: jsonb("rules").$type<{
+      points: Record<string, number>;
+      mmr: Record<string, number>;
+      roster: Record<string, number>;
+      scheduling: Record<string, number | string>;
+    }>().notNull(),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    supersedesId: uuid("supersedes_id"),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: createdAt(),
+  },
+  (table) => [uniqueIndex("season_ruleset_version").on(table.seasonId, table.version)],
+);
+
 export const divisions = pgTable(
   "divisions",
   {
