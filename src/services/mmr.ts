@@ -1,7 +1,9 @@
-export const VERIFICATION_DAYS = 21;
-export const MINIMUM_RANKED_GAMES = 75;
-export const MINIMUM_CHECKPOINTS = 9;
-export const COMBINE_SERIES_REQUIRED = 6;
+import { SEASON_ONE_RULES } from "./rules";
+
+export const VERIFICATION_DAYS = SEASON_ONE_RULES.verification.windowDays;
+export const MINIMUM_RANKED_GAMES = SEASON_ONE_RULES.verification.rankedGamesRequired;
+export const MINIMUM_CHECKPOINTS = SEASON_ONE_RULES.verification.snapshotsRequired;
+export const COMBINE_SERIES_REQUIRED = SEASON_ONE_RULES.verification.combineSeriesRequired;
 
 export type Division = "MASTER" | "CHALLENGER" | "CONTENDER";
 
@@ -11,7 +13,6 @@ export interface PlacementCandidate {
   medianMmr: number;
   peakMmr: number;
   combineRating: number;
-  randomDrawOrder?: number;
 }
 
 export interface PlacementResult extends PlacementCandidate {
@@ -21,27 +22,33 @@ export interface PlacementResult extends PlacementCandidate {
   division: Division;
 }
 
-function quantile(sorted: number[], q: number): number {
-  const position = (sorted.length - 1) * q;
-  const lower = Math.floor(position);
-  const upper = Math.ceil(position);
-  if (lower === upper) return sorted[lower];
-  return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
+export interface CombinePerformance {
+  playerId: string;
+  performance: number;
+}
+
+export interface CombineResult extends CombinePerformance {
+  rank: number;
+  combineIndex: number;
+  combineRating: number;
 }
 
 export function calculateRankedEvidence(checkpoints: number[]) {
-  if (checkpoints.length < MINIMUM_CHECKPOINTS) {
-    throw new Error(`At least ${MINIMUM_CHECKPOINTS} accepted checkpoints are required`);
+  if (checkpoints.length !== MINIMUM_CHECKPOINTS) {
+    throw new Error(`Exactly ${MINIMUM_CHECKPOINTS} accepted checkpoints are required`);
   }
   if (checkpoints.some((value) => !Number.isFinite(value) || value < 0)) {
     throw new Error("MMR checkpoints must be finite non-negative numbers");
   }
 
   const sorted = [...checkpoints].sort((a, b) => a - b);
-  const medianMmr = quantile(sorted, 0.5);
-  const p20Mmr = quantile(sorted, 0.2);
+  const medianMmr = sorted[4];
+  const p20Mmr = sorted[1];
   const peakMmr = sorted.at(-1)!;
-  const rawScore = medianMmr * 0.6 + p20Mmr * 0.25 + peakMmr * 0.15;
+  const rawScore =
+    medianMmr * SEASON_ONE_RULES.verification.medianWeight +
+    peakMmr * SEASON_ONE_RULES.verification.peakWeight +
+    p20Mmr * SEASON_ONE_RULES.verification.p20Weight;
 
   return { medianMmr, p20Mmr, peakMmr, rawScore };
 }
@@ -56,54 +63,81 @@ export function isVerificationComplete(input: {
   return (
     durationDays === VERIFICATION_DAYS &&
     input.rankedGamesPlayed >= MINIMUM_RANKED_GAMES &&
-    input.acceptedCheckpoints >= MINIMUM_CHECKPOINTS
+    input.acceptedCheckpoints === MINIMUM_CHECKPOINTS
   );
 }
 
-export function placementScore(rankedEvidence: number, normalizedCombineEvidence: number) {
-  return rankedEvidence * 0.8 + normalizedCombineEvidence * 0.2;
+export function placementScore(rankedEvidence: number, combineRating: number) {
+  return (
+    rankedEvidence * SEASON_ONE_RULES.verification.evidenceWeight +
+    combineRating * SEASON_ONE_RULES.verification.combineWeight
+  );
+}
+
+export function assignCombineRatings(players: CombinePerformance[]): CombineResult[] {
+  const poolSize = SEASON_ONE_RULES.verification.placementPoolSize;
+  if (players.length !== poolSize || new Set(players.map((player) => player.playerId)).size !== poolSize) {
+    throw new Error(`Season 1 Combine rating requires exactly ${poolSize} unique players`);
+  }
+  if (players.some((player) => !Number.isFinite(player.performance))) {
+    throw new Error("Combine performance values must be finite");
+  }
+
+  return [...players]
+    .sort((a, b) => a.performance - b.performance || a.playerId.localeCompare(b.playerId))
+    .map((player, index) => {
+      const combineIndex = (index / (poolSize - 1)) * 100;
+      return {
+        ...player,
+        rank: index + 1,
+        combineIndex,
+        combineRating:
+          SEASON_ONE_RULES.verification.startingMmrMinimum +
+          (combineIndex / 100) *
+            (SEASON_ONE_RULES.verification.startingMmrMaximum -
+              SEASON_ONE_RULES.verification.startingMmrMinimum),
+      };
+    });
 }
 
 export function assignPlacement(candidates: PlacementCandidate[]): PlacementResult[] {
-  if (candidates.length !== 24) {
-    throw new Error("Season 1 placement requires exactly 24 verified players");
+  const { placementPoolSize, playersPerDivision, startingMmrMinimum, startingMmrMaximum } =
+    SEASON_ONE_RULES.verification;
+  if (
+    candidates.length !== placementPoolSize ||
+    new Set(candidates.map((candidate) => candidate.playerId)).size !== placementPoolSize
+  ) {
+    throw new Error(`Season 1 placement requires exactly ${placementPoolSize} unique verified players`);
   }
-
-  const rankedValues = candidates.map((candidate) => candidate.rankedEvidence);
-  const combineValues = candidates.map((candidate) => candidate.combineRating);
-  const rankedMin = Math.min(...rankedValues);
-  const rankedMax = Math.max(...rankedValues);
-  const combineMin = Math.min(...combineValues);
-  const combineMax = Math.max(...combineValues);
-
-  const normalize = (value: number, min: number, max: number) =>
-    max === min ? 0.5 : (value - min) / (max - min);
 
   const ordered = candidates
     .map((candidate) => ({
       ...candidate,
-      placementScore: placementScore(
-        normalize(candidate.rankedEvidence, rankedMin, rankedMax),
-        normalize(candidate.combineRating, combineMin, combineMax),
-      ),
+      placementScore: placementScore(candidate.rankedEvidence, candidate.combineRating),
     }))
     .sort(
       (a, b) =>
-        b.placementScore - a.placementScore ||
-        b.rankedEvidence - a.rankedEvidence ||
-        b.medianMmr - a.medianMmr ||
-        b.combineRating - a.combineRating ||
-        b.peakMmr - a.peakMmr ||
-        (a.randomDrawOrder ?? Number.MAX_SAFE_INTEGER) -
-          (b.randomDrawOrder ?? Number.MAX_SAFE_INTEGER) ||
+        a.placementScore - b.placementScore ||
+        a.rankedEvidence - b.rankedEvidence ||
+        a.combineRating - b.combineRating ||
+        a.medianMmr - b.medianMmr ||
+        a.peakMmr - b.peakMmr ||
         a.playerId.localeCompare(b.playerId),
     );
 
   return ordered.map((candidate, index) => ({
     ...candidate,
     rank: index + 1,
-    startingRlcaMmr: Math.round(1700 - index * (700 / 23)),
-    division: index < 8 ? "MASTER" : index < 16 ? "CHALLENGER" : "CONTENDER",
+    startingRlcaMmr: Math.round(
+      startingMmrMinimum +
+        index * ((startingMmrMaximum - startingMmrMinimum) / (placementPoolSize - 1)),
+    ),
+    division:
+      index < playersPerDivision
+        ? "CONTENDER"
+        : index < playersPerDivision * 2
+          ? "CHALLENGER"
+          : "MASTER",
   }));
 }
 

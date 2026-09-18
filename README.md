@@ -8,7 +8,8 @@ Production-oriented foundation for the RLCA 2v2 league platform. The website is 
 - PostgreSQL/Drizzle relational schema with append-only point, rating, replay-analysis, and audit history
 - Deterministic league services for:
   - 21-day / 75-game / 9-checkpoint MMR verification
-  - 80/20 placement and 1000–1700 RLCA rating assignment
+  - exact V2 Evidence Score, ranked Combine index, 80/20 placement, and 1000–1800 RLCA rating assignment
+  - audited player lifecycle, 7 × 24-hour activation holds, and seven-day waivers
   - Protected Roster Value and dynamic roster cap/floor
   - one-player-per-division roster validation and draft completion checks
   - balanced 16-series regular-season scheduling
@@ -38,13 +39,13 @@ npm run db:migrate
 
 ### Discord and Vercel Blob
 
-Discord sign-in uses `/login` and the Auth.js callback at `/api/auth/callback/discord`. Configure the Discord Developer Portal redirect URL as:
+Discord sign-in uses a server-side authorization-code flow beginning at `/api/auth/discord/start`. Configure the Discord Developer Portal redirect URL as:
 
 ```text
-https://YOUR_DOMAIN/api/auth/callback/discord
+https://YOUR_DOMAIN/api/auth/discord/callback
 ```
 
-Set `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, and `AUTH_SECRET` only in local `.env.local` or Vercel Environment Variables. `DISCORD_BOT_TOKEN` is for command/API operations and is never used by the browser OAuth flow.
+Set `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI`, and `SESSION_SECRET` only in local `.env.local` or Vercel Environment Variables. `DISCORD_BOT_TOKEN` is used server-side only when guild membership enforcement is enabled.
 
 Replay uploads will use Vercel Blob through `BLOB_READ_WRITE_TOKEN`. As of September 2026, Vercel Hobby includes 1 GB-month of Blob storage, 10,000 simple operations, 2,000 advanced operations, and 10 GB of transfer per month. Hobby access pauses when limits are exceeded rather than generating overage charges.
 

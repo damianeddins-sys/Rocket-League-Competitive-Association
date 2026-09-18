@@ -1,11 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { championshipBracket, lastChanceBracket, majorBracket } from "./brackets";
 import {
+  championshipBracket,
+  lastChanceBracket,
+  majorBracket,
+  resolveChampionshipSemifinals,
+} from "./brackets";
+import {
+  assignCombineRatings,
   assignPlacement,
   calculateRankedEvidence,
   isVerificationComplete,
   protectedRosterValue,
 } from "./mmr";
+import {
+  activationHoldEndsAt,
+  evaluatePlayerStatusTransition,
+  waiverEndsAt,
+} from "./player-lifecycle";
 import {
   LAST_CHANCE_POINTS,
   MAJOR_POINTS,
@@ -70,8 +81,14 @@ describe("brackets", () => {
     expect(majorBracket(eight).slice(0, 4).map((slot) => [slot.home, slot.away])).toEqual([
       ["t1", "t8"], ["t4", "t5"], ["t2", "t7"], ["t3", "t6"],
     ]);
-    expect(lastChanceBracket(eight.slice(2))).toHaveLength(5);
+    expect(lastChanceBracket(eight.slice(2)).slice(0, 4).map((slot) => [slot.home, slot.away])).toEqual([
+      ["t3", "t8"], ["t4", "t7"], ["t5", "WINNER:R1A"], ["t6", "WINNER:R1B"],
+    ]);
     expect(championshipBracket(eight.slice(0, 6)).map((slot) => slot.bestOf)).toEqual([5, 5, 7, 7, 7]);
+    expect(resolveChampionshipSemifinals(eight.slice(0, 6), ["t3", "t5"])).toEqual([
+      { id: "SF1", home: "t1", away: "t5" },
+      { id: "SF2", home: "t2", away: "t3" },
+    ]);
   });
 });
 
@@ -79,9 +96,9 @@ describe("MMR placement", () => {
   it("calculates the hardened ranked evidence formula", () => {
     const result = calculateRankedEvidence([1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800]);
     expect(result.medianMmr).toBe(1400);
-    expect(result.p20Mmr).toBe(1160);
+    expect(result.p20Mmr).toBe(1100);
     expect(result.peakMmr).toBe(1800);
-    expect(result.rawScore).toBe(1400);
+    expect(result.rawScore).toBe(1425);
   });
 
   it("requires the full verification evidence", () => {
@@ -93,16 +110,25 @@ describe("MMR placement", () => {
     })).toBe(true);
   });
 
-  it("assigns exactly eight players per division on a 1000–1700 scale", () => {
+  it("assigns Combine ratings by unrounded performance rank", () => {
+    const ratings = assignCombineRatings(Array.from({ length: 24 }, (_, index) => ({
+      playerId: `p${String(index).padStart(2, "0")}`,
+      performance: index / 100,
+    })));
+    expect(ratings[0]).toMatchObject({ rank: 1, combineIndex: 0, combineRating: 1000 });
+    expect(ratings[23]).toMatchObject({ rank: 24, combineIndex: 100, combineRating: 1800 });
+  });
+
+  it("assigns exactly eight players per division on a 1000–1800 scale", () => {
     const result = assignPlacement(Array.from({ length: 24 }, (_, index) => ({
       playerId: `p${index}`,
-      rankedEvidence: 2000 - index * 20,
-      medianMmr: 1900 - index * 20,
-      peakMmr: 2100 - index * 20,
-      combineRating: 1600 - index * 10,
+      rankedEvidence: 1000 + index * 20,
+      medianMmr: 1000 + index * 20,
+      peakMmr: 1100 + index * 20,
+      combineRating: 1000 + index * 20,
     })));
-    expect(result[0].startingRlcaMmr).toBe(1700);
-    expect(result[23].startingRlcaMmr).toBe(1000);
+    expect(result[0].startingRlcaMmr).toBe(1000);
+    expect(result[23].startingRlcaMmr).toBe(1800);
     expect(result.filter((player) => player.division === "MASTER")).toHaveLength(8);
     expect(result.filter((player) => player.division === "CHALLENGER")).toHaveLength(8);
     expect(result.filter((player) => player.division === "CONTENDER")).toHaveLength(8);
@@ -110,6 +136,53 @@ describe("MMR placement", () => {
 
   it("never lets Protected Roster Value fall", () => {
     expect(protectedRosterValue(1375, 1440, 1310)).toBe(1440);
+  });
+});
+
+describe("player lifecycle", () => {
+  const activatedAt = new Date("2026-01-01T20:00:00Z");
+
+  it("enforces the exact 7 × 24-hour activation hold using server time", () => {
+    expect(activationHoldEndsAt(activatedAt)).toEqual(new Date("2026-01-08T20:00:00Z"));
+    const blocked = evaluatePlayerStatusTransition({
+      from: "ACTIVE",
+      to: "WAIVER",
+      activatedAt,
+      now: new Date("2026-01-08T19:59:59Z"),
+    });
+    expect(blocked).toMatchObject({ allowed: false, code: "ACTIVATION_HOLD_ACTIVE" });
+    expect(evaluatePlayerStatusTransition({
+      from: "ACTIVE",
+      to: "WAIVER",
+      activatedAt,
+      now: new Date("2026-01-08T20:00:00Z"),
+    })).toEqual({ allowed: true, code: "ALLOWED" });
+  });
+
+  it("requires an approved transaction for roster release", () => {
+    expect(evaluatePlayerStatusTransition({
+      from: "ROSTERED",
+      to: "WAIVER",
+      now: new Date(),
+    })).toMatchObject({ allowed: false, code: "TRANSACTION_APPROVAL_REQUIRED" });
+  });
+
+  it("enforces seven full waiver days before free agency", () => {
+    expect(waiverEndsAt(activatedAt)).toEqual(new Date("2026-01-08T20:00:00Z"));
+    expect(evaluatePlayerStatusTransition({
+      from: "WAIVER",
+      to: "FREE_AGENT",
+      waiverStartedAt: activatedAt,
+      now: new Date("2026-01-08T19:00:00Z"),
+    })).toMatchObject({ allowed: false, code: "WAIVER_PERIOD_ACTIVE" });
+  });
+
+  it("never allows an archived player to reactivate directly", () => {
+    expect(evaluatePlayerStatusTransition({
+      from: "ARCHIVED",
+      to: "ACTIVE",
+      now: new Date(),
+    })).toMatchObject({ allowed: false, code: "INVALID_STATUS_TRANSITION" });
   });
 });
 

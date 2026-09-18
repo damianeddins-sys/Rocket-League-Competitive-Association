@@ -15,6 +15,13 @@
       "when": 1789714451650,
       "tag": "0001_greedy_paladin",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789754231189,
+      "tag": "0002_classy_darkstar",
+      "breakpoints": true
     }
   ]
 }

@@ -51,6 +51,38 @@ export const replayStatus = pgEnum("replay_status", [
   "REQUIRES_REVIEW",
 ]);
 export const decisionStatus = pgEnum("decision_status", ["PENDING", "APPROVED", "DENIED"]);
+export const seasonStatus = pgEnum("season_status", ["DRAFT", "ACTIVE", "ARCHIVED"]);
+export const playerStatus = pgEnum("player_status", [
+  "APPLIED",
+  "VERIFICATION_PENDING",
+  "VERIFICATION_COMPLETE",
+  "COMBINE_PENDING",
+  "PLACEMENT_PENDING",
+  "ACTIVE",
+  "INACTIVE",
+  "ROSTERED",
+  "WAIVER",
+  "FREE_AGENT",
+  "RESTRICTED",
+  "SUSPENDED",
+  "ARCHIVED",
+]);
+export const placementCycleType = pgEnum("placement_cycle_type", [
+  "INITIAL",
+  "REVERIFICATION",
+  "NEW_SEASON",
+]);
+export const placementCycleStatus = pgEnum("placement_cycle_status", [
+  "OPEN",
+  "VERIFICATION",
+  "COMBINE",
+  "CALCULATED",
+  "AWAITING_APPROVAL",
+  "APPROVED",
+  "REJECTED",
+  "CANCELLED",
+]);
+export const waiverStatus = pgEnum("waiver_status", ["OPEN", "CLAIMED", "EXPIRED", "CANCELLED"]);
 
 export const users = pgTable("users", {
   id: id(),
@@ -71,8 +103,10 @@ export const seasons = pgTable("seasons", {
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   active: boolean("active").default(false).notNull(),
+  status: seasonStatus("status").default("DRAFT").notNull(),
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
   endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
   settings: jsonb("settings").$type<Record<string, unknown>>().default({}).notNull(),
 });
 
@@ -87,6 +121,9 @@ export const seasonRulesets = pgTable(
       mmr: Record<string, number>;
       roster: Record<string, number>;
       scheduling: Record<string, number | string>;
+      lifecycle: Record<string, number | string>;
+      events: Record<string, number | string>;
+      replayRetention: Record<string, number | string | boolean>;
     }>().notNull(),
     publishedAt: timestamp("published_at", { withTimezone: true }),
     supersedesId: uuid("supersedes_id"),
@@ -126,6 +163,61 @@ export const players = pgTable("players", {
   createdAt: createdAt(),
 });
 
+export const playerSeasons = pgTable(
+  "player_seasons",
+  {
+    id: id(),
+    playerId: uuid("player_id").notNull().references(() => players.id),
+    seasonId: uuid("season_id").notNull().references(() => seasons.id),
+    status: playerStatus("status").default("APPLIED").notNull(),
+    divisionId: uuid("division_id").references(() => divisions.id),
+    currentMmr: numeric("current_mmr", { precision: 10, scale: 3 }),
+    protectedRosterValue: numeric("protected_roster_value", { precision: 10, scale: 3 }),
+    activatedAt: timestamp("activated_at", { withTimezone: true }),
+    currentPlacementCycleId: uuid("current_placement_cycle_id"),
+    createdAt: createdAt(),
+  },
+  (table) => [uniqueIndex("player_season_unique").on(table.playerId, table.seasonId)],
+);
+
+export const playerApplications = pgTable(
+  "player_applications",
+  {
+    id: id(),
+    playerSeasonId: uuid("player_season_id").notNull().references(() => playerSeasons.id),
+    status: playerStatus("status").default("APPLIED").notNull(),
+    alternateAccountsDeclared: boolean("alternate_accounts_declared").default(false).notNull(),
+    submittedAt: createdAt(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewedBy: uuid("reviewed_by").references(() => users.id),
+    notes: text("notes"),
+  },
+  (table) => [uniqueIndex("player_application_season").on(table.playerSeasonId)],
+);
+
+export const placementCycles = pgTable(
+  "placement_cycles",
+  {
+    id: id(),
+    playerSeasonId: uuid("player_season_id").notNull().references(() => playerSeasons.id),
+    type: placementCycleType("type").notNull(),
+    status: placementCycleStatus("status").default("OPEN").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    verificationDeadline: timestamp("verification_deadline", { withTimezone: true }).notNull(),
+    evidenceScore: numeric("evidence_score", { precision: 10, scale: 3 }),
+    combinePerformance: numeric("combine_performance", { precision: 12, scale: 6 }),
+    combineRating: numeric("combine_rating", { precision: 10, scale: 3 }),
+    finalPlacementScore: numeric("final_placement_score", { precision: 10, scale: 3 }),
+    proposedMmr: numeric("proposed_mmr", { precision: 10, scale: 3 }),
+    proposedDivisionId: uuid("proposed_division_id").references(() => divisions.id),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    approvedBy: uuid("approved_by").references(() => users.id),
+    supersedesCycleId: uuid("supersedes_cycle_id"),
+    createdAt: createdAt(),
+  },
+  (table) => [index("placement_cycle_player_season").on(table.playerSeasonId, table.createdAt)],
+);
+
 export const rocketLeagueAccounts = pgTable(
   "rocket_league_accounts",
   {
@@ -162,6 +254,7 @@ export const mmrVerificationWindows = pgTable("mmr_verification_windows", {
   id: id(),
   seasonId: uuid("season_id").notNull().references(() => seasons.id),
   playerId: uuid("player_id").notNull().references(() => players.id),
+  placementCycleId: uuid("placement_cycle_id").references(() => placementCycles.id),
   opensAt: timestamp("opens_at", { withTimezone: true }).notNull(),
   closesAt: timestamp("closes_at", { withTimezone: true }).notNull(),
   rankedGamesPlayed: integer("ranked_games_played").default(0).notNull(),
@@ -176,6 +269,9 @@ export const mmrSnapshots = pgTable(
     capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
     mmr: integer("mmr").notNull(),
     source: text("source").notNull(),
+    sourceReference: text("source_reference"),
+    evidenceHash: text("evidence_hash"),
+    capturedBy: uuid("captured_by").references(() => users.id),
     accepted: boolean("accepted").default(false).notNull(),
     rejectionReason: text("rejection_reason"),
   },
@@ -191,6 +287,59 @@ export const rankedEvidenceScores = pgTable("ranked_evidence_scores", {
   rawScore: numeric("raw_score", { precision: 10, scale: 3 }).notNull(),
   calculatedAt: createdAt(),
 });
+
+export const combineSeries = pgTable(
+  "combine_series",
+  {
+    id: id(),
+    placementCycleId: uuid("placement_cycle_id").notNull().references(() => placementCycles.id),
+    playerId: uuid("player_id").notNull().references(() => players.id),
+    matchId: uuid("match_id"),
+    seriesNumber: integer("series_number").notNull(),
+    teammateId: uuid("teammate_id").notNull().references(() => players.id),
+    opponentAId: uuid("opponent_a_id").notNull().references(() => players.id),
+    opponentBId: uuid("opponent_b_id").notNull().references(() => players.id),
+    expectedProbability: numeric("expected_probability", { precision: 8, scale: 7 }).notNull(),
+    actualResult: numeric("actual_result", { precision: 3, scale: 2 }).notNull(),
+    performanceValue: numeric("performance_value", { precision: 10, scale: 8 }).notNull(),
+    playedAt: timestamp("played_at", { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("combine_cycle_series").on(table.placementCycleId, table.seriesNumber),
+    index("combine_player_cycle").on(table.playerId, table.placementCycleId),
+  ],
+);
+
+export const playerStatusHistory = pgTable(
+  "player_status_history",
+  {
+    id: id(),
+    playerSeasonId: uuid("player_season_id").notNull().references(() => playerSeasons.id),
+    fromStatus: playerStatus("from_status"),
+    toStatus: playerStatus("to_status").notNull(),
+    effectiveAt: timestamp("effective_at", { withTimezone: true }).notNull(),
+    reason: text("reason").notNull(),
+    actorId: uuid("actor_id").references(() => users.id),
+    relatedTransactionId: uuid("related_transaction_id"),
+    exceptionId: uuid("exception_id"),
+    createdAt: createdAt(),
+  },
+  (table) => [index("player_status_timeline").on(table.playerSeasonId, table.effectiveAt)],
+);
+
+export const activationHolds = pgTable(
+  "activation_holds",
+  {
+    id: id(),
+    playerSeasonId: uuid("player_season_id").notNull().references(() => playerSeasons.id),
+    activatedAt: timestamp("activated_at", { withTimezone: true }).notNull(),
+    eligibleChangeAt: timestamp("eligible_change_at", { withTimezone: true }).notNull(),
+    exceptionId: uuid("exception_id"),
+    createdAt: createdAt(),
+  },
+  (table) => [index("activation_hold_player").on(table.playerSeasonId, table.eligibleChangeAt)],
+);
 
 export const ratingEvents = pgTable(
   "rating_events",
@@ -356,6 +505,35 @@ export const exceptions = pgTable("exceptions", {
   createdAt: createdAt(),
 });
 
+export const waiverWindows = pgTable(
+  "waiver_windows",
+  {
+    id: id(),
+    playerSeasonId: uuid("player_season_id").notNull().references(() => playerSeasons.id),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    status: waiverStatus("status").default("OPEN").notNull(),
+    claimedByTeamId: uuid("claimed_by_team_id").references(() => teams.id),
+    exceptionId: uuid("exception_id").references(() => exceptions.id),
+    createdAt: createdAt(),
+  },
+  (table) => [index("waiver_player_window").on(table.playerSeasonId, table.startedAt)],
+);
+
+export const waiverClaims = pgTable(
+  "waiver_claims",
+  {
+    id: id(),
+    waiverWindowId: uuid("waiver_window_id").notNull().references(() => waiverWindows.id),
+    teamId: uuid("team_id").notNull().references(() => teams.id),
+    priorityAtSubmission: integer("priority_at_submission").notNull(),
+    submittedBy: uuid("submitted_by").notNull().references(() => users.id),
+    submittedAt: createdAt(),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+  },
+  (table) => [uniqueIndex("waiver_claim_team").on(table.waiverWindowId, table.teamId)],
+);
+
 export const replays = pgTable(
   "replays",
   {
@@ -366,6 +544,10 @@ export const replays = pgTable(
     storageKey: text("storage_key").notNull(),
     status: replayStatus("status").default("SUBMITTED").notNull(),
     parserVersion: text("parser_version"),
+    retentionUntil: timestamp("retention_until", { withTimezone: true }),
+    retainPermanently: boolean("retain_permanently").default(false).notNull(),
+    rawDeletedAt: timestamp("raw_deleted_at", { withTimezone: true }),
+    deletionBatchId: uuid("deletion_batch_id"),
     submittedAt: createdAt(),
   },
   (table) => [uniqueIndex("replay_content_hash").on(table.contentHash)],
@@ -390,6 +572,53 @@ export const coachingObservations = pgTable("coaching_observations", {
   gameNumber: integer("game_number").notNull(),
   timestampMs: integer("timestamp_ms"),
   confidence: numeric("confidence", { precision: 5, scale: 4 }).notNull(),
+});
+
+export const seasonArchives = pgTable(
+  "season_archives",
+  {
+    id: id(),
+    seasonId: uuid("season_id").notNull().references(() => seasons.id),
+    storageKey: text("storage_key").notNull(),
+    databaseMigrationVersion: text("database_migration_version").notNull(),
+    appBuildVersion: text("app_build_version").notNull(),
+    manifestHash: text("manifest_hash").notNull(),
+    archivedBy: uuid("archived_by").references(() => users.id),
+    archivedAt: timestamp("archived_at", { withTimezone: true }).notNull(),
+    restoreTestedAt: timestamp("restore_tested_at", { withTimezone: true }),
+    restoreTestResult: text("restore_test_result"),
+  },
+  (table) => [uniqueIndex("season_archive_version").on(table.seasonId, table.manifestHash)],
+);
+
+export const backupManifests = pgTable(
+  "backup_manifests",
+  {
+    id: id(),
+    seasonId: uuid("season_id").references(() => seasons.id),
+    type: text("type").notNull(),
+    status: text("status").notNull(),
+    storageKey: text("storage_key").notNull(),
+    fileHashes: jsonb("file_hashes").$type<Record<string, string>>().notNull(),
+    replayManifest: jsonb("replay_manifest").$type<Record<string, unknown>>().notNull(),
+    databaseMigrationVersion: text("database_migration_version").notNull(),
+    appBuildVersion: text("app_build_version").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    failureReason: text("failure_reason"),
+  },
+  (table) => [index("backup_season_time").on(table.seasonId, table.startedAt)],
+);
+
+export const replayDeletionBatches = pgTable("replay_deletion_batches", {
+  id: id(),
+  seasonId: uuid("season_id").notNull().references(() => seasons.id),
+  backupManifestId: uuid("backup_manifest_id").notNull().references(() => backupManifests.id),
+  replayHashes: jsonb("replay_hashes").$type<string[]>().notNull(),
+  deletedCount: integer("deleted_count").notNull(),
+  executedBy: uuid("executed_by").references(() => users.id),
+  executedAt: timestamp("executed_at", { withTimezone: true }).notNull(),
 });
 
 export const auditLogs = pgTable(

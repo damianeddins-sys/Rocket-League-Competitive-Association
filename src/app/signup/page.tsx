@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { auth } from "@/auth";
+import { getSession } from "@/services/auth/session";
 
 export const metadata: Metadata = { title: "Player Registration" };
 
 export default async function SignupPage() {
-  const session = await auth();
+  const session = await getSession();
 
   return (
     <section className="min-h-[70vh] bg-[#f4f7fa] px-5 py-16">
