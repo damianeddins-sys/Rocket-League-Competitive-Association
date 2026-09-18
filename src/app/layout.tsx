@@ -37,7 +37,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 src="/branding/rlca-logo-transparent.png"
                 alt="RLCA"
                 width={92}
-                height={68}
+                height={92}
                 className="h-12 w-auto object-contain"
                 priority
               />
@@ -81,7 +81,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <footer className="bg-[#07172b] text-slate-300">
           <div className="mx-auto grid max-w-7xl gap-8 px-5 py-10 sm:grid-cols-2 lg:px-8">
             <div>
-              <Image src="/branding/rlca-logo-transparent.png" alt="" width={120} height={84} className="h-14 w-auto" />
+              <Image src="/branding/rlca-logo-transparent.png" alt="" width={120} height={120} className="h-14 w-auto" />
               <p className="mt-3 max-w-md text-sm leading-6">
                 One league. One official record. Built for competitive Rocket League 2v2.
               </p>

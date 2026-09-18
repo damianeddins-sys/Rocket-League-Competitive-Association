@@ -41,7 +41,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           src="/branding/rlca-logo-transparent.png"
           alt="RLCA"
           width={180}
-          height={130}
+          height={180}
           className="mx-auto h-24 w-auto"
         />
         <p className="eyebrow mt-5 text-[#1677ff]">Official league account</p>

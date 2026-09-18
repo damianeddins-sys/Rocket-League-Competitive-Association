@@ -11,7 +11,7 @@ export default function Home() {
           src="/branding/rlca-logo-transparent.png"
           alt=""
           width={700}
-          height={520}
+          height={700}
           className="pointer-events-none absolute -right-20 top-1/2 w-[480px] -translate-y-1/2 opacity-[0.09] lg:right-8 lg:w-[620px]"
           priority
         />
