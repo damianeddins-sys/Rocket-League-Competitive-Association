@@ -226,7 +226,7 @@ export default async function OperationsPage({
             ) : botHealth ? (
               <div className="mt-7">
                 <div className={`rounded-lg border p-5 ${botHealth.status === "HEALTHY" ? "border-emerald-200 bg-emerald-50" : botHealth.status === "DEGRADED" ? "border-amber-200 bg-amber-50" : "border-red-200 bg-red-50"}`}>
-                  <p className="eyebrow">Discord HTTP Interactions</p>
+                  <p className="eyebrow">Discord Gateway + HTTP Interactions</p>
                   <p className="mt-2 text-2xl font-black">{botHealth.status}</p>
                   <p className="mt-2 text-sm">Checked {new Date(botHealth.checkedAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC</p>
                 </div>
@@ -242,6 +242,7 @@ export default async function OperationsPage({
                 </div>
                 <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
                   <p><strong>Interactions endpoint:</strong> <span className="break-all font-mono">{botHealth.interactionEndpoint}</span></p>
+                  <p className="mt-2"><strong>Gateway heartbeat:</strong> {botHealth.gatewayLastHeartbeatAt ? `${new Date(botHealth.gatewayLastHeartbeatAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC` : "Never received"}</p>
                   {botHealth.missingConfiguration.length > 0 && (
                     <p className="mt-2 text-red-700"><strong>Missing environment variables:</strong> {botHealth.missingConfiguration.join(", ")}</p>
                   )}

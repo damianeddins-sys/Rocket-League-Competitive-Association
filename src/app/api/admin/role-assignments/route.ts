@@ -3,11 +3,19 @@ import { and, eq, gt, isNull, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDatabase } from "@/db";
-import { auditLogs, roleAssignments, seasons, teams, users } from "@/db/schema";
+import {
+  auditLogs,
+  discordNotificationJobs,
+  roleAssignments,
+  seasons,
+  teams,
+  users,
+} from "@/db/schema";
 import { buildAuditLogRecord } from "@/services/audit";
 import { checkPortalAccess } from "@/services/auth/portal-access";
 import { getSession } from "@/services/auth/session";
 import { assignableRoleCodes } from "@/services/role-assignments";
+import { notificationJob } from "@/services/discord/notifications";
 
 const assignmentSchema = z.object({
   userId: z.string().uuid(),
@@ -48,7 +56,7 @@ export async function POST(request: Request) {
   }
   const db = getDatabase();
   const [targetRows, team, season] = await Promise.all([
-    db.select({ id: users.id }).from(users).where(eq(users.id, parsed.data.userId)).limit(1),
+    db.select({ id: users.id, name: users.displayName }).from(users).where(eq(users.id, parsed.data.userId)).limit(1),
     parsed.data.teamId
       ? db.select({ id: teams.id }).from(teams).where(eq(teams.id, parsed.data.teamId)).limit(1)
       : Promise.resolve([]),
@@ -105,6 +113,22 @@ export async function POST(request: Request) {
       },
       requestId: randomUUID(),
     }));
+    await tx.insert(discordNotificationJobs).values(notificationJob({
+      eventType: "STAFF_PERMISSION_CHANGED",
+      payload: {
+        title: "Staff Permission Granted",
+        color: 0x1683ff,
+        fields: [
+          { name: "Staff Member", value: target.name, inline: true },
+          { name: "Role", value: parsed.data.role.replaceAll("_", " "), inline: true },
+          { name: "Changed", value: new Date().toISOString() },
+        ],
+        url: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/operations/permissions`,
+      },
+      sourceEntityType: "ROLE_ASSIGNMENT",
+      sourceEntityId: record.id,
+      idempotencyKey: `role-granted:${record.id}`,
+    }));
     return record;
   });
   return NextResponse.json({
@@ -128,6 +152,11 @@ export async function DELETE(request: Request) {
     .where(and(eq(roleAssignments.id, parsed.data.assignmentId), isNull(roleAssignments.revokedAt)))
     .limit(1);
   if (!current) return NextResponse.json({ error: "Active assignment not found" }, { status: 404 });
+  const [target] = await db
+    .select({ name: users.displayName })
+    .from(users)
+    .where(eq(users.id, current.userId))
+    .limit(1);
   await db.transaction(async (tx) => {
     await tx.update(roleAssignments).set({ revokedAt: new Date() }).where(eq(roleAssignments.id, current.id));
     await tx.insert(auditLogs).values(buildAuditLogRecord({
@@ -142,6 +171,22 @@ export async function DELETE(request: Request) {
       reason: parsed.data.reason,
       requestId: randomUUID(),
     }));
+    await tx.insert(discordNotificationJobs).values(notificationJob({
+      eventType: "STAFF_PERMISSION_CHANGED",
+      payload: {
+        title: "Staff Permission Revoked",
+        color: 0xef4444,
+        fields: [
+          { name: "Staff Member", value: target?.name ?? "Unknown member", inline: true },
+          { name: "Role", value: current.role.replaceAll("_", " "), inline: true },
+          { name: "Changed", value: new Date().toISOString() },
+        ],
+        url: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/operations/permissions`,
+      },
+      sourceEntityType: "ROLE_ASSIGNMENT",
+      sourceEntityId: current.id,
+      idempotencyKey: `role-revoked:${current.id}`,
+    })).onConflictDoNothing();
   });
   return NextResponse.json({ id: current.id, revoked: true });
 }

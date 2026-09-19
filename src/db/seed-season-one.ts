@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { getDatabase } from ".";
 import {
   discordChannelConfigurations,
+  discordNotificationRoutes,
   discordRoleConfigurations,
   divisions,
   events,
@@ -13,6 +14,7 @@ import { buildSeasonOneEvents, buildSeasonOneWeeks } from "../services/season-ca
 import { DISCORD_CHANNELS } from "../services/discord/channels";
 import { SEASON_ONE_FRANCHISES } from "../services/franchises";
 import { DISCORD_ROLE_IDS } from "../services/auth/discord-roles";
+import { DEFAULT_DISCORD_NOTIFICATION_ROUTES } from "../services/discord/notifications";
 
 export async function seedSeasonOne(startsAt: Date) {
   const weeks = buildSeasonOneWeeks(startsAt);
@@ -94,17 +96,7 @@ export async function seedSeasonOne(startsAt: Date) {
       await tx
         .insert(discordChannelConfigurations)
         .values(channel)
-        .onConflictDoUpdate({
-          target: discordChannelConfigurations.key,
-          set: {
-            channelId: channel.channelId,
-            displayName: channel.displayName,
-            category: channel.category,
-            division: channel.division,
-            active: true,
-            updatedAt: new Date(),
-          },
-        });
+        .onConflictDoNothing({ target: discordChannelConfigurations.key });
     }
     const roleValues = Object.entries(DISCORD_ROLE_IDS).map(([key, roleId]) => ({
       key,
@@ -119,16 +111,16 @@ export async function seedSeasonOne(startsAt: Date) {
             : "STAFF",
     }));
     for (const role of roleValues) {
-      await tx.insert(discordRoleConfigurations).values(role).onConflictDoUpdate({
-        target: discordRoleConfigurations.key,
-        set: {
-          roleId: role.roleId,
-          displayName: role.displayName,
-          category: role.category,
-          active: true,
-          updatedAt: new Date(),
-        },
-      });
+      await tx
+        .insert(discordRoleConfigurations)
+        .values(role)
+        .onConflictDoNothing({ target: discordRoleConfigurations.key });
+    }
+    for (const route of DEFAULT_DISCORD_NOTIFICATION_ROUTES) {
+      await tx
+        .insert(discordNotificationRoutes)
+        .values(route)
+        .onConflictDoNothing({ target: discordNotificationRoutes.eventType });
     }
 
     return {
@@ -138,6 +130,7 @@ export async function seedSeasonOne(startsAt: Date) {
       franchises: SEASON_ONE_FRANCHISES.length,
       channels: channelValues.length,
       roles: roleValues.length,
+      notificationRoutes: DEFAULT_DISCORD_NOTIFICATION_ROUTES.length,
     };
   });
 }

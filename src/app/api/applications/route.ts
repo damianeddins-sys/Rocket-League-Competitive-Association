@@ -7,12 +7,14 @@ import {
   applications,
   applicationStatusHistory,
   auditLogs,
+  discordNotificationJobs,
   seasons,
 } from "@/db/schema";
 import { buildAuditLogRecord } from "@/services/audit";
 import { consumeAuthRateLimit } from "@/services/auth/rate-limit";
 import { getSession } from "@/services/auth/session";
 import { applicationSubmissionSchema } from "@/services/applications";
+import { notificationJob } from "@/services/discord/notifications";
 
 export const runtime = "nodejs";
 
@@ -126,6 +128,22 @@ export async function POST(request: Request) {
       entityId: application.id,
       nextState: { type: parsed.data.type, status: "SUBMITTED" },
       requestId,
+    }));
+    await tx.insert(discordNotificationJobs).values(notificationJob({
+      eventType: `APPLICATION_SUBMITTED_${parsed.data.type}`,
+      payload: {
+        title: "New Application Received",
+        color: 0x1683ff,
+        fields: [
+          { name: "Applicant", value: parsed.data.fullName, inline: true },
+          { name: "Application Type", value: parsed.data.type.replaceAll("_", "/"), inline: true },
+          { name: "Submitted", value: new Date().toISOString() },
+        ],
+        url: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/operations/applications`,
+      },
+      sourceEntityType: "APPLICATION",
+      sourceEntityId: application.id,
+      idempotencyKey: `application-submitted:${application.id}`,
     }));
     return application;
     });

@@ -7,6 +7,7 @@ import {
   applications,
   applicationStatusHistory,
   auditLogs,
+  discordNotificationJobs,
   playerApplications,
   players,
   playerSeasons,
@@ -21,6 +22,7 @@ import {
   applicationReviewSchema,
   canReviewApplicationTransition,
 } from "@/services/applications";
+import { notificationJob } from "@/services/discord/notifications";
 
 export const runtime = "nodejs";
 
@@ -191,6 +193,23 @@ export async function PATCH(
       reason: parsed.data.reason,
       requestId,
     }));
+    await tx.insert(discordNotificationJobs).values(notificationJob({
+      eventType: "APPLICATION_DECIDED",
+      payload: {
+        title: "Application Decision Recorded",
+        color: parsed.data.status === "APPROVED" ? 0x22c55e : 0xf59e0b,
+        fields: [
+          { name: "Applicant", value: current.fullName, inline: true },
+          { name: "Type", value: current.type.replaceAll("_", "/"), inline: true },
+          { name: "Decision", value: parsed.data.status.replaceAll("_", " "), inline: true },
+          { name: "Recorded", value: new Date().toISOString() },
+        ],
+        url: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/operations/applications`,
+      },
+      sourceEntityType: "APPLICATION",
+      sourceEntityId: id,
+      idempotencyKey: `application-decision:${id}:${parsed.data.status}`,
+    })).onConflictDoNothing();
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Application review failed";

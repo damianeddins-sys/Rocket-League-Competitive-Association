@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "discord:register": "node --env-file-if-exists=.env.local scripts/register-discord-commands.mjs",
+    "discord:worker": "node --env-file-if-exists=.env.local scripts/discord-gateway-worker.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx --env-file-if-exists=.env.local scripts/seed-season-one.ts",
@@ -19,6 +20,7 @@
   "dependencies": {
     "@vercel/blob": "^2.8.0",
     "clsx": "^2.1.1",
+    "discord.js": "^14.27.0",
     "drizzle-orm": "^0.45.2",
     "jose": "^6.2.12",
     "lucide-react": "^1.47.0",

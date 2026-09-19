@@ -213,6 +213,60 @@ export const discordRoleSyncJobs = pgTable(
   (table) => [index("discord_role_sync_queue").on(table.status, table.nextAttemptAt)],
 );
 
+export const discordNotificationRoutes = pgTable("discord_notification_routes", {
+  id: id(),
+  eventType: text("event_type").notNull().unique(),
+  channelKey: text("channel_key").notNull(),
+  enabled: boolean("enabled").default(true).notNull(),
+  updatedBy: uuid("updated_by").references(() => users.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const discordNotificationJobs = pgTable(
+  "discord_notification_jobs",
+  {
+    id: id(),
+    eventType: text("event_type").notNull(),
+    payload: jsonb("payload").$type<{
+      title: string;
+      description?: string;
+      color?: number;
+      fields?: Array<{ name: string; value: string; inline?: boolean }>;
+      url?: string;
+    }>().notNull(),
+    sourceEntityType: text("source_entity_type").notNull(),
+    sourceEntityId: text("source_entity_id").notNull(),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    status: text("status").default("PENDING").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    lockedBy: text("locked_by"),
+    lastError: text("last_error"),
+    discordMessageId: text("discord_message_id"),
+    createdAt: createdAt(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("discord_notification_queue").on(table.status, table.nextAttemptAt),
+    index("discord_notification_source").on(table.sourceEntityType, table.sourceEntityId),
+  ],
+);
+
+export const discordBotRuntime = pgTable("discord_bot_runtime", {
+  key: text("key").primaryKey(),
+  status: text("status").default("OFFLINE").notNull(),
+  sessionId: text("session_id"),
+  botUserId: text("bot_user_id"),
+  guildCount: integer("guild_count").default(0).notNull(),
+  targetGuildConnected: boolean("target_guild_connected").default(false).notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true }),
+  lastDisconnectAt: timestamp("last_disconnect_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const authRateLimits = pgTable("auth_rate_limits", {
   key: text("key").primaryKey(),
   count: integer("count").default(0).notNull(),

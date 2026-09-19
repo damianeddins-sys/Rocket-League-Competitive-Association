@@ -43,9 +43,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid interaction payload" }, { status: 400 });
   }
 
-  return NextResponse.json(
-    await respondToDiscordInteraction(
-      interaction as Parameters<typeof respondToDiscordInteraction>[0],
-    ),
-  );
+  try {
+    return NextResponse.json(
+      await respondToDiscordInteraction(
+        interaction as Parameters<typeof respondToDiscordInteraction>[0],
+      ),
+    );
+  } catch (error) {
+    console.error("Discord interaction failed", {
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+    return NextResponse.json({
+      type: 4,
+      data: {
+        content: "RLCA could not complete that command. Try again shortly.",
+        flags: 64,
+      },
+    });
+  }
 }

@@ -4,7 +4,10 @@ import {
   applicationEmailDocuments,
   applications,
   auditLogs,
+  discordBotRuntime,
   discordChannelConfigurations,
+  discordNotificationJobs,
+  discordNotificationRoutes,
   discordRoleConfigurations,
   divisions,
   playerSeasons,
@@ -19,6 +22,7 @@ import {
   transactionRequests,
   users,
 } from "../db/schema";
+import { DISCORD_NOTIFICATION_EVENTS } from "./discord/notifications";
 
 export type OperationsData<T> =
   | { status: "READY"; data: T }
@@ -168,10 +172,16 @@ export function loadDocumentManagement() {
 export function loadSettingsManagement() {
   return load(async () => {
     const db = getDatabase();
-    const [seasonRows, channels, roles] = await Promise.all([
+    const [seasonRows, channels, roles, notificationRoutes, notificationJobs, runtime] = await Promise.all([
       db.select().from(seasons).orderBy(desc(seasons.startsAt)),
       db.select().from(discordChannelConfigurations).orderBy(asc(discordChannelConfigurations.category), asc(discordChannelConfigurations.displayName)),
       db.select().from(discordRoleConfigurations).orderBy(asc(discordRoleConfigurations.category), asc(discordRoleConfigurations.displayName)),
+      db.select().from(discordNotificationRoutes).orderBy(asc(discordNotificationRoutes.eventType)),
+      db
+        .select({ status: discordNotificationJobs.status, value: count() })
+        .from(discordNotificationJobs)
+        .groupBy(discordNotificationJobs.status),
+      db.select().from(discordBotRuntime).where(eq(discordBotRuntime.key, "gateway")).limit(1),
     ]);
     return {
       seasons: seasonRows.map((season) => ({
@@ -185,6 +195,7 @@ export function loadSettingsManagement() {
         key: channel.key,
         channelId: channel.channelId,
         displayName: channel.displayName,
+        category: channel.category,
         active: channel.active,
       })),
       roles: roles.map((role) => ({
@@ -194,6 +205,27 @@ export function loadSettingsManagement() {
         displayName: role.displayName,
         active: role.active,
       })),
+      notificationRoutes: DISCORD_NOTIFICATION_EVENTS.map((eventType) => {
+        const configured = notificationRoutes.find((route) => route.eventType === eventType);
+        return {
+          eventType,
+          channelKey: configured?.channelKey ?? "",
+          enabled: configured?.enabled ?? false,
+        };
+      }),
+      integration: {
+        runtime: runtime[0] ? {
+          status: runtime[0].status,
+          targetGuildConnected: runtime[0].targetGuildConnected,
+          lastHeartbeatAt: runtime[0].lastHeartbeatAt?.toISOString() ?? null,
+          lastDisconnectAt: runtime[0].lastDisconnectAt?.toISOString() ?? null,
+          lastError: runtime[0].lastError,
+        } : null,
+        queued: notificationJobs
+          .filter((job) => ["PENDING", "RETRY", "PROCESSING"].includes(job.status))
+          .reduce((total, job) => total + job.value, 0),
+        failed: notificationJobs.find((job) => job.status === "FAILED")?.value ?? 0,
+      },
     };
   });
 }

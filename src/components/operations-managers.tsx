@@ -23,8 +23,8 @@ export function BotControl() {
   }
   return (
     <div className="mt-5 rounded-lg border border-blue-200 bg-blue-50 p-5">
-      <h3 className="font-black text-blue-950">Serverless bot control</h3>
-      <p className="mt-2 text-sm leading-6 text-blue-900">Discord sends signed commands directly to this deployment, so no fragile Gateway connection is required. The bot remains available whenever the website deployment is online.</p>
+      <h3 className="font-black text-blue-950">Discord command control</h3>
+      <p className="mt-2 text-sm leading-6 text-blue-900">Signed slash commands are handled by the website. Online presence, reconnect monitoring, and queued notifications are handled by the persistent Gateway worker.</p>
       {message && <p className="mt-3 text-sm font-bold text-blue-950" role="status">{message}</p>}
       <button onClick={register} className="mt-4 rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Register or repair Discord commands</button>
     </div>
@@ -329,16 +329,41 @@ type SeasonRow = {
   endsAt: string;
   settings: Record<string, unknown>;
 };
-type ChannelRow = { id: string; key: string; channelId: string; displayName: string; active: boolean };
+type ChannelRow = {
+  id: string;
+  key: string;
+  channelId: string;
+  displayName: string;
+  category: string;
+  active: boolean;
+};
 
 export function SettingsManager({
   seasons,
   channels,
   roles,
+  notificationRoutes,
+  integration,
 }: {
   seasons: SeasonRow[];
   channels: ChannelRow[];
   roles: Array<{ id: string; key: string; roleId: string; displayName: string; active: boolean }>;
+  notificationRoutes: Array<{
+    eventType: string;
+    channelKey: string;
+    enabled: boolean;
+  }>;
+  integration: {
+    runtime: {
+      status: string;
+      targetGuildConnected: boolean;
+      lastHeartbeatAt: string | null;
+      lastDisconnectAt: string | null;
+      lastError: string | null;
+    } | null;
+    queued: number;
+    failed: number;
+  };
 }) {
   const router = useRouter();
   const [message, setMessage] = useState<string>();
@@ -368,9 +393,56 @@ export function SettingsManager({
     const payload = Object.fromEntries(formData.entries());
     await patch("channels", { ...payload, active: payload.active === "on" });
   }
+  async function createChannel(formData: FormData) {
+    const payload = Object.fromEntries(formData.entries());
+    const response = await fetch("/api/admin/operations/channels", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payload, active: payload.active === "on" }),
+    });
+    const result = await readApiResult<object>(response);
+    setMessage(response.ok ? "Discord channel mapping created and audited." : result.error ?? "Channel creation failed");
+    if (response.ok) router.refresh();
+  }
+  async function saveNotificationRoute(formData: FormData) {
+    const payload = Object.fromEntries(formData.entries());
+    await patch("notification-routes", {
+      ...payload,
+      enabled: payload.enabled === "on",
+    });
+  }
   return (
     <div className="mt-7 space-y-7">
       <Feedback message={message} />
+      <section>
+        <h3 className="text-lg font-black text-[#081e3a]">Discord integration status</h3>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-black uppercase tracking-wider text-slate-400">Gateway worker</p>
+            <p className="mt-2 text-xl font-black text-[#081e3a]">{integration.runtime?.status ?? "NOT STARTED"}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              {integration.runtime?.lastHeartbeatAt
+                ? `Last heartbeat ${new Date(integration.runtime.lastHeartbeatAt).toLocaleString()}`
+                : "No worker heartbeat has been recorded."}
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-black uppercase tracking-wider text-slate-400">Target server</p>
+            <p className={`mt-2 text-xl font-black ${integration.runtime?.targetGuildConnected ? "text-emerald-700" : "text-red-700"}`}>
+              {integration.runtime?.targetGuildConnected ? "CONNECTED" : "NOT VERIFIED"}
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-black uppercase tracking-wider text-slate-400">Notification queue</p>
+            <p className="mt-2 text-xl font-black text-[#081e3a]">{integration.queued} queued · {integration.failed} failed</p>
+          </div>
+        </div>
+        {integration.runtime?.lastError && (
+          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            Latest worker report: {integration.runtime.lastError}
+          </p>
+        )}
+      </section>
       <section>
         <h3 className="text-lg font-black text-[#081e3a]">Season configuration</h3>
         <div className="mt-3 space-y-3">
@@ -393,6 +465,18 @@ export function SettingsManager({
       </section>
       <section>
         <h3 className="text-lg font-black text-[#081e3a]">Discord channels</h3>
+        <form action={createChannel} className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
+          <p className="font-black text-[#081e3a]">Add a secure channel mapping</p>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            <input name="key" required pattern="[A-Z][A-Z0-9_]{1,63}" placeholder="BOT_LOGS" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono" />
+            <input name="displayName" required placeholder="Bot Logs" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="channelId" required pattern="\d{16,22}" placeholder="Discord channel ID" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono" />
+            <input name="category" required placeholder="STAFF" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="reason" required minLength={3} placeholder="Required audit reason" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <label className="flex items-center gap-2 text-sm font-bold"><input name="active" type="checkbox" defaultChecked /> Active</label>
+          </div>
+          <button className="mt-3 rounded-lg bg-[#1683ff] px-3 py-2 text-xs font-black text-white">Add channel mapping</button>
+        </form>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           {channels.map((channel) => (
             <form key={channel.id} action={saveChannel} className="rounded-xl border border-slate-200 bg-white p-4">
@@ -403,6 +487,27 @@ export function SettingsManager({
               <input name="reason" required minLength={3} placeholder="Audit reason" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
               <label className="mt-3 flex items-center gap-2 text-sm font-bold"><input name="active" type="checkbox" defaultChecked={channel.active} /> Active</label>
               <button className="mt-3 rounded-lg bg-[#1683ff] px-3 py-2 text-xs font-black text-white">Save channel</button>
+            </form>
+          ))}
+        </div>
+      </section>
+      <section>
+        <h3 className="text-lg font-black text-[#081e3a]">Notification routing</h3>
+        <p className="mt-1 text-sm text-slate-600">Choose which website events are sent to each configured Discord channel. Sensitive application fields are never included.</p>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          {notificationRoutes.map((route) => (
+            <form key={route.eventType} action={saveNotificationRoute} className="rounded-xl border border-slate-200 bg-white p-4">
+              <input type="hidden" name="eventType" value={route.eventType} />
+              <p className="font-mono text-xs font-bold text-slate-500">{route.eventType}</p>
+              <select name="channelKey" required defaultValue={route.channelKey} className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+                <option value="" disabled>Select a configured channel</option>
+                {channels.map((channel) => (
+                  <option key={channel.key} value={channel.key}>{channel.displayName} ({channel.key})</option>
+                ))}
+              </select>
+              <input name="reason" required minLength={3} placeholder="Required audit reason" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <label className="mt-3 flex items-center gap-2 text-sm font-bold"><input name="enabled" type="checkbox" defaultChecked={route.enabled} /> Enabled</label>
+              <button className="mt-3 rounded-lg bg-[#1683ff] px-3 py-2 text-xs font-black text-white">Save notification route</button>
             </form>
           ))}
         </div>

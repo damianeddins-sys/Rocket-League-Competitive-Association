@@ -8,6 +8,8 @@ import {
   auditLogs,
   divisions,
   discordChannelConfigurations,
+  discordNotificationJobs,
+  discordNotificationRoutes,
   events,
   playerSeasons,
   playerStatusHistory,
@@ -29,6 +31,10 @@ import {
 } from "@/services/player-lifecycle";
 import { calculateCapRange, transactionWindow, validateRoster, type RosterPlayer } from "@/services/rosters";
 import { canTransitionTransactionRequest } from "@/services/transactions";
+import {
+  DISCORD_NOTIFICATION_EVENTS,
+  notificationJob,
+} from "@/services/discord/notifications";
 
 export const runtime = "nodejs";
 
@@ -106,12 +112,25 @@ const channelSchema = z.object({
   reason: z.string().trim().min(3).max(2000),
 });
 
+const createChannelSchema = channelSchema.omit({ id: true }).extend({
+  key: z.string().trim().regex(/^[A-Z][A-Z0-9_]{1,63}$/),
+  category: z.string().trim().min(2).max(64),
+});
+
+const notificationRouteSchema = z.object({
+  eventType: z.enum(DISCORD_NOTIFICATION_EVENTS),
+  channelKey: z.string().trim().regex(/^[A-Z][A-Z0-9_]{1,63}$/),
+  enabled: z.boolean(),
+  reason: z.string().trim().min(3).max(2000),
+});
+
 const permissions: Record<string, Permission> = {
   transactions: "transaction.approve",
   players: "player.manage",
   teams: "league.manage",
   seasons: "league.manage",
   channels: "league.manage",
+  "notification-routes": "league.full",
 };
 const portals: Record<string, "LEAGUE_OPERATIONS" | "SIGN_UP_MANAGER"> = {
   transactions: "LEAGUE_OPERATIONS",
@@ -119,6 +138,7 @@ const portals: Record<string, "LEAGUE_OPERATIONS" | "SIGN_UP_MANAGER"> = {
   teams: "LEAGUE_OPERATIONS",
   seasons: "LEAGUE_OPERATIONS",
   channels: "LEAGUE_OPERATIONS",
+  "notification-routes": "LEAGUE_OPERATIONS",
 };
 
 async function contextFor(request: Request, resource: string) {
@@ -154,6 +174,11 @@ export async function PATCH(
     if (!parsed.success) return NextResponse.json({ error: "Transaction decision is invalid" }, { status: 400 });
     const [current] = await db.select().from(transactionRequests).where(eq(transactionRequests.id, parsed.data.id)).limit(1);
     if (!current) return NextResponse.json({ error: "Transaction request not found" }, { status: 404 });
+    const [transactionTeam] = await db
+      .select({ name: teams.name })
+      .from(teams)
+      .where(eq(teams.id, current.teamId))
+      .limit(1);
     if (current.status === parsed.data.status) {
       return NextResponse.json({ error: "Transaction already has this status" }, { status: 409 });
     }
@@ -324,6 +349,22 @@ export async function PATCH(
           reason: parsed.data.reason,
           requestId,
         }));
+        await tx.insert(discordNotificationJobs).values(notificationJob({
+          eventType: "TRANSACTION_DECIDED",
+          payload: {
+            title: "Roster Transaction Decision",
+            color: parsed.data.status === "APPROVED" ? 0x22c55e : 0xf59e0b,
+            fields: [
+              { name: "Franchise", value: transactionTeam?.name ?? "Unknown franchise", inline: true },
+              { name: "Decision", value: parsed.data.status.replaceAll("_", " "), inline: true },
+              { name: "Recorded", value: new Date().toISOString() },
+            ],
+            url: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/operations/transactions`,
+          },
+          sourceEntityType: "TRANSACTION_REQUEST",
+          sourceEntityId: current.id,
+          idempotencyKey: `transaction-decision:${current.id}:${parsed.data.status}`,
+        })).onConflictDoNothing();
       });
     } catch (error) {
       const databaseError = error as { code?: unknown };
@@ -499,5 +540,112 @@ export async function PATCH(
     return NextResponse.json({ id: current.id, saved: true });
   }
 
+  if (resource === "notification-routes") {
+    const parsed = notificationRouteSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Discord notification route is invalid" }, { status: 400 });
+    }
+    const [channel] = await db
+      .select({ key: discordChannelConfigurations.key })
+      .from(discordChannelConfigurations)
+      .where(eq(discordChannelConfigurations.key, parsed.data.channelKey))
+      .limit(1);
+    if (!channel) {
+      return NextResponse.json({ error: "Configured Discord channel was not found" }, { status: 404 });
+    }
+    await db.transaction(async (tx) => {
+      const [previous] = await tx
+        .select()
+        .from(discordNotificationRoutes)
+        .where(eq(discordNotificationRoutes.eventType, parsed.data.eventType))
+        .limit(1);
+      const [saved] = await tx
+        .insert(discordNotificationRoutes)
+        .values({
+          eventType: parsed.data.eventType,
+          channelKey: parsed.data.channelKey,
+          enabled: parsed.data.enabled,
+          updatedBy: context.user.id,
+        })
+        .onConflictDoUpdate({
+          target: discordNotificationRoutes.eventType,
+          set: {
+            channelKey: parsed.data.channelKey,
+            enabled: parsed.data.enabled,
+            updatedBy: context.user.id,
+            updatedAt: new Date(),
+          },
+        })
+        .returning({ id: discordNotificationRoutes.id });
+      await tx.insert(auditLogs).values(buildAuditLogRecord({
+        actorId: context.user.id,
+        actorDiscordRoleIds: context.access.roleIds,
+        actorFranchiseNumber: context.access.franchiseNumber,
+        action: "DISCORD_NOTIFICATION_ROUTE_UPDATED",
+        entityType: "DISCORD_NOTIFICATION_ROUTE",
+        entityId: saved.id,
+        previousState: previous ? toAuditJson(previous) : undefined,
+        nextState: toAuditJson(parsed.data),
+        reason: parsed.data.reason,
+        requestId,
+      }));
+    });
+    return NextResponse.json({ eventType: parsed.data.eventType, saved: true });
+  }
+
   return NextResponse.json({ error: "Unknown operations resource" }, { status: 404 });
+}
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ resource: string }> },
+) {
+  const { resource } = await params;
+  if (resource !== "channels") {
+    return NextResponse.json({ error: "Unknown operations resource" }, { status: 404 });
+  }
+  const context = await contextFor(request, resource);
+  if (!context) return NextResponse.json({ error: "Authorized staff access required" }, { status: 403 });
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: "Operations database is not configured" }, { status: 503 });
+  }
+  const parsed = createChannelSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Discord channel settings are invalid" }, { status: 400 });
+  }
+  const db = getDatabase();
+  const requestId = randomUUID();
+  try {
+    const channel = await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(discordChannelConfigurations)
+        .values({
+          key: parsed.data.key,
+          channelId: parsed.data.channelId,
+          displayName: parsed.data.displayName,
+          category: parsed.data.category,
+          active: parsed.data.active,
+        })
+        .returning();
+      await tx.insert(auditLogs).values(buildAuditLogRecord({
+        actorId: context.user.id,
+        actorDiscordRoleIds: context.access.roleIds,
+        actorFranchiseNumber: context.access.franchiseNumber,
+        action: "DISCORD_CHANNEL_CREATED",
+        entityType: "DISCORD_CHANNEL_CONFIGURATION",
+        entityId: created.id,
+        nextState: toAuditJson(created),
+        reason: parsed.data.reason,
+        requestId,
+      }));
+      return created;
+    });
+    return NextResponse.json({ id: channel.id, saved: true }, { status: 201 });
+  } catch (error) {
+    const databaseError = error as { code?: unknown };
+    if (databaseError.code === "23505") {
+      return NextResponse.json({ error: "That channel key or Discord channel ID is already configured" }, { status: 409 });
+    }
+    throw error;
+  }
 }

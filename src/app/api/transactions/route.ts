@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getDatabase } from "@/db";
 import {
   auditLogs,
+  discordNotificationJobs,
   divisions,
   events,
   players,
@@ -19,6 +20,7 @@ import { checkPortalAccess } from "@/services/auth/portal-access";
 import { getSession } from "@/services/auth/session";
 import { calculateCapRange, validateRoster, type RosterPlayer } from "@/services/rosters";
 import { transactionWindow } from "@/services/rosters";
+import { notificationJob } from "@/services/discord/notifications";
 
 export const runtime = "nodejs";
 
@@ -193,6 +195,22 @@ export async function POST(request: Request) {
         nextState: { status: created.status, teamId: team.id, proposedPlayerIds: parsed.data.proposedPlayerIds },
         reason: parsed.data.reason,
         requestId,
+      }));
+      await tx.insert(discordNotificationJobs).values(notificationJob({
+        eventType: "TRANSACTION_SUBMITTED",
+        payload: {
+          title: "Roster Transaction Submitted",
+          color: 0x1683ff,
+          fields: [
+            { name: "Franchise", value: team.name, inline: true },
+            { name: "Status", value: created.status, inline: true },
+            { name: "Submitted", value: new Date().toISOString() },
+          ],
+          url: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/operations/transactions`,
+        },
+        sourceEntityType: "TRANSACTION_REQUEST",
+        sourceEntityId: created.id,
+        idempotencyKey: `transaction-submitted:${created.id}`,
       }));
       return [created];
     });
