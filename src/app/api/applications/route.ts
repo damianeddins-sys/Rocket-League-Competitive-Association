@@ -18,6 +18,13 @@ export const runtime = "nodejs";
 
 const openStatuses = ["SUBMITTED", "UNDER_REVIEW", "MORE_INFO_REQUIRED"] as const;
 
+function isOpenApplicationConflict(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const databaseError = error as { code?: unknown; constraint_name?: unknown };
+  return databaseError.code === "23505"
+    && databaseError.constraint_name === "application_one_open_per_type";
+}
+
 export async function POST(request: Request) {
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) {
@@ -79,7 +86,9 @@ export async function POST(request: Request) {
   }
 
   const requestId = randomUUID();
-  const created = await db.transaction(async (tx) => {
+  let created: { id: string; status: string };
+  try {
+    created = await db.transaction(async (tx) => {
     const [application] = await tx
       .insert(applications)
       .values({
@@ -89,8 +98,11 @@ export async function POST(request: Request) {
         discordUserId: session.user.discordId,
         fullName: parsed.data.fullName,
         email: parsed.data.email,
+        handle: parsed.data.handle || null,
+        platform: parsed.data.platform ?? null,
         epicAccountId: parsed.data.epicAccountId || null,
         trackerUrl: parsed.data.trackerUrl || null,
+        alternateAccountsDeclared: parsed.data.alternateAccountsDeclared,
         preferredDepartment: parsed.data.preferredDepartment || null,
         experience: parsed.data.experience || null,
         availability: parsed.data.availability,
@@ -116,7 +128,15 @@ export async function POST(request: Request) {
       requestId,
     }));
     return application;
-  });
+    });
+  } catch (error) {
+    if (isOpenApplicationConflict(error)) {
+      return NextResponse.json({
+        error: "You already have an open application of this type",
+      }, { status: 409 });
+    }
+    throw error;
+  }
 
   return NextResponse.json(created, { status: 201 });
 }

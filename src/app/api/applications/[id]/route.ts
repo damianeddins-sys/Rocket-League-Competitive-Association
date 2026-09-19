@@ -1,13 +1,25 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDatabase } from "@/db";
-import { applications, applicationStatusHistory, auditLogs } from "@/db/schema";
+import {
+  applications,
+  applicationStatusHistory,
+  auditLogs,
+  playerApplications,
+  players,
+  playerSeasons,
+  playerStatusHistory,
+  seasons,
+} from "@/db/schema";
 import { buildAuditLogRecord } from "@/services/audit";
 import { checkPortalAccess } from "@/services/auth/portal-access";
 import { getSession } from "@/services/auth/session";
-import { applicationReviewSchema } from "@/services/applications";
+import {
+  applicationReviewSchema,
+  canReviewApplicationTransition,
+} from "@/services/applications";
 
 export const runtime = "nodejs";
 
@@ -39,13 +51,96 @@ export async function PATCH(
   const db = getDatabase();
   const [current] = await db.select().from(applications).where(eq(applications.id, id)).limit(1);
   if (!current) return NextResponse.json({ error: "Application not found" }, { status: 404 });
+  if (!canReviewApplicationTransition(
+    current.status,
+    parsed.data.status,
+    access.permissions.includes("league.full"),
+  )) {
+    return NextResponse.json({
+      error: `Application cannot move from ${current.status} to ${parsed.data.status}`,
+    }, { status: 409 });
+  }
 
   const requestId = randomUUID();
-  await db.transaction(async (tx) => {
+  try {
+    await db.transaction(async (tx) => {
+    let playerSeasonId = current.playerSeasonId;
+    let seasonId = current.seasonId;
+
+    if (current.type === "PLAYER" && parsed.data.status === "APPROVED" && !playerSeasonId) {
+      if (!current.handle) throw new Error("Player application is missing a competitive handle");
+      if (!seasonId) {
+        const [activeSeason] = await tx
+          .select({ id: seasons.id })
+          .from(seasons)
+          .where(eq(seasons.active, true))
+          .orderBy(desc(seasons.startsAt))
+          .limit(1);
+        seasonId = activeSeason?.id ?? null;
+      }
+      if (!seasonId) throw new Error("An active season is required before approving a player");
+
+      let [player] = await tx
+        .select({ id: players.id })
+        .from(players)
+        .where(eq(players.userId, current.userId))
+        .limit(1);
+      if (!player) {
+        [player] = await tx
+          .insert(players)
+          .values({ userId: current.userId, handle: current.handle })
+          .returning({ id: players.id });
+      }
+
+      const [newPlayerSeason] = await tx
+        .insert(playerSeasons)
+        .values({ playerId: player.id, seasonId, status: "APPLIED" })
+        .onConflictDoNothing({
+          target: [playerSeasons.playerId, playerSeasons.seasonId],
+        })
+        .returning({ id: playerSeasons.id });
+      if (newPlayerSeason) {
+        playerSeasonId = newPlayerSeason.id;
+        await tx.insert(playerStatusHistory).values({
+          playerSeasonId,
+          fromStatus: null,
+          toStatus: "APPLIED",
+          effectiveAt: new Date(),
+          reason: "Website player application approved",
+          actorId: session.user.id,
+        });
+      } else {
+        const [existingPlayerSeason] = await tx
+          .select({ id: playerSeasons.id })
+          .from(playerSeasons)
+          .where(and(
+            eq(playerSeasons.playerId, player.id),
+            eq(playerSeasons.seasonId, seasonId),
+          ))
+          .limit(1);
+        playerSeasonId = existingPlayerSeason?.id ?? null;
+      }
+      if (!playerSeasonId) throw new Error("Player season record could not be created");
+
+      await tx
+        .insert(playerApplications)
+        .values({
+          playerSeasonId,
+          status: "APPLIED",
+          alternateAccountsDeclared: current.alternateAccountsDeclared,
+          reviewedAt: new Date(),
+          reviewedBy: session.user.id,
+          notes: current.notes,
+        })
+        .onConflictDoNothing({ target: playerApplications.playerSeasonId });
+    }
+
     await tx
       .update(applications)
       .set({
         status: parsed.data.status,
+        seasonId,
+        playerSeasonId,
         reviewedAt: new Date(),
         reviewedBy: session.user.id,
         updatedAt: new Date(),
@@ -70,6 +165,17 @@ export async function PATCH(
       reason: parsed.data.reason,
       requestId,
     }));
-  });
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Application review failed";
+    if (
+      message === "Player application is missing a competitive handle"
+      || message === "An active season is required before approving a player"
+      || message === "Player season record could not be created"
+    ) {
+      return NextResponse.json({ error: message }, { status: 409 });
+    }
+    throw error;
+  }
   return NextResponse.json({ id, status: parsed.data.status });
 }

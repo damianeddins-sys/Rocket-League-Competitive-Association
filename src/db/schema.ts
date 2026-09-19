@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
   boolean,
@@ -341,8 +342,11 @@ export const applications = pgTable(
     discordUserId: text("discord_user_id").notNull(),
     fullName: text("full_name").notNull(),
     email: text("email").notNull(),
+    handle: text("handle"),
+    platform: text("platform"),
     epicAccountId: text("epic_account_id"),
     trackerUrl: text("tracker_url"),
+    alternateAccountsDeclared: boolean("alternate_accounts_declared").default(false).notNull(),
     preferredDepartment: text("preferred_department"),
     experience: text("experience"),
     availability: text("availability").notNull(),
@@ -352,10 +356,14 @@ export const applications = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     reviewedBy: uuid("reviewed_by").references(() => users.id),
+    playerSeasonId: uuid("player_season_id").references(() => playerSeasons.id),
   },
   (table) => [
     index("application_user_type").on(table.userId, table.type, table.status),
     index("application_review_queue").on(table.status, table.submittedAt),
+    uniqueIndex("application_one_open_per_type")
+      .on(table.userId, table.type)
+      .where(sql`${table.status} in ('SUBMITTED', 'UNDER_REVIEW', 'MORE_INFO_REQUIRED')`),
   ],
 );
 

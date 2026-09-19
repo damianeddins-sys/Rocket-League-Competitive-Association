@@ -1,4 +1,26 @@
 import { describe, expect, it } from "vitest";
+import { canReviewApplicationTransition } from "./applications";
+
+describe("application review transitions", () => {
+  it("allows the normal review workflow", () => {
+    expect(canReviewApplicationTransition("SUBMITTED", "UNDER_REVIEW")).toBe(true);
+    expect(canReviewApplicationTransition("UNDER_REVIEW", "APPROVED")).toBe(true);
+    expect(canReviewApplicationTransition("MORE_INFO_REQUIRED", "UNDER_REVIEW")).toBe(true);
+  });
+
+  it("blocks skipped, repeated, and terminal transitions", () => {
+    expect(canReviewApplicationTransition("SUBMITTED", "APPROVED")).toBe(false);
+    expect(canReviewApplicationTransition("APPROVED", "DENIED")).toBe(false);
+    expect(canReviewApplicationTransition("UNDER_REVIEW", "UNDER_REVIEW")).toBe(false);
+  });
+
+  it("lets an owner correct status while rejecting no-op updates", () => {
+    expect(canReviewApplicationTransition("APPROVED", "UNDER_REVIEW", true)).toBe(true);
+    expect(canReviewApplicationTransition("DENIED", "APPROVED", true)).toBe(true);
+    expect(canReviewApplicationTransition("DENIED", "DENIED", true)).toBe(false);
+  });
+});
+import { describe, expect, it } from "vitest";
 import { applicationReviewSchema, applicationSubmissionSchema } from "./applications";
 
 const base = {

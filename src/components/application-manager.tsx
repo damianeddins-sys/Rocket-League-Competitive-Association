@@ -62,6 +62,8 @@ export function ApplicationManager({ applications }: { applications: QueueItem[]
             </div>
             <div className="mt-5 grid gap-3 rounded-lg bg-slate-50 p-4 text-sm sm:grid-cols-2">
               <p><strong>Availability:</strong> {application.availability}</p>
+              {application.handle && <p><strong>Handle:</strong> {application.handle}</p>}
+              {application.platform && <p><strong>Platform:</strong> {application.platform}</p>}
               {application.epicAccountId && <p><strong>Epic:</strong> {application.epicAccountId}</p>}
               {application.preferredDepartment && <p><strong>Department:</strong> {application.preferredDepartment}</p>}
               {application.experience && <p className="sm:col-span-2"><strong>Experience:</strong> {application.experience}</p>}

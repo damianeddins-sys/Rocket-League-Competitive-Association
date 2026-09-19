@@ -13,6 +13,8 @@ export type ApplicationQueue =
         fullName: string;
         email: string;
         discordUserId: string;
+        handle: string | null;
+        platform: string | null;
         epicAccountId: string | null;
         preferredDepartment: string | null;
         experience: string | null;
@@ -39,6 +41,8 @@ export async function loadApplicationQueue(): Promise<ApplicationQueue> {
         fullName: application.fullName,
         email: application.email,
         discordUserId: application.discordUserId,
+        handle: application.handle,
+        platform: application.platform,
         epicAccountId: application.epicAccountId,
         preferredDepartment: application.preferredDepartment,
         experience: application.experience,
