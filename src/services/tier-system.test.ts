@@ -6,25 +6,52 @@ import {
   recordsForSeasonTier,
   validateTierScopedMatch,
 } from "./tier-integrity";
-import { normalizeTierId, TIERS } from "./tiers";
+import {
+  nextHigherTier,
+  nextLowerTier,
+  normalizeTierId,
+  TIERS,
+  TIERS_HIGHEST_FIRST,
+} from "./tiers";
 
 describe("four-tier competition isolation", () => {
   it("defines the four canonical tier IDs, colors, and distinct emblems", () => {
     expect(TIERS.map((tier) => tier.id)).toEqual([
-      "challenger",
       "contender",
-      "premier",
+      "challenger",
       "master",
+      "premier",
     ]);
     expect(TIERS.map((tier) => tier.color)).toEqual([
-      "#168BFF",
       "#8A2BE2",
-      "#FFC928",
+      "#168BFF",
       "#FF2A2A",
+      "#FFC928",
     ]);
     expect(new Set(TIERS.map((tier) => tier.iconPath)).size).toBe(4);
+    expect(TIERS.map((tier) => tier.iconPath)).toEqual([
+      "/branding/tiers/contender.png",
+      "/branding/tiers/challenger.png",
+      "/branding/tiers/master.png",
+      "/branding/tiers/premier.png",
+    ]);
     expect(normalizeTierId("PREMIER")).toBe("premier");
     expect(normalizeTierId("tier1")).toBeNull();
+  });
+
+  it("uses the explicit promotion and relegation hierarchy", () => {
+    expect(TIERS_HIGHEST_FIRST.map((tier) => tier.id)).toEqual([
+      "premier",
+      "master",
+      "challenger",
+      "contender",
+    ]);
+    expect(nextHigherTier("contender")).toBe("challenger");
+    expect(nextHigherTier("challenger")).toBe("master");
+    expect(nextHigherTier("master")).toBe("premier");
+    expect(nextHigherTier("premier")).toBeNull();
+    expect(nextLowerTier("premier")).toBe("master");
+    expect(nextLowerTier("contender")).toBeNull();
   });
 
   it.each(TIERS)("$name records cannot leak into another season or tier", (tier) => {
@@ -77,5 +104,9 @@ describe("four-tier competition isolation", () => {
     expect(placements.filter((entry) => entry.division === "CONTENDER")).toHaveLength(8);
     expect(placements.filter((entry) => entry.division === "PREMIER")).toHaveLength(8);
     expect(placements.filter((entry) => entry.division === "MASTER")).toHaveLength(8);
+    expect(placements.slice(0, 8).every((entry) => entry.division === "CONTENDER")).toBe(true);
+    expect(placements.slice(8, 16).every((entry) => entry.division === "CHALLENGER")).toBe(true);
+    expect(placements.slice(16, 24).every((entry) => entry.division === "MASTER")).toBe(true);
+    expect(placements.slice(24).every((entry) => entry.division === "PREMIER")).toBe(true);
   });
 });

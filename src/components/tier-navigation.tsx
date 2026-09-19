@@ -12,10 +12,16 @@ export function TierBadge({
   const tier = tierDefinition(tierId);
   return (
     <span
-      className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1.5 text-xs font-black uppercase tracking-wider text-[#05070C]"
+      className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-xs font-black uppercase tracking-wider text-[#05070C]"
       style={{ borderColor: tier.color }}
     >
-      <Image src={tier.iconPath} alt="" width={compact ? 18 : 22} height={compact ? 18 : 22} />
+      <Image
+        src={tier.iconPath}
+        alt=""
+        width={compact ? 30 : 42}
+        height={compact ? 30 : 42}
+        className="object-contain"
+      />
       {tier.name}
     </span>
   );
@@ -53,7 +59,7 @@ export function TierNavigation({
                 boxShadow: active ? `0 8px 24px ${tier.color}33` : undefined,
               }}
             >
-              <Image src={tier.iconPath} alt="" width={26} height={26} />
+              <Image src={tier.iconPath} alt="" width={48} height={48} className="object-contain" />
               {tier.name}
             </Link>
           );

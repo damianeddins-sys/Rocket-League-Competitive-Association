@@ -11,6 +11,7 @@ import {
   invalidateDiscordBotHealthCache,
   REQUIRED_DISCORD_COMMANDS,
 } from "@/services/discord/bot-health";
+import { TIERS } from "@/services/tiers";
 
 export const runtime = "nodejs";
 
@@ -28,12 +29,7 @@ const tierOptions = [{
   name: "tier",
   description: "Competitive tier",
   required: true,
-  choices: [
-    { name: "Challenger", value: "challenger" },
-    { name: "Contender", value: "contender" },
-    { name: "Premier", value: "premier" },
-    { name: "Master", value: "master" },
-  ],
+  choices: TIERS.map((tier) => ({ name: tier.name, value: tier.id })),
 }];
 
 export async function POST(request: Request) {

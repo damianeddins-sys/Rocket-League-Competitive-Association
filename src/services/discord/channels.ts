@@ -1,3 +1,5 @@
+import type { TierCode } from "../tiers";
+
 export const DISCORD_CHANNELS = {
   PLAYER_SIGNUPS: {
     id: "1477818560813207585",
@@ -34,17 +36,11 @@ export const DISCORD_CHANNELS = {
     name: "Cut Notes",
     category: "TRANSACTION",
   },
-  DRAFT_PREMIER: {
-    id: "1490850308329439362",
-    name: "Premier Draft",
+  DRAFT_CONTENDER: {
+    id: "1490850194709807246",
+    name: "Contender Draft",
     category: "DRAFT",
-    division: "PREMIER",
-  },
-  DRAFT_MASTER: {
-    id: "1490850271897718906",
-    name: "Master Draft",
-    category: "DRAFT",
-    division: "MASTER",
+    division: "CONTENDER",
   },
   DRAFT_CHALLENGER: {
     id: "1490850228398592063",
@@ -52,23 +48,23 @@ export const DISCORD_CHANNELS = {
     category: "DRAFT",
     division: "CHALLENGER",
   },
-  DRAFT_CONTENDER: {
-    id: "1490850194709807246",
-    name: "Contender Draft",
+  DRAFT_MASTER: {
+    id: "1490850271897718906",
+    name: "Master Draft",
     category: "DRAFT",
-    division: "CONTENDER",
+    division: "MASTER",
   },
-  REPORT_PREMIER: {
-    id: "1477866288758919378",
-    name: "Premier Game Reports",
-    category: "GAME_REPORT",
+  DRAFT_PREMIER: {
+    id: "1490850308329439362",
+    name: "Premier Draft",
+    category: "DRAFT",
     division: "PREMIER",
   },
-  REPORT_MASTER: {
-    id: "1477866369767837768",
-    name: "Master Game Reports",
+  REPORT_CONTENDER: {
+    id: "1477866447731691663",
+    name: "Contender Game Reports",
     category: "GAME_REPORT",
-    division: "MASTER",
+    division: "CONTENDER",
   },
   REPORT_CHALLENGER: {
     id: "1477866414780973168",
@@ -76,11 +72,17 @@ export const DISCORD_CHANNELS = {
     category: "GAME_REPORT",
     division: "CHALLENGER",
   },
-  REPORT_CONTENDER: {
-    id: "1477866447731691663",
-    name: "Contender Game Reports",
+  REPORT_MASTER: {
+    id: "1477866369767837768",
+    name: "Master Game Reports",
     category: "GAME_REPORT",
-    division: "CONTENDER",
+    division: "MASTER",
+  },
+  REPORT_PREMIER: {
+    id: "1477866288758919378",
+    name: "Premier Game Reports",
+    category: "GAME_REPORT",
+    division: "PREMIER",
   },
 } as const;
 
@@ -90,10 +92,10 @@ export function discordChannel(key: DiscordChannelKey) {
   return DISCORD_CHANNELS[key];
 }
 
-export function gameReportChannel(division: "PREMIER" | "MASTER" | "CHALLENGER" | "CONTENDER") {
+export function gameReportChannel(division: TierCode) {
   return DISCORD_CHANNELS[`REPORT_${division}`];
 }
 
-export function draftChannel(division: "PREMIER" | "MASTER" | "CHALLENGER" | "CONTENDER") {
+export function draftChannel(division: TierCode) {
   return DISCORD_CHANNELS[`DRAFT_${division}`];
 }

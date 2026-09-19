@@ -19,10 +19,10 @@ const id = () => uuid("id").defaultRandom().primaryKey();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).defaultNow().notNull();
 
 export const divisionCode = pgEnum("division_code", [
-  "CHALLENGER",
   "CONTENDER",
-  "PREMIER",
+  "CHALLENGER",
   "MASTER",
+  "PREMIER",
 ]);
 export const eventType = pgEnum("event_type", [
   "REGULAR_SEASON",

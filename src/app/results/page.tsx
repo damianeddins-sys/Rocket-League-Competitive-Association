@@ -3,7 +3,7 @@ import Link from "next/link";
 import { LeagueDataState } from "@/components/league-data-state";
 import { TierBadge, TierNavigation } from "@/components/tier-navigation";
 import { loadPublicLeagueData } from "@/services/public-league-data";
-import { normalizeTierId } from "@/services/tiers";
+import { DEFAULT_TIER_ID, normalizeTierId } from "@/services/tiers";
 
 export const metadata: Metadata = { title: "Results" };
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ export default async function ResultsPage({
   searchParams: Promise<{ tier?: string; season?: string }>;
 }) {
   const query = await searchParams;
-  const tierId = normalizeTierId(query.tier) ?? "challenger";
+  const tierId = normalizeTierId(query.tier) ?? DEFAULT_TIER_ID;
   const data = await loadPublicLeagueData({ tier: tierId, season: query.season });
   const results = data.status === "ready"
     ? data.matches.filter((match) => match.status === "VERIFIED").reverse()

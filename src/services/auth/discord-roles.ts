@@ -1,3 +1,5 @@
+import type { TierCode } from "../tiers";
+
 export const DISCORD_ROLE_IDS = {
   GM: "1475306898038194206",
   AGM: "1475306872998203524",
@@ -109,11 +111,11 @@ const franchiseRoles = new Map<string, number>([
   [DISCORD_ROLE_IDS.FRANCHISE_8, 8],
 ]);
 
-const tierRoles = new Map<string, "PREMIER" | "MASTER" | "CHALLENGER" | "CONTENDER">([
-  [DISCORD_ROLE_IDS.PREMIER_TIER, "PREMIER"],
-  [DISCORD_ROLE_IDS.MASTER_TIER, "MASTER"],
-  [DISCORD_ROLE_IDS.CHALLENGER_TIER, "CHALLENGER"],
+const tierRoles = new Map<string, TierCode>([
   [DISCORD_ROLE_IDS.CONTENDER_TIER, "CONTENDER"],
+  [DISCORD_ROLE_IDS.CHALLENGER_TIER, "CHALLENGER"],
+  [DISCORD_ROLE_IDS.MASTER_TIER, "MASTER"],
+  [DISCORD_ROLE_IDS.PREMIER_TIER, "PREMIER"],
 ]);
 
 export const SYNC_MANAGED_ROLE_IDS = new Set<string>([
@@ -167,7 +169,7 @@ export type DiscordAccess = {
   permissions: Permission[];
   franchiseNumber: number | null;
   ambiguousFranchise: boolean;
-  tier: "PREMIER" | "MASTER" | "CHALLENGER" | "CONTENDER" | null;
+  tier: TierCode | null;
   ambiguousTier: boolean;
   statusRoles: Array<"FREE_AGENT" | "UNRESTRICTED_FREE_AGENT" | "INACTIVE_RESERVE">;
 };

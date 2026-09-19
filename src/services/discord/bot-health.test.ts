@@ -52,7 +52,7 @@ describe("Discord bot health", () => {
               options: [{
                 name: "tier",
                 required: true,
-                choices: ["challenger", "contender", "premier", "master"].map((value) => ({ value })),
+                choices: ["contender", "challenger", "master", "premier"].map((value) => ({ value })),
               }],
             } : {}),
           })),

@@ -4,7 +4,7 @@ ALTER TABLE "divisions" ALTER COLUMN "code" SET DATA TYPE text;
 --> statement-breakpoint
 DROP TYPE "public"."division_code";
 --> statement-breakpoint
-CREATE TYPE "public"."division_code" AS ENUM('CHALLENGER', 'CONTENDER', 'PREMIER', 'MASTER');
+CREATE TYPE "public"."division_code" AS ENUM('CONTENDER', 'CHALLENGER', 'MASTER', 'PREMIER');
 --> statement-breakpoint
 ALTER TABLE "divisions" ALTER COLUMN "code" SET DATA TYPE "public"."division_code" USING "code"::"public"."division_code";
 --> statement-breakpoint
@@ -20,22 +20,22 @@ UPDATE "divisions"
 SET
   "slug" = lower("code"::text),
   "color" = CASE "code"::text
-    WHEN 'CHALLENGER' THEN '#168BFF'
     WHEN 'CONTENDER' THEN '#8A2BE2'
+    WHEN 'CHALLENGER' THEN '#168BFF'
     WHEN 'MASTER' THEN '#FF2A2A'
   END,
-  "icon_path" = '/branding/tiers/' || lower("code"::text) || '.svg';
+  "icon_path" = '/branding/tiers/' || lower("code"::text) || '.png';
 --> statement-breakpoint
 INSERT INTO "divisions" ("season_id", "code", "slug", "display_name", "color", "icon_path", "ordinal", "active")
-SELECT "id", 'PREMIER', 'premier', 'Premier', '#FFC928', '/branding/tiers/premier.svg', 3, true
+SELECT "id", 'PREMIER', 'premier', 'Premier', '#FFC928', '/branding/tiers/premier.png', 4, true
 FROM "seasons"
 ON CONFLICT ("season_id", "code") DO NOTHING;
 --> statement-breakpoint
 UPDATE "divisions" SET "ordinal" = CASE "code"::text
-  WHEN 'CHALLENGER' THEN 1
-  WHEN 'CONTENDER' THEN 2
-  WHEN 'PREMIER' THEN 3
-  WHEN 'MASTER' THEN 4
+  WHEN 'CONTENDER' THEN 1
+  WHEN 'CHALLENGER' THEN 2
+  WHEN 'MASTER' THEN 3
+  WHEN 'PREMIER' THEN 4
 END;
 --> statement-breakpoint
 ALTER TABLE "divisions" ALTER COLUMN "slug" SET NOT NULL;

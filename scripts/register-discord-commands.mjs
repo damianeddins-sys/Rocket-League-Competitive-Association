@@ -15,10 +15,10 @@ const tierOption = {
   description: "Competitive tier",
   required: true,
   choices: [
-    { name: "Challenger", value: "challenger" },
     { name: "Contender", value: "contender" },
-    { name: "Premier", value: "premier" },
+    { name: "Challenger", value: "challenger" },
     { name: "Master", value: "master" },
+    { name: "Premier", value: "premier" },
   ],
 };
 

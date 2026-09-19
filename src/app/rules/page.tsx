@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 const sections = [
-  ["Roster construction", "Each franchise fields a separate three-player roster in Challenger, Contender, Premier, and Master. Every rostered player must match that season entry's tier. Two players start each game; substitutions happen only between games."],
+  ["Roster construction", "Each franchise fields a separate three-player roster in Contender, Challenger, Master, and Premier. Every rostered player must match that season entry's tier. Two players start each game; substitutions happen only between games."],
   ["Regular season", "Two four-week splits produce 16 BO5 series per franchise. Every regular-season Sunday has Match Block A and Match Block B, giving each franchise exactly two official series."],
   ["Qualification Points", "A regular-season win awards 5 points. An official staff-recorded tie awards 2.5 points to each franchise. Verified Major and Last Chance placement points join the same season total."],
   ["Major 1 and Major 2", "All eight franchises enter each Major. The seeded bracket awards 240 Qualification Points to the winner. Normal roster transactions close during these events unless a documented exception is approved."],

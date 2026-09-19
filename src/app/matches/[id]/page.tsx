@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { LeagueDataState } from "@/components/league-data-state";
 import { TierBadge } from "@/components/tier-navigation";
 import { loadPublicLeagueData } from "@/services/public-league-data";
-import { normalizeTierId } from "@/services/tiers";
+import { DEFAULT_TIER_ID, normalizeTierId } from "@/services/tiers";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,7 @@ export default async function MatchDetailPage({
   searchParams,
 }: PageProps<"/matches/[id]"> & { searchParams: Promise<{ tier?: string }> }) {
   const { id } = await params;
-  const tierId = normalizeTierId((await searchParams).tier) ?? "challenger";
+  const tierId = normalizeTierId((await searchParams).tier) ?? DEFAULT_TIER_ID;
   const data = await loadPublicLeagueData({ tier: tierId });
   if (data.status !== "ready") {
     return (

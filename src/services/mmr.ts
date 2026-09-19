@@ -5,7 +5,7 @@ export const MINIMUM_RANKED_GAMES = SEASON_ONE_RULES.verification.rankedGamesReq
 export const MINIMUM_CHECKPOINTS = SEASON_ONE_RULES.verification.snapshotsRequired;
 export const COMBINE_SERIES_REQUIRED = SEASON_ONE_RULES.verification.combineSeriesRequired;
 
-export type Division = "CHALLENGER" | "CONTENDER" | "PREMIER" | "MASTER";
+export type Division = "CONTENDER" | "CHALLENGER" | "MASTER" | "PREMIER";
 
 export interface PlacementCandidate {
   playerId: string;
@@ -134,12 +134,12 @@ export function assignPlacement(candidates: PlacementCandidate[]): PlacementResu
     ),
     division:
       index < playersPerDivision
-        ? "CHALLENGER"
+        ? "CONTENDER"
         : index < playersPerDivision * 2
-          ? "CONTENDER"
+          ? "CHALLENGER"
           : index < playersPerDivision * 3
-            ? "PREMIER"
-            : "MASTER",
+            ? "MASTER"
+            : "PREMIER",
   }));
 }
 

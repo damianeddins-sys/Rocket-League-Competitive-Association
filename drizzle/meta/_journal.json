@@ -120,6 +120,13 @@
       "when": 1789785018084,
       "tag": "0016_wandering_hellcat",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789786076510,
+      "tag": "0017_stale_proteus",
+      "breakpoints": true
     }
   ]
 }

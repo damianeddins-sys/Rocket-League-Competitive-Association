@@ -17,6 +17,7 @@ import { competitionEvent } from "./competition-events";
 import { seasonOneFranchise } from "./franchises";
 import { resolveChampionshipLockIds } from "./points";
 import {
+  DEFAULT_TIER_ID,
   normalizeTierId,
   type TierId,
   tierDefinition,
@@ -140,7 +141,7 @@ export async function loadPublicLeagueData(
   if (!process.env.DATABASE_URL) {
     return { status: "unavailable", reason: "DATABASE_NOT_CONFIGURED" };
   }
-  const selectedTierId = normalizeTierId(options.tier) ?? "challenger";
+  const selectedTierId = normalizeTierId(options.tier) ?? DEFAULT_TIER_ID;
 
   try {
     const db = getDatabase();

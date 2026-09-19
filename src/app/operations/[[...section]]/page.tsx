@@ -36,7 +36,7 @@ import {
   loadTeamManagement,
   loadTransactionManagement,
 } from "@/services/operations-data";
-import { normalizeTierId } from "@/services/tiers";
+import { DEFAULT_TIER_ID, normalizeTierId } from "@/services/tiers";
 
 export const metadata: Metadata = { title: "Operations" };
 export const dynamic = "force-dynamic";
@@ -72,7 +72,7 @@ export default async function OperationsPage({
   const { section } = await params;
   const query = await searchParams;
   const rawPage = query.page;
-  const tierId = normalizeTierId(query.tier) ?? "challenger";
+  const tierId = normalizeTierId(query.tier) ?? DEFAULT_TIER_ID;
   const page = rawPage && /^\d+$/.test(rawPage) ? Math.max(1, Number(rawPage)) : 1;
   const sectionKey = section?.[0] && section[0] in sections
     ? section[0] as keyof typeof sections

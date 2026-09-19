@@ -6,7 +6,7 @@ import { TierBadge, TierNavigation } from "@/components/tier-navigation";
 import { seasonWeekLabel } from "@/services/competition-events";
 import { loadPublicLeagueData } from "@/services/public-league-data";
 import type { PublicMatch } from "@/services/public-league-data";
-import { normalizeTierId } from "@/services/tiers";
+import { DEFAULT_TIER_ID, normalizeTierId } from "@/services/tiers";
 
 export const metadata: Metadata = { title: "Schedule" };
 export const dynamic = "force-dynamic";
@@ -68,7 +68,7 @@ export default async function SchedulePage({
   searchParams: Promise<{ week?: string; tier?: string; season?: string }>;
 }) {
   const query = await searchParams;
-  const tierId = normalizeTierId(query.tier) ?? "challenger";
+  const tierId = normalizeTierId(query.tier) ?? DEFAULT_TIER_ID;
   const data = await loadPublicLeagueData({ tier: tierId, season: query.season });
   const requestedWeek = Number(query.week);
   const selectedWeek = data.status === "ready"

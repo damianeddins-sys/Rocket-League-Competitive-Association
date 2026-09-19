@@ -1,11 +1,21 @@
 # RLCA four-tier data contract
 
-The canonical competition tier IDs are:
+The canonical competition tier IDs, from lowest to highest, are:
 
-- `challenger`
 - `contender`
-- `premier`
+- `challenger`
 - `master`
+- `premier`
+
+Competitive order is explicit and independent from color:
+
+1. Contender — `#8A2BE2`
+2. Challenger — `#168BFF`
+3. Master — `#FF2A2A`
+4. Premier — `#FFC928`
+
+Promotion follows Contender → Challenger → Master → Premier. Code must use
+the canonical ordinal rather than alphabetic or color-based sorting.
 
 Display labels are not identifiers. `src/services/tiers.ts` is the application
 mapping between canonical IDs, the legacy uppercase database enum, branding,
@@ -35,7 +45,7 @@ security boundary; the server query does.
 
 Notification routes use `(event_type, tier_id)`. Tier-neutral events use
 `tier_id = all`. Verified match-result routes use the corresponding
-`REPORT_CHALLENGER`, `REPORT_CONTENDER`, `REPORT_PREMIER`, or `REPORT_MASTER`
+`REPORT_CONTENDER`, `REPORT_CHALLENGER`, `REPORT_MASTER`, or `REPORT_PREMIER`
 channel mapping. Slash commands that expose competition data require an
 explicit tier option.
 

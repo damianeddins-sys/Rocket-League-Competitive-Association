@@ -3,7 +3,7 @@ import {
   loadPublicLeagueData,
   type PublicLeagueData,
 } from "../public-league-data";
-import { normalizeTierId } from "../tiers";
+import { DEFAULT_TIER_ID, normalizeTierId } from "../tiers";
 
 const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 const MAX_REQUEST_AGE_SECONDS = 5 * 60;
@@ -68,7 +68,7 @@ export async function respondToDiscordInteraction(
   }
   const requestedTier = interaction.data?.options?.find((option) => option.name === "tier")?.value;
   const tierId = normalizeTierId(typeof requestedTier === "string" ? requestedTier : null)
-    ?? "challenger";
+    ?? DEFAULT_TIER_ID;
 
   switch (interaction.data?.name) {
     case "status":

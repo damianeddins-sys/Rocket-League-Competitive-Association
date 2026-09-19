@@ -24,7 +24,7 @@ import {
   users,
 } from "../db/schema";
 import { DISCORD_NOTIFICATION_EVENTS } from "./discord/notifications";
-import { normalizeTierId, TIERS } from "./tiers";
+import { DEFAULT_TIER_ID, normalizeTierId, TIERS } from "./tiers";
 
 export type OperationsData<T> =
   | { status: "READY"; data: T }
@@ -237,6 +237,12 @@ export function loadSettingsManagement() {
       db.select({ id: teams.id, name: teams.name }).from(teams).orderBy(asc(teams.franchiseNumber)),
       db.select().from(teamSeasonEntries),
     ]);
+    const tierOrder = new Map(TIERS.map((tier) => [tier.code, tier.ordinal]));
+    const orderedChannels = [...channels].sort((a, b) =>
+      a.category.localeCompare(b.category)
+      || (tierOrder.get(a.division as typeof TIERS[number]["code"]) ?? 0)
+        - (tierOrder.get(b.division as typeof TIERS[number]["code"]) ?? 0)
+      || a.displayName.localeCompare(b.displayName));
     return {
       seasons: seasonRows.map((season) => ({
         ...season,
@@ -244,7 +250,7 @@ export function loadSettingsManagement() {
         endsAt: season.endsAt.toISOString(),
         archivedAt: season.archivedAt?.toISOString() ?? null,
       })),
-      channels: channels.map((channel) => ({
+      channels: orderedChannels.map((channel) => ({
         id: channel.id,
         key: channel.key,
         channelId: channel.channelId,
@@ -374,7 +380,7 @@ export function loadFranchiseWorkspace(franchiseNumber: number | null) {
         ? db.select().from(playerSeasons).where(eq(playerSeasons.seasonId, activeSeason.id))
         : Promise.resolve([]),
       activeSeason
-        ? db.select().from(divisions).where(eq(divisions.seasonId, activeSeason.id))
+        ? db.select().from(divisions).where(eq(divisions.seasonId, activeSeason.id)).orderBy(asc(divisions.ordinal))
         : Promise.resolve([]),
       activeSeason
         ? db.select().from(teamSeasonEntries).where(and(
@@ -393,7 +399,10 @@ export function loadFranchiseWorkspace(franchiseNumber: number | null) {
     const currentMemberships = memberships.filter((entry) => !entry.endsAt);
     return {
       team,
-      tiers: teamEntries.flatMap((entry) => {
+      tiers: [...teamEntries].sort((a, b) =>
+        (divisionRows.find((division) => division.id === a.divisionId)?.ordinal ?? 0)
+        - (divisionRows.find((division) => division.id === b.divisionId)?.ordinal ?? 0))
+        .flatMap((entry) => {
         const tier = divisionNames.get(entry.divisionId);
         return tier ? [tier] : [];
       }),
@@ -435,7 +444,7 @@ export function loadFranchiseWorkspace(franchiseNumber: number | null) {
 export function loadStatisticsWorkspace(tierInput?: string) {
   return load(async () => {
     const db = getDatabase();
-    const tierId = normalizeTierId(tierInput) ?? "challenger";
+    const tierId = normalizeTierId(tierInput) ?? DEFAULT_TIER_ID;
     const [activeSeason] = await db.select({ id: seasons.id }).from(seasons).where(eq(seasons.active, true)).limit(1);
     const [tier] = activeSeason
       ? await db.select({ id: divisions.id }).from(divisions).where(and(
@@ -475,7 +484,7 @@ export function loadStatisticsWorkspace(tierInput?: string) {
 export function loadProductionWorkspace(tierInput?: string) {
   return load(async () => {
     const db = getDatabase();
-    const tierId = normalizeTierId(tierInput) ?? "challenger";
+    const tierId = normalizeTierId(tierInput) ?? DEFAULT_TIER_ID;
     const [activeSeason] = await db.select({ id: seasons.id }).from(seasons).where(eq(seasons.active, true)).limit(1);
     const [tier] = activeSeason
       ? await db.select({ id: divisions.id }).from(divisions).where(and(

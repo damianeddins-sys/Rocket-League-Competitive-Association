@@ -543,7 +543,7 @@ export function SettingsManager({
       </section>
       <section>
         <h3 className="text-lg font-black text-[#081e3a]">Season tier configuration</h3>
-        <p className="mt-1 text-sm text-slate-600">Canonical IDs are fixed to challenger, contender, premier, and master. Presentation and activation remain auditable.</p>
+        <p className="mt-1 text-sm text-slate-600">Competitive order is fixed to Contender → Challenger → Master → Premier. Presentation and activation remain auditable.</p>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           {tiers.map((tier) => (
             <form key={tier.id} action={saveTier} className="rounded-xl border bg-white p-4" style={{ borderTop: `4px solid ${tier.color}` }}>

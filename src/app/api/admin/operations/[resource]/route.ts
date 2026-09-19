@@ -60,7 +60,7 @@ const transactionSchema = z.object({
 const storedRosterProposalSchema = z.object({
   roster: z.array(z.object({
     playerId: z.string().uuid(),
-    division: z.enum(["CHALLENGER", "CONTENDER", "PREMIER", "MASTER"]),
+    division: z.enum(["CONTENDER", "CHALLENGER", "MASTER", "PREMIER"]),
     protectedValue: z.number(),
     handle: z.string().optional(),
   })).length(3),

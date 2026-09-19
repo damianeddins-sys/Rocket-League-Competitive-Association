@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { getDatabase } from "../../db";
 import { discordBotRuntime } from "../../db/schema";
 import { fetchDiscord } from "../auth/discord-api";
+import { TIER_IDS } from "../tiers";
 import { eq } from "drizzle-orm";
 
 export const REQUIRED_DISCORD_COMMANDS = [
@@ -75,7 +76,7 @@ export async function getDiscordBotHealth(): Promise<DiscordBotHealth> {
           const tierOption = command.options?.find((option) => option.name === "tier");
           const choices = new Set(tierOption?.choices?.map((choice) => choice.value));
           return tierOption?.required === true
-            && ["challenger", "contender", "premier", "master"].every((tier) => choices.has(tier));
+            && TIER_IDS.every((tier) => choices.has(tier));
         });
       }
     } catch {

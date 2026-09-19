@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { loadPublicLeagueData } from "@/services/public-league-data";
-import { normalizeTierId } from "@/services/tiers";
+import { DEFAULT_TIER_ID, normalizeTierId } from "@/services/tiers";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const requestedTier = url.searchParams.get("tier");
-  const tier = normalizeTierId(requestedTier) ?? (requestedTier ? null : "challenger");
+  const tier = normalizeTierId(requestedTier) ?? (requestedTier ? null : DEFAULT_TIER_ID);
   if (!tier) {
     return NextResponse.json({ error: "Unknown tier" }, { status: 400 });
   }

@@ -6,7 +6,7 @@ import { LeagueDataState } from "@/components/league-data-state";
 import { TierBadge } from "@/components/tier-navigation";
 import { competitionEventBySlug } from "@/services/competition-events";
 import { loadPublicLeagueData } from "@/services/public-league-data";
-import { normalizeTierId } from "@/services/tiers";
+import { DEFAULT_TIER_ID, normalizeTierId } from "@/services/tiers";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,7 @@ export default async function EventDetailPage({
   searchParams,
 }: PageProps<"/events/[slug]"> & { searchParams: Promise<{ tier?: string }> }) {
   const { slug } = await params;
-  const tierId = normalizeTierId((await searchParams).tier) ?? "challenger";
+  const tierId = normalizeTierId((await searchParams).tier) ?? DEFAULT_TIER_ID;
   const configured = competitionEventBySlug(slug);
   if (!configured) notFound();
   const [eventType, presentation] = configured;
