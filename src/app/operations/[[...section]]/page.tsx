@@ -1,8 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Activity, Bot, Database, FileClock, Settings, ShieldAlert, UserRoundCheck, Users } from "lucide-react";
+import { Activity, Bot, Database, FileClock, Image, Settings, ShieldAlert, UserRoundCheck, Users } from "lucide-react";
 import { ApplicationManager } from "@/components/application-manager";
 import { ContentManager } from "@/components/content-manager";
+import { MediaUploader } from "@/components/media-uploader";
+import {
+  AuditManager,
+  BotControl,
+  DocumentManager,
+  FranchiseWorkspace,
+  OperationsOverview,
+  PlayerManager,
+  ProductionWorkspace,
+  SettingsManager,
+  StatisticsWorkspace,
+  TeamManager,
+  TransactionManager,
+} from "@/components/operations-managers";
 import { UserPermissionManager } from "@/components/user-permission-manager";
 import { checkPortalAccess } from "@/services/auth/portal-access";
 import type { Permission, Portal } from "@/services/auth/discord-roles";
@@ -10,25 +24,40 @@ import { loadApplicationQueue } from "@/services/application-admin";
 import { loadSiteContent, type ContentCategory } from "@/services/site-content";
 import { loadUserManagement } from "@/services/user-management";
 import { getDiscordBotHealth } from "@/services/discord/bot-health";
+import {
+  loadAuditManagement,
+  loadDocumentManagement,
+  loadFranchiseWorkspace,
+  loadOperationsOverview,
+  loadPlayerManagement,
+  loadProductionWorkspace,
+  loadSettingsManagement,
+  loadStatisticsWorkspace,
+  loadTeamManagement,
+  loadTransactionManagement,
+} from "@/services/operations-data";
 
 export const metadata: Metadata = { title: "Operations" };
 export const dynamic = "force-dynamic";
 
 const sections = {
   overview: { label: "Operations Dashboard", portal: "LEAGUE_OPERATIONS" as Portal, icon: Activity },
-  league: { label: "League Operations", portal: "LEAGUE_OPERATIONS" as Portal, icon: Settings },
-  signup: { label: "Sign-Up Manager", portal: "SIGN_UP_MANAGER" as Portal, permission: "applications.manage" as Permission, icon: UserRoundCheck },
-  franchise: { label: "Franchise Manager", portal: "FRANCHISE_MANAGER" as Portal, icon: Users },
-  statistics: { label: "Statistics & Replays", portal: "STATISTICS" as Portal, icon: Database },
-  production: { label: "Production", portal: "PRODUCTION" as Portal, icon: Activity },
-  audit: { label: "Audit Log", portal: "LEAGUE_OPERATIONS" as Portal, icon: FileClock },
-  "bot-health": { label: "Bot Health", portal: "LEAGUE_OPERATIONS" as Portal, icon: Bot },
-  "system-health": { label: "System Health", portal: "LEAGUE_OPERATIONS" as Portal, icon: ShieldAlert },
-  users: { label: "Users & Permissions", portal: "LEAGUE_OPERATIONS" as Portal, permission: "users.manage" as Permission, icon: Users },
-  content: { label: "Content", portal: "LEAGUE_OPERATIONS" as Portal, permission: "content.manage" as Permission, icon: FileClock },
-  media: { label: "Photos & Media", portal: "LEAGUE_OPERATIONS" as Portal, permission: "media.manage" as Permission, icon: Database },
+  applications: { label: "Applications", portal: "SIGN_UP_MANAGER" as Portal, permission: "applications.manage" as Permission, icon: UserRoundCheck },
+  transactions: { label: "Transactions", portal: "LEAGUE_OPERATIONS" as Portal, permission: "transaction.approve" as Permission, icon: FileClock },
+  players: { label: "Players & Members", portal: "LEAGUE_OPERATIONS" as Portal, permission: "player.manage" as Permission, icon: Users },
+  teams: { label: "Teams & Franchises", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: ShieldAlert },
+  staff: { label: "Staff", portal: "LEAGUE_OPERATIONS" as Portal, permission: "users.manage" as Permission, icon: Users },
+  documents: { label: "Documents", portal: "SIGN_UP_MANAGER" as Portal, permission: "applications.manage" as Permission, icon: FileClock },
+  media: { label: "Photos & Media", portal: "LEAGUE_OPERATIONS" as Portal, permission: "media.manage" as Permission, icon: Image },
+  content: { label: "Website Content", portal: "LEAGUE_OPERATIONS" as Portal, permission: "content.manage" as Permission, icon: FileClock },
   rules: { label: "Rules", portal: "LEAGUE_OPERATIONS" as Portal, permission: "rules.manage" as Permission, icon: FileClock },
-  "league-info": { label: "League Information", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: Settings },
+  settings: { label: "Settings", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: Settings },
+  permissions: { label: "Permissions & RBAC", portal: "LEAGUE_OPERATIONS" as Portal, permission: "users.manage" as Permission, icon: ShieldAlert },
+  bot: { label: "Discord Bot", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.full" as Permission, icon: Bot },
+  audit: { label: "Audit Log", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.full" as Permission, icon: Database },
+  franchise: { label: "Franchise Manager", portal: "FRANCHISE_MANAGER" as Portal, permission: "franchise.view" as Permission, icon: Users },
+  statistics: { label: "Statistics & Replays", portal: "STATISTICS" as Portal, permission: "statistics.review" as Permission, icon: Database },
+  production: { label: "Production", portal: "PRODUCTION" as Portal, permission: "production.view" as Permission, icon: Activity },
 } as const;
 
 export default async function OperationsPage({
@@ -63,24 +92,33 @@ export default async function OperationsPage({
       </main>
     );
   }
-  const botHealth = sectionKey === "bot-health" || sectionKey === "system-health"
+  const botHealth = sectionKey === "bot"
     ? await getDiscordBotHealth()
     : null;
-  const applicationQueue = sectionKey === "signup"
+  const applicationQueue = sectionKey === "applications"
     ? await loadApplicationQueue()
     : null;
   const contentCategory: ContentCategory | null =
     sectionKey === "rules" ? "RULES"
-      : sectionKey === "league-info" ? "LEAGUE_INFO"
-        : sectionKey === "content" ? "CONTENT"
-          : sectionKey === "media" ? "MEDIA"
-            : null;
+      : sectionKey === "content" ? "CONTENT"
+        : sectionKey === "media" ? "MEDIA"
+          : null;
   const contentItems = contentCategory
     ? await loadSiteContent(contentCategory, true)
     : null;
-  const userManagement = sectionKey === "users"
+  const userManagement = sectionKey === "staff" || sectionKey === "permissions"
     ? await loadUserManagement()
     : null;
+  const overview = sectionKey === "overview" ? await loadOperationsOverview() : null;
+  const transactionManagement = sectionKey === "transactions" ? await loadTransactionManagement() : null;
+  const playerManagement = sectionKey === "players" ? await loadPlayerManagement() : null;
+  const teamManagement = sectionKey === "teams" ? await loadTeamManagement() : null;
+  const documentManagement = sectionKey === "documents" ? await loadDocumentManagement() : null;
+  const settingsManagement = sectionKey === "settings" ? await loadSettingsManagement() : null;
+  const auditManagement = sectionKey === "audit" ? await loadAuditManagement() : null;
+  const franchiseWorkspace = sectionKey === "franchise" ? await loadFranchiseWorkspace(access.franchiseNumber) : null;
+  const statisticsWorkspace = sectionKey === "statistics" ? await loadStatisticsWorkspace() : null;
+  const productionWorkspace = sectionKey === "production" ? await loadProductionWorkspace() : null;
 
   return (
     <div className="min-h-screen bg-[#f3f6fa]">
@@ -120,10 +158,33 @@ export default async function OperationsPage({
               </div>
               <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700">AUTHORIZED</span>
             </div>
-            {userManagement?.status === "READY" ? (
+            {overview?.status === "READY" ? (
+              <OperationsOverview counts={overview.data} />
+            ) : transactionManagement?.status === "READY" ? (
+              <TransactionManager transactions={transactionManagement.data} />
+            ) : playerManagement?.status === "READY" ? (
+              <PlayerManager players={playerManagement.data.players} />
+            ) : teamManagement?.status === "READY" ? (
+              <TeamManager teams={teamManagement.data} />
+            ) : documentManagement?.status === "READY" ? (
+              <DocumentManager documents={documentManagement.data} />
+            ) : settingsManagement?.status === "READY" ? (
+              <SettingsManager {...settingsManagement.data} />
+            ) : auditManagement?.status === "READY" ? (
+              <AuditManager logs={auditManagement.data} />
+            ) : franchiseWorkspace?.status === "READY" ? (
+              <FranchiseWorkspace data={franchiseWorkspace.data} />
+            ) : statisticsWorkspace?.status === "READY" ? (
+              <StatisticsWorkspace replays={statisticsWorkspace.data} />
+            ) : productionWorkspace?.status === "READY" ? (
+              <ProductionWorkspace data={productionWorkspace.data} />
+            ) : userManagement?.status === "READY" ? (
               <UserPermissionManager users={userManagement.users} />
             ) : contentCategory && process.env.DATABASE_URL && contentItems ? (
-              <ContentManager category={contentCategory} items={contentItems} />
+              <>
+                {contentCategory === "MEDIA" && <MediaUploader />}
+                <ContentManager category={contentCategory} items={contentItems} />
+              </>
             ) : applicationQueue?.status === "READY" ? (
               <ApplicationManager applications={applicationQueue.applications} />
             ) : botHealth ? (
@@ -143,6 +204,7 @@ export default async function OperationsPage({
                     </div>
                   ))}
                 </div>
+                <BotControl />
               </div>
             ) : (
               <div className="mt-7 rounded-lg border border-slate-200 bg-slate-50 p-5">

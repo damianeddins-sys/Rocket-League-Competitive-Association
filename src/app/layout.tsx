@@ -51,7 +51,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const operationsHref = session?.user.access.portals.includes("LEAGUE_OPERATIONS")
     ? "/operations"
     : session?.user.access.portals.includes("SIGN_UP_MANAGER")
-      ? "/operations/signup"
+      ? "/operations/applications"
       : session?.user.access.portals.includes("FRANCHISE_MANAGER")
         ? "/operations/franchise"
         : session?.user.access.portals.includes("STATISTICS")

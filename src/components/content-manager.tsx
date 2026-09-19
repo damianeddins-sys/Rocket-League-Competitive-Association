@@ -85,10 +85,32 @@ export function ContentManager({
     if (response.ok) router.refresh();
   }
 
+  async function remove(formData: FormData) {
+    if (!window.confirm("Remove this content from the website and database?")) return;
+    const response = await fetch("/api/admin/content", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.fromEntries(formData.entries())),
+    });
+    const result = await response.json() as { error?: string };
+    setMessage(response.ok ? "Content removed and audited." : result.error ?? "Content could not be removed");
+    if (response.ok) router.refresh();
+  }
+
   return (
     <div className="mt-7 space-y-5">
       {message && <p className="rounded-lg bg-blue-50 p-4 text-sm font-semibold text-blue-900" role="status">{message}</p>}
-      {items.map((item) => <ContentForm key={item.id} category={category} item={item} onSave={save} />)}
+      {items.map((item) => (
+        <div key={item.id}>
+          <ContentForm category={category} item={item} onSave={save} />
+          <form action={remove} className="-mt-16 mr-5 flex justify-end pb-5">
+            <input type="hidden" name="id" value={item.id} />
+            <input type="hidden" name="category" value={category} />
+            <input type="hidden" name="reason" value="Removed through Operations content management" />
+            <button className="rounded-lg bg-red-50 px-4 py-2.5 text-sm font-black text-red-700">Remove</button>
+          </form>
+        </div>
+      ))}
       <div>
         <p className="eyebrow mb-3 text-[#1683ff]">New {category.toLowerCase().replaceAll("_", " ")} entry</p>
         <ContentForm category={category} onSave={save} />

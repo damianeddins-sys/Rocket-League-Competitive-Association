@@ -3,11 +3,16 @@ import Link from "next/link";
 import { ArrowRight, BrainCircuit, CalendarDays, Gavel, LockKeyhole, Play, ScanSearch, Trophy, UserPlus } from "lucide-react";
 import { LeagueDataState } from "@/components/league-data-state";
 import { loadPublicLeagueData } from "@/services/public-league-data";
+import { loadSiteContent } from "@/services/site-content";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const data = await loadPublicLeagueData();
+  const [data, managedContent, managedMedia] = await Promise.all([
+    loadPublicLeagueData(),
+    loadSiteContent("CONTENT"),
+    loadSiteContent("MEDIA"),
+  ]);
   const upcomingMatches =
     data.status === "ready"
       ? data.matches.filter((match) => match.status === "SCHEDULED").slice(0, 2)
@@ -122,6 +127,33 @@ export default async function Home() {
           ))}
         </div>}
       </section>
+
+      {(managedContent.length > 0 || managedMedia.length > 0) && (
+        <section className="mx-auto max-w-7xl px-5 py-16 lg:px-8">
+          {managedContent.length > 0 && (
+            <div className="grid gap-5 md:grid-cols-2">
+              {managedContent.map((item) => (
+                <article key={item.id} className="panel p-7">
+                  <p className="eyebrow text-[#1683ff]">League update</p>
+                  <h2 className="mt-2 text-2xl font-black text-[#081e3a]">{item.title}</h2>
+                  <p className="mt-3 whitespace-pre-line leading-7 text-slate-600">{item.body}</p>
+                </article>
+              ))}
+            </div>
+          )}
+          {managedMedia.length > 0 && (
+            <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {managedMedia.filter((item) => item.mediaUrl).map((item) => (
+                <figure key={item.id} className="panel overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={item.mediaUrl!} alt={item.title} className="aspect-video w-full object-cover" />
+                  <figcaption className="p-5"><strong className="text-[#081e3a]">{item.title}</strong><p className="mt-1 text-sm text-slate-500">{item.body}</p></figcaption>
+                </figure>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="bg-[#f4f7fa]">
         <div className="mx-auto grid max-w-7xl gap-8 px-5 py-20 lg:grid-cols-3 lg:px-8">
