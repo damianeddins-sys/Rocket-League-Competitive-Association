@@ -8,12 +8,20 @@ import { normalizeTierId, tierDefinition } from "@/services/tiers";
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({ params }: PageProps<"/tiers/[tier]">): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ tier: string }>;
+}): Promise<Metadata> {
   const tierId = normalizeTierId((await params).tier);
   return { title: tierId ? `${tierDefinition(tierId).name} Tier` : "Tier" };
 }
 
-export default async function TierDetailPage({ params }: PageProps<"/tiers/[tier]">) {
+export default async function TierDetailPage({
+  params,
+}: {
+  params: Promise<{ tier: string }>;
+}) {
   const tierId = normalizeTierId((await params).tier);
   if (!tierId) notFound();
   const tier = tierDefinition(tierId);

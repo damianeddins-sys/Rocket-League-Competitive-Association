@@ -12,7 +12,10 @@ export const dynamic = "force-dynamic";
 export default async function PlayerDetailPage({
   params,
   searchParams,
-}: PageProps<"/players/[id]"> & { searchParams: Promise<{ tier?: string }> }) {
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tier?: string }>;
+}) {
   const { id } = await params;
   const tierId = normalizeTierId((await searchParams).tier) ?? DEFAULT_TIER_ID;
   const data = await loadPublicLeagueData({ tier: tierId });
