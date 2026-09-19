@@ -63,7 +63,7 @@ export async function POST(request: Request) {
       action: "DISCORD_COMMANDS_REGISTERED",
       entityType: "DISCORD_APPLICATION",
       entityId: applicationId,
-      nextState: { guildId, commands: REQUIRED_DISCORD_COMMANDS },
+      nextState: { guildId, commands: [...REQUIRED_DISCORD_COMMANDS] },
       requestId: randomUUID(),
     }));
   }

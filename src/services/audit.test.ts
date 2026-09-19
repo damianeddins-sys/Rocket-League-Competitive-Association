@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAuditLogRecord, hashAuditState } from "./audit";
+import { buildAuditLogRecord, hashAuditState, toAuditJson } from "./audit";
 
 describe("audit records", () => {
   it("hashes equivalent JSON objects identically regardless of key order", () => {
@@ -25,5 +25,15 @@ describe("audit records", () => {
     expect(record.previousStateHash).toMatch(/^[a-f0-9]{64}$/);
     expect(record.nextStateHash).toMatch(/^[a-f0-9]{64}$/);
     expect(record.previousStateHash).not.toBe(record.nextStateHash);
+  });
+
+  it("normalizes database dates into immutable JSON audit state", () => {
+    expect(toAuditJson({
+      updatedAt: new Date("2026-09-19T00:00:00.000Z"),
+      commands: ["status", "help"] as const,
+    })).toEqual({
+      updatedAt: "2026-09-19T00:00:00.000Z",
+      commands: ["status", "help"],
+    });
   });
 });

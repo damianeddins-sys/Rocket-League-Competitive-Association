@@ -13,7 +13,7 @@ import {
   teams,
   transactionRequests,
 } from "@/db/schema";
-import { buildAuditLogRecord } from "@/services/audit";
+import { buildAuditLogRecord, toAuditJson } from "@/services/audit";
 import { checkPortalAccess } from "@/services/auth/portal-access";
 import type { Permission } from "@/services/auth/discord-roles";
 import { getSession } from "@/services/auth/session";
@@ -218,8 +218,8 @@ export async function PATCH(
         action: "FRANCHISE_UPDATED",
         entityType: "TEAM",
         entityId: current.id,
-        previousState: current,
-        nextState: parsed.data,
+        previousState: toAuditJson(current),
+        nextState: toAuditJson(parsed.data),
         reason: parsed.data.reason,
         requestId,
       }));
@@ -251,8 +251,8 @@ export async function PATCH(
         action: "SEASON_SETTINGS_UPDATED",
         entityType: "SEASON",
         entityId: current.id,
-        previousState: current,
-        nextState: parsed.data,
+        previousState: toAuditJson(current),
+        nextState: toAuditJson(parsed.data),
         reason: parsed.data.reason,
         requestId,
       }));
@@ -279,8 +279,8 @@ export async function PATCH(
         action: "DISCORD_CHANNEL_UPDATED",
         entityType: "DISCORD_CHANNEL_CONFIGURATION",
         entityId: current.id,
-        previousState: current,
-        nextState: parsed.data,
+        previousState: toAuditJson(current),
+        nextState: toAuditJson(parsed.data),
         reason: parsed.data.reason,
         requestId,
       }));
