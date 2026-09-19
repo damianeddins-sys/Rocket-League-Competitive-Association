@@ -115,6 +115,16 @@ they do not generate a new public message for every click. Private pages include
 Back, Home, or Close controls. Command registration is controlled from
 `/operations/bot` by an authenticated Owner.
 
+Authorized staff can post channel launchers with `/panel`:
+
+- `member` for a public league navigation panel;
+- `applications` for the public application launcher;
+- `staff` for the private staff-category launcher;
+- `admin` for the private administrator-category launcher.
+
+The staff and admin launchers must only be posted in Discord channels whose category
+permissions deny normal-member access. Every click is still authorized server-side.
+
 ### Normal member experience
 
 Normal members can browse public league data, submit one of the four application

@@ -87,9 +87,9 @@ export async function POST(request: Request) {
             required: true,
             choices: [
               { name: "Member", value: "member" },
-              { name: "Applications Staff", value: "applications" },
-              { name: "Staff", value: "staff" },
-              { name: "Admin", value: "admin" },
+              { name: "Applications Channel", value: "applications" },
+              { name: "Staff Channel", value: "staff" },
+              { name: "Admin Channel", value: "admin" },
             ],
           }],
         } : {}),

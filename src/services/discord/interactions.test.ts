@@ -165,6 +165,7 @@ describe("Discord interactions", () => {
         embeds: [{ title: expect.stringContaining("RLCA LEAGUE") }],
       },
     });
+    expect("flags" in response.data).toBe(false);
     expect(JSON.stringify(response)).not.toMatch(/Audit Logs|Settings|Manage Staff/);
   });
 

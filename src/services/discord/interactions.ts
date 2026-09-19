@@ -129,6 +129,11 @@ const commandPage = (page: DiscordPage, ephemeral = false) => ({
   },
 });
 
+function publicPanel(page: DiscordPage) {
+  const { flags: _flags, ...publicPage } = page;
+  return commandPage(publicPage, false);
+}
+
 function componentPage(interaction: DiscordInteraction, page: DiscordPage, privatePage = true) {
   const sourceIsEphemeral = Boolean((interaction.message?.flags ?? 0) & EPHEMERAL_FLAG);
   if (privatePage && !sourceIsEphemeral) return commandPage(page, true);
@@ -268,15 +273,15 @@ export async function respondToDiscordInteraction(
     switch (interaction.data?.name) {
       case "panel": {
         const view = option(interaction, "view") ?? "member";
-        if (view === "member") return commandPage(memberHomePage(), false);
+        if (view === "member") return publicPanel(memberHomePage());
         if (!actor) return message("Discord member identity is required.", true);
         try {
           await assertApplicationManager(actor);
-          return commandPage(view === "applications"
-            ? applicationDashboardPage(await loadApplicationDashboard(actor))
-            : staffHomePage(), true);
+          return publicPanel(view === "applications"
+            ? applicationsPage()
+            : staffHomePage());
         } catch {
-          return message("You are not authorized to open RLCA staff panels.", true);
+          return message("You are not authorized to post RLCA channel panels.", true);
         }
       }
       case "apply":
