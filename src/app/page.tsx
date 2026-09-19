@@ -17,8 +17,11 @@ export default async function Home() {
   ]);
   const data = tierSnapshots[0];
   const readySnapshots = tierSnapshots.filter((snapshot) => snapshot.status === "ready");
-  const websiteContent = [...managedSiteInfo, ...managedContent]
+  const contentAvailable = [managedContent, managedSiteInfo, managedMedia]
+    .every((result) => result.status === "READY");
+  const websiteContent = [...managedSiteInfo.items, ...managedContent.items]
     .sort((a, b) => a.sortOrder - b.sortOrder);
+  const mediaItems = managedMedia.items;
   const allMatches = readySnapshots.flatMap((snapshot) => snapshot.status === "ready" ? snapshot.matches : []);
   const upcomingMatches = allMatches
     .filter((match) => match.status === "SCHEDULED")
@@ -103,6 +106,15 @@ export default async function Home() {
           </div>
         </div>
       </section>
+
+      {!contentAvailable && (
+        <section className="border-y border-red-200 bg-red-50 px-5 py-5 text-red-950">
+          <div className="mx-auto max-w-7xl">
+            <p className="font-black">Some official website content is temporarily unavailable.</p>
+            <p className="mt-1 text-sm">The database could not be read. No fallback announcements or managed media are being shown as current.</p>
+          </div>
+        </section>
+      )}
 
       <section className="border-b border-slate-200 bg-slate-50">
         <div className="mx-auto grid max-w-7xl gap-px bg-slate-200 sm:grid-cols-3">
@@ -223,7 +235,7 @@ export default async function Home() {
         </div>}
       </section>
 
-      {(websiteContent.length > 0 || managedMedia.length > 0) && (
+      {(websiteContent.length > 0 || mediaItems.length > 0) && (
         <section className="mx-auto max-w-7xl px-5 py-16 lg:px-8">
           {websiteContent.length > 0 && (
             <div className="grid gap-5 md:grid-cols-2">
@@ -236,9 +248,9 @@ export default async function Home() {
               ))}
             </div>
           )}
-          {managedMedia.length > 0 && (
+          {mediaItems.length > 0 && (
             <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {managedMedia.filter((item) => item.mediaUrl).map((item) => (
+              {mediaItems.filter((item) => item.mediaUrl).map((item) => (
                 <figure key={item.id} className="panel overflow-hidden">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={item.mediaUrl!} alt={item.title} className="aspect-video w-full object-cover" />

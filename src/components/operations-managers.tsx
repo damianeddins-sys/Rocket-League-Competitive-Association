@@ -686,14 +686,44 @@ type AuditRow = {
   createdAt: string;
 };
 
-export function AuditManager({ logs }: { logs: AuditRow[] }) {
+type TierHistoryRow = {
+  id: string;
+  targetType: string;
+  targetId: string;
+  oldTier: string | null;
+  newTier: string | null;
+  seasonId: string;
+  actorName: string;
+  source: string;
+  reason: string;
+  createdAt: string;
+};
+
+export function AuditManager({
+  logs,
+  tierHistory,
+}: {
+  logs: AuditRow[];
+  tierHistory: TierHistoryRow[];
+}) {
   return (
-    <div className="mt-7 overflow-x-auto rounded-xl border border-slate-200 bg-white">
-      <table className="w-full min-w-[700px] text-left text-sm">
-        <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500"><tr><th className="p-4">Time</th><th>Actor</th><th>Action</th><th>Entity</th><th>Reason</th></tr></thead>
-        <tbody>{logs.map((log) => <tr key={log.id} className="border-t border-slate-100"><td className="p-4">{new Date(log.createdAt).toLocaleString()}</td><td>{log.actorName}</td><td className="font-bold">{log.action.replaceAll("_", " ")}</td><td className="font-mono text-xs">{log.entityType}:{log.entityId.slice(0, 8)}</td><td>{log.reason ?? "—"}</td></tr>)}</tbody>
-      </table>
-      {!logs.length && <Empty text="No audit events have been stored." />}
+    <div className="mt-7 space-y-6">
+      <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <h3 className="border-b border-slate-200 p-4 text-lg font-black text-[#081e3a]">Tier history</h3>
+        <table className="w-full min-w-[800px] text-left text-sm">
+          <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500"><tr><th className="p-4">Time</th><th>Actor</th><th>Source</th><th>Target</th><th>Change</th><th>Reason</th></tr></thead>
+          <tbody>{tierHistory.map((entry) => <tr key={entry.id} className="border-t border-slate-100"><td className="p-4">{new Date(entry.createdAt).toLocaleString()}</td><td>{entry.actorName}</td><td className="font-bold">{entry.source}</td><td className="font-mono text-xs">{entry.targetType}:{entry.targetId.slice(0, 8)}</td><td className="font-bold">{entry.oldTier ?? "UNASSIGNED"} → {entry.newTier ?? "UNASSIGNED"}</td><td>{entry.reason}</td></tr>)}</tbody>
+        </table>
+        {!tierHistory.length && <Empty text="No tier changes have been recorded." />}
+      </section>
+      <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <h3 className="border-b border-slate-200 p-4 text-lg font-black text-[#081e3a]">General audit history</h3>
+        <table className="w-full min-w-[700px] text-left text-sm">
+          <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500"><tr><th className="p-4">Time</th><th>Actor</th><th>Action</th><th>Entity</th><th>Reason</th></tr></thead>
+          <tbody>{logs.map((log) => <tr key={log.id} className="border-t border-slate-100"><td className="p-4">{new Date(log.createdAt).toLocaleString()}</td><td>{log.actorName}</td><td className="font-bold">{log.action.replaceAll("_", " ")}</td><td className="font-mono text-xs">{log.entityType}:{log.entityId.slice(0, 8)}</td><td>{log.reason ?? "—"}</td></tr>)}</tbody>
+        </table>
+        {!logs.length && <Empty text="No audit events have been stored." />}
+      </section>
     </div>
   );
 }

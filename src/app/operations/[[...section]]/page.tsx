@@ -316,7 +316,10 @@ export default async function OperationsPage({
                 owner={access.permissions.includes("league.full")}
               />
             ) : auditManagement?.status === "READY" ? (
-              <AuditManager logs={auditManagement.data} />
+              <AuditManager
+                logs={auditManagement.data.logs}
+                tierHistory={auditManagement.data.tierHistory}
+              />
             ) : franchiseWorkspace?.status === "READY" ? (
               <FranchiseWorkspace data={franchiseWorkspace.data} />
             ) : statisticsWorkspace?.status === "READY" ? (

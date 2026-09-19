@@ -23,6 +23,7 @@ import {
   seasons,
   teams,
   teamSeasonEntries,
+  tierHistory,
   transactionRequests,
   waiverWindows,
 } from "@/db/schema";
@@ -46,6 +47,7 @@ import {
   notificationJob,
 } from "@/services/discord/notifications";
 import { roleSyncJob } from "@/services/discord/role-sync";
+import { buildTierHistoryRecord } from "@/services/tier-history";
 import { normalizeTierId, TIER_IDS } from "@/services/tiers";
 import { regularSeasonPoints } from "@/services/points";
 
@@ -986,6 +988,22 @@ export async function PATCH(
           },
         })
         .returning({ id: teamSeasonEntries.id });
+      const oldTier = previous?.active && !previous.endedAt ? parsed.data.tierId : null;
+      const newTier = parsed.data.active ? parsed.data.tierId : null;
+      if (oldTier !== newTier) {
+        await tx.insert(tierHistory).values(buildTierHistoryRecord({
+          targetType: "TEAM",
+          targetId: parsed.data.teamId,
+          oldTier,
+          newTier,
+          seasonId: parsed.data.seasonId,
+          actorId: context.user.id,
+          actorName: context.user.name,
+          source: "STAFF",
+          reason: parsed.data.reason,
+          idempotencyKey: `team-tier:${requestId}`,
+        }));
+      }
       await tx.insert(auditLogs).values(buildAuditLogRecord({
         actorId: context.user.id,
         actorDiscordRoleIds: context.access.roleIds,

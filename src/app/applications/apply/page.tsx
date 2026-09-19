@@ -27,9 +27,10 @@ export default async function ApplyPage({
     : null;
   if (!type) redirect("/applications");
   const session = await getSession();
-  const existing = session?.user
+  const existingResult = session?.user
     ? await loadApplicantStatus(session.user.id, type)
     : null;
+  const existing = existingResult?.application ?? null;
   const canSubmit = !existing
     || existing.status === "DENIED"
     || existing.status === "WITHDRAWN"
@@ -55,6 +56,11 @@ export default async function ApplyPage({
             <Link href={`/login?returnTo=${encodeURIComponent(`/applications/apply?type=${type.toLowerCase().replace("_", "-")}`)}`} className="mt-6 inline-flex rounded-lg bg-[#5865f2] px-5 py-3 font-black text-white">
               Sign in with Discord
             </Link>
+          </div>
+        ) : existingResult?.status !== "READY" ? (
+          <div className="panel border border-red-200 p-8 text-center">
+            <h2 className="text-2xl font-black text-red-950">Application records are temporarily unavailable.</h2>
+            <p className="mt-3 text-red-800">The official database could not be read. Submission is disabled to prevent a duplicate or untracked application.</p>
           </div>
         ) : existing && !canSubmit ? (
           <div className="panel p-8">

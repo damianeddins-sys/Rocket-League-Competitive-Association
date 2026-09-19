@@ -18,6 +18,7 @@ import {
   seasons,
   teams,
   teamSeasonEntries,
+  tierHistory,
   events,
   matches,
   transactionRequests,
@@ -347,16 +348,23 @@ export function loadSettingsManagement() {
 export function loadAuditManagement() {
   return load(async () => {
     const db = getDatabase();
-    const [logs, userRows] = await Promise.all([
+    const [logs, tierChanges, userRows] = await Promise.all([
       db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(300),
+      db.select().from(tierHistory).orderBy(desc(tierHistory.createdAt)).limit(300),
       db.select({ id: users.id, name: users.displayName }).from(users),
     ]);
     const names = new Map(userRows.map((user) => [user.id, user.name]));
-    return logs.map((log) => ({
-      ...log,
-      createdAt: log.createdAt.toISOString(),
-      actorName: log.actorId ? names.get(log.actorId) ?? "Unknown member" : "System",
-    }));
+    return {
+      logs: logs.map((log) => ({
+        ...log,
+        createdAt: log.createdAt.toISOString(),
+        actorName: log.actorId ? names.get(log.actorId) ?? "Unknown member" : "System",
+      })),
+      tierHistory: tierChanges.map((entry) => ({
+        ...entry,
+        createdAt: entry.createdAt.toISOString(),
+      })),
+    };
   });
 }
 

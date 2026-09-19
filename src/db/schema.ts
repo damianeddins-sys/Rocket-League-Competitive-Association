@@ -26,6 +26,13 @@ export const divisionCode = pgEnum("division_code", [
   "MASTER",
   "PREMIER",
 ]);
+export const tierHistoryTargetType = pgEnum("tier_history_target_type", ["PLAYER", "TEAM"]);
+export const tierHistorySource = pgEnum("tier_history_source", [
+  "WEBSITE",
+  "DISCORD",
+  "STAFF",
+  "SYSTEM",
+]);
 export const eventType = pgEnum("event_type", [
   "REGULAR_SEASON",
   "MAJOR_1",
@@ -1048,4 +1055,35 @@ export const auditLogs = pgTable(
     createdAt: createdAt(),
   },
   (table) => [index("audit_entity").on(table.entityType, table.entityId, table.createdAt)],
+);
+
+export const tierHistory = pgTable(
+  "tier_history",
+  {
+    id: id(),
+    targetType: tierHistoryTargetType("target_type").notNull(),
+    targetId: uuid("target_id").notNull(),
+    oldTier: divisionCode("old_tier"),
+    newTier: divisionCode("new_tier"),
+    seasonId: uuid("season_id").notNull().references(() => seasons.id),
+    actorId: uuid("actor_id").references(() => users.id),
+    actorName: text("actor_name").notNull(),
+    source: tierHistorySource("source").notNull(),
+    reason: text("reason").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("tier_history_idempotency").on(table.idempotencyKey),
+    index("tier_history_target_timeline").on(
+      table.targetType,
+      table.targetId,
+      table.seasonId,
+      table.createdAt,
+    ),
+    check(
+      "tier_history_has_change",
+      sql`${table.oldTier} is distinct from ${table.newTier} and (${table.oldTier} is not null or ${table.newTier} is not null)`,
+    ),
+  ],
 );

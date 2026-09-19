@@ -23,8 +23,8 @@ const sections = [
 
 export default async function RulesPage() {
   const managedRules = await loadSiteContent("RULES");
-  const visibleSections = managedRules.length
-    ? managedRules.map((rule) => [rule.title, rule.body] as const)
+  const visibleSections = managedRules.status === "READY" && managedRules.items.length
+    ? managedRules.items.map((rule) => [rule.title, rule.body] as const)
     : sections;
 
   return (
@@ -41,6 +41,12 @@ export default async function RulesPage() {
         </div>
       </section>
       <main className="mx-auto max-w-6xl px-5 py-14">
+        {managedRules.status !== "READY" && (
+          <div className="mb-8 rounded-xl border border-red-200 bg-red-50 p-6 text-red-950">
+            <h2 className="font-black">Managed rules are temporarily unavailable.</h2>
+            <p className="mt-2 text-sm">The official database could not be read. The published league foundation below remains visible, but no database-managed updates are being represented as current.</p>
+          </div>
+        )}
         <div className="grid gap-4">
           {visibleSections.map(([title, text], index) => (
             <details key={title} className="panel group p-6" open={index === 0}>
