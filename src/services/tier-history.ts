@@ -2,12 +2,17 @@ import type { TierId } from "./tiers";
 
 export const TIER_HISTORY_SOURCES = ["WEBSITE", "DISCORD", "STAFF", "SYSTEM"] as const;
 export type TierHistorySource = (typeof TIER_HISTORY_SOURCES)[number];
+export type TierCode = Uppercase<TierId>;
+
+export function toTierCode(tier: TierId): TierCode {
+  return tier.toUpperCase() as TierCode;
+}
 
 type TierHistoryInput = {
   targetType: "PLAYER" | "TEAM";
   targetId: string;
-  oldTier: TierId | null;
-  newTier: TierId | null;
+  oldTier: TierCode | null;
+  newTier: TierCode | null;
   seasonId: string;
   actorId: string | null;
   actorName: string;

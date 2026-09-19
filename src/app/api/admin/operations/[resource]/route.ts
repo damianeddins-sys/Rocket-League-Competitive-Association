@@ -47,7 +47,7 @@ import {
   notificationJob,
 } from "@/services/discord/notifications";
 import { roleSyncJob } from "@/services/discord/role-sync";
-import { buildTierHistoryRecord } from "@/services/tier-history";
+import { buildTierHistoryRecord, toTierCode } from "@/services/tier-history";
 import { normalizeTierId, TIER_IDS } from "@/services/tiers";
 import { regularSeasonPoints } from "@/services/points";
 
@@ -988,8 +988,9 @@ export async function PATCH(
           },
         })
         .returning({ id: teamSeasonEntries.id });
-      const oldTier = previous?.active && !previous.endedAt ? parsed.data.tierId : null;
-      const newTier = parsed.data.active ? parsed.data.tierId : null;
+      const tierCode = toTierCode(parsed.data.tierId);
+      const oldTier = previous?.active && !previous.endedAt ? tierCode : null;
+      const newTier = parsed.data.active ? tierCode : null;
       if (oldTier !== newTier) {
         await tx.insert(tierHistory).values(buildTierHistoryRecord({
           targetType: "TEAM",
