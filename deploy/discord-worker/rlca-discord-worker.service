@@ -3,6 +3,8 @@ Description=RLCA Discord Gateway Worker
 Documentation=https://github.com/damianeddins-sys/Rocket-League-Competitive-Association
 Wants=network-online.target
 After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -11,11 +13,9 @@ Group=rlca
 WorkingDirectory=/opt/rlca
 Environment=NODE_ENV=production
 EnvironmentFile=/etc/rlca/discord-worker.env
-ExecStart=/usr/bin/node /opt/rlca/scripts/discord-gateway-worker.mjs
+ExecStart=/usr/bin/env node /opt/rlca/scripts/discord-gateway-worker.mjs
 Restart=on-failure
 RestartSec=10
-StartLimitIntervalSec=300
-StartLimitBurst=5
 TimeoutStopSec=20
 KillSignal=SIGTERM
 NoNewPrivileges=true
