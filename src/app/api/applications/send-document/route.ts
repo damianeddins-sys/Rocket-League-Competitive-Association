@@ -20,6 +20,9 @@ const allowedDocumentTypes = new Set([
 ]);
 
 export async function POST(request: Request) {
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: "Document database is not configured" }, { status: 503 });
+  }
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
@@ -104,6 +107,7 @@ export async function POST(request: Request) {
       id: documentId,
       applicationId: applicationId?.success ? applicationId.data : null,
       recipientEmail: signupEmail,
+      subject: subject.data,
       fileName: safeFileName,
       contentType: file.type,
       sizeBytes: file.size,
@@ -120,6 +124,7 @@ export async function POST(request: Request) {
       nextState: {
         applicationId: applicationId?.success ? applicationId.data : null,
         recipientEmail: signupEmail,
+        subject: subject.data,
         fileName: safeFileName,
         sizeBytes: file.size,
       },

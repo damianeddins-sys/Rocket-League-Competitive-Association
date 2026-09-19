@@ -1,22 +1,34 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDatabase } from "@/db";
 import {
+  activationHolds,
   auditLogs,
+  divisions,
   discordChannelConfigurations,
+  events,
   playerSeasons,
   playerStatusHistory,
   players,
+  rosterMemberships,
   seasons,
   teams,
   transactionRequests,
+  waiverWindows,
 } from "@/db/schema";
 import { buildAuditLogRecord, toAuditJson } from "@/services/audit";
 import { checkPortalAccess } from "@/services/auth/portal-access";
 import type { Permission } from "@/services/auth/discord-roles";
 import { getSession } from "@/services/auth/session";
+import {
+  ACTIVATION_HOLD_MS,
+  evaluatePlayerStatusTransition,
+  WAIVER_PERIOD_MS,
+} from "@/services/player-lifecycle";
+import { calculateCapRange, transactionWindow, validateRoster, type RosterPlayer } from "@/services/rosters";
+import { canTransitionTransactionRequest } from "@/services/transactions";
 
 export const runtime = "nodejs";
 
@@ -32,6 +44,15 @@ const transactionSchema = z.object({
     "CANCELLED",
   ]),
   reason: z.string().trim().min(3).max(2000),
+});
+
+const storedRosterProposalSchema = z.object({
+  roster: z.array(z.object({
+    playerId: z.string().uuid(),
+    division: z.enum(["MASTER", "CHALLENGER", "CONTENDER"]),
+    protectedValue: z.number(),
+    handle: z.string().optional(),
+  })).length(3),
 });
 
 const playerSchema = z.object({
@@ -92,6 +113,13 @@ const permissions: Record<string, Permission> = {
   seasons: "league.manage",
   channels: "league.manage",
 };
+const portals: Record<string, "LEAGUE_OPERATIONS" | "SIGN_UP_MANAGER"> = {
+  transactions: "LEAGUE_OPERATIONS",
+  players: "SIGN_UP_MANAGER",
+  teams: "LEAGUE_OPERATIONS",
+  seasons: "LEAGUE_OPERATIONS",
+  channels: "LEAGUE_OPERATIONS",
+};
 
 async function contextFor(request: Request, resource: string) {
   const origin = request.headers.get("origin");
@@ -99,7 +127,7 @@ async function contextFor(request: Request, resource: string) {
   const permission = permissions[resource];
   if (!permission) return null;
   const [access, session] = await Promise.all([
-    checkPortalAccess("LEAGUE_OPERATIONS", undefined, permission),
+    checkPortalAccess(portals[resource] ?? "LEAGUE_OPERATIONS", undefined, permission),
     getSession(),
   ]);
   return access.allowed && session?.user && z.string().uuid().safeParse(session.user.id).success
@@ -111,6 +139,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ resource: string }> },
 ) {
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: "Operations database is not configured" }, { status: 503 });
+  }
   const { resource } = await params;
   const context = await contextFor(request, resource);
   if (!context) return NextResponse.json({ error: "Authorized staff access required" }, { status: 403 });
@@ -126,25 +157,181 @@ export async function PATCH(
     if (current.status === parsed.data.status) {
       return NextResponse.json({ error: "Transaction already has this status" }, { status: 409 });
     }
-    await db.transaction(async (tx) => {
-      await tx.update(transactionRequests).set({
-        status: parsed.data.status,
-        reviewedBy: context.user.id,
-        reviewedAt: new Date(),
-      }).where(eq(transactionRequests.id, current.id));
-      await tx.insert(auditLogs).values(buildAuditLogRecord({
-        actorId: context.user.id,
-        actorDiscordRoleIds: context.access.roleIds,
-        actorFranchiseNumber: context.access.franchiseNumber,
-        action: "TRANSACTION_STATUS_CHANGED",
-        entityType: "TRANSACTION_REQUEST",
-        entityId: current.id,
-        previousState: { status: current.status },
-        nextState: { status: parsed.data.status },
-        reason: parsed.data.reason,
-        requestId,
-      }));
-    });
+    if (!canTransitionTransactionRequest(current.status, parsed.data.status)) {
+      return NextResponse.json({
+        error: `Transaction cannot move from ${current.status} to ${parsed.data.status}`,
+      }, { status: 409 });
+    }
+    try {
+      await db.transaction(async (tx) => {
+        let appliedRoster: string[] | undefined;
+        if (parsed.data.status === "APPROVED") {
+          if (current.type !== "ROSTER_CHANGE") {
+            throw new Error("Legacy transaction requests require migration before approval");
+          }
+          const proposal = storedRosterProposalSchema.safeParse(current.proposedState);
+          if (!proposal.success) throw new Error("Stored roster proposal is invalid");
+          const proposedIds = proposal.data.roster.map((entry) => entry.playerId);
+          await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`roster:${current.seasonId}`}))`);
+
+          const now = new Date();
+          const eventRows = await tx.select().from(events).where(eq(events.seasonId, current.seasonId));
+          const activeEvent = eventRows.find((event) => event.startsAt <= now && event.endsAt >= now);
+          const window = transactionWindow(activeEvent?.type ?? null);
+          if (!window.open) throw new Error(`${window.reason}. An audited exception is required.`);
+
+          const [divisionRows, seasonPlayers, activeMemberships] = await Promise.all([
+            tx.select().from(divisions).where(eq(divisions.seasonId, current.seasonId)),
+            tx.select().from(playerSeasons).where(eq(playerSeasons.seasonId, current.seasonId)),
+            tx.select().from(rosterMemberships).where(and(
+              eq(rosterMemberships.seasonId, current.seasonId),
+              isNull(rosterMemberships.endsAt),
+            )),
+          ]);
+          const divisionCodes = new Map(divisionRows.map((division) => [division.id, division.code]));
+          const seasonByPlayer = new Map(seasonPlayers.map((entry) => [entry.playerId, entry]));
+          const toRosterPlayer = (playerId: string): RosterPlayer | null => {
+            const entry = seasonByPlayer.get(playerId);
+            if (!entry?.divisionId || entry.protectedRosterValue === null) return null;
+            const division = divisionCodes.get(entry.divisionId);
+            return division ? {
+              playerId,
+              division,
+              protectedValue: Number(entry.protectedRosterValue),
+            } : null;
+          };
+          const authoritativeProposal = proposedIds.map(toRosterPlayer);
+          if (authoritativeProposal.some((entry) => !entry)) {
+            throw new Error("A proposed player no longer has an official division and roster value");
+          }
+          const pool = { MASTER: [] as RosterPlayer[], CHALLENGER: [] as RosterPlayer[], CONTENDER: [] as RosterPlayer[] };
+          for (const seasonPlayer of seasonPlayers) {
+            const rosterPlayer = toRosterPlayer(seasonPlayer.playerId);
+            if (rosterPlayer) pool[rosterPlayer.division].push(rosterPlayer);
+          }
+          const validation = validateRoster(
+            authoritativeProposal as RosterPlayer[],
+            calculateCapRange(pool),
+          );
+          if (!validation.legal) throw new Error(validation.reasons.join("; "));
+          const crossTeam = activeMemberships.find(
+            (membership) => proposedIds.includes(membership.playerId)
+              && membership.teamId !== current.teamId,
+          );
+          if (crossTeam) throw new Error("A proposed player is now rostered by another franchise");
+
+          const currentTeamMemberships = activeMemberships.filter(
+            (membership) => membership.teamId === current.teamId,
+          );
+          const currentIds = currentTeamMemberships.map((membership) => membership.playerId);
+          const removedIds = currentIds.filter((playerId) => !proposedIds.includes(playerId));
+          const addedIds = proposedIds.filter((playerId) => !currentIds.includes(playerId));
+
+          for (const playerId of removedIds) {
+            const playerSeason = seasonByPlayer.get(playerId);
+            if (!playerSeason) throw new Error("Released player season record is missing");
+            const transition = evaluatePlayerStatusTransition({
+              from: playerSeason.status,
+              to: "WAIVER",
+              now,
+              activatedAt: playerSeason.activatedAt ?? undefined,
+              transactionApproved: true,
+            });
+            if (!transition.allowed) throw new Error(transition.reason);
+            await tx.update(rosterMemberships).set({ endsAt: now }).where(and(
+              eq(rosterMemberships.seasonId, current.seasonId),
+              eq(rosterMemberships.teamId, current.teamId),
+              eq(rosterMemberships.playerId, playerId),
+              isNull(rosterMemberships.endsAt),
+            ));
+            await tx.update(playerSeasons).set({ status: "WAIVER" }).where(eq(playerSeasons.id, playerSeason.id));
+            await tx.insert(waiverWindows).values({
+              playerSeasonId: playerSeason.id,
+              startedAt: now,
+              endsAt: new Date(now.getTime() + WAIVER_PERIOD_MS),
+            });
+            await tx.insert(playerStatusHistory).values({
+              playerSeasonId: playerSeason.id,
+              fromStatus: playerSeason.status,
+              toStatus: "WAIVER",
+              effectiveAt: now,
+              reason: `Approved transaction ${current.id}`,
+              actorId: context.user.id,
+              relatedTransactionId: current.id,
+            });
+          }
+
+          for (const playerId of addedIds) {
+            const playerSeason = seasonByPlayer.get(playerId);
+            if (!playerSeason) throw new Error("Signed player season record is missing");
+            const transition = evaluatePlayerStatusTransition({
+              from: playerSeason.status,
+              to: "ROSTERED",
+              now,
+              activatedAt: playerSeason.activatedAt ?? undefined,
+              transactionApproved: true,
+            });
+            if (!transition.allowed) throw new Error(transition.reason);
+            await tx.insert(rosterMemberships).values({
+              seasonId: current.seasonId,
+              teamId: current.teamId,
+              playerId,
+              divisionId: playerSeason.divisionId!,
+              startsAt: now,
+              acquiredBy: "APPROVED_TRANSACTION",
+            });
+            await tx.update(playerSeasons).set({
+              status: "ROSTERED",
+              activatedAt: now,
+            }).where(eq(playerSeasons.id, playerSeason.id));
+            await tx.insert(activationHolds).values({
+              playerSeasonId: playerSeason.id,
+              activatedAt: now,
+              eligibleChangeAt: new Date(now.getTime() + ACTIVATION_HOLD_MS),
+            });
+            await tx.insert(playerStatusHistory).values({
+              playerSeasonId: playerSeason.id,
+              fromStatus: playerSeason.status,
+              toStatus: "ROSTERED",
+              effectiveAt: now,
+              reason: `Approved transaction ${current.id}`,
+              actorId: context.user.id,
+              relatedTransactionId: current.id,
+            });
+          }
+          appliedRoster = proposedIds;
+        }
+
+        await tx.update(transactionRequests).set({
+          status: parsed.data.status,
+          reviewedBy: context.user.id,
+          reviewedAt: new Date(),
+        }).where(eq(transactionRequests.id, current.id));
+        await tx.insert(auditLogs).values(buildAuditLogRecord({
+          actorId: context.user.id,
+          actorDiscordRoleIds: context.access.roleIds,
+          actorFranchiseNumber: context.access.franchiseNumber,
+          action: parsed.data.status === "APPROVED"
+            ? "TRANSACTION_APPROVED_AND_APPLIED"
+            : "TRANSACTION_STATUS_CHANGED",
+          entityType: "TRANSACTION_REQUEST",
+          entityId: current.id,
+          previousState: { status: current.status },
+          nextState: {
+            status: parsed.data.status,
+            ...(appliedRoster ? { appliedRoster } : {}),
+          },
+          reason: parsed.data.reason,
+          requestId,
+        }));
+      });
+    } catch (error) {
+      const databaseError = error as { code?: unknown };
+      const message = databaseError?.code
+        ? "Transaction could not be applied because roster data changed. Refresh and review the current roster."
+        : error instanceof Error ? error.message : "Transaction decision failed";
+      return NextResponse.json({ error: message }, { status: 409 });
+    }
     return NextResponse.json({ id: current.id, status: parsed.data.status });
   }
 
@@ -156,8 +343,32 @@ export async function PATCH(
     const currentSeason = parsed.data.playerSeasonId
       ? (await db.select().from(playerSeasons).where(eq(playerSeasons.id, parsed.data.playerSeasonId)).limit(1))[0]
       : null;
+    if (currentSeason && currentSeason.playerId !== current.id) {
+      return NextResponse.json({ error: "Player season does not belong to this player" }, { status: 400 });
+    }
     if (parsed.data.status && !currentSeason) {
       return NextResponse.json({ error: "Player has no season record to update" }, { status: 409 });
+    }
+    if (
+      currentSeason
+      && parsed.data.status
+      && currentSeason.status !== parsed.data.status
+      && !context.access.permissions.includes("league.full")
+    ) {
+      const [waiver] = await db.select().from(waiverWindows)
+        .where(eq(waiverWindows.playerSeasonId, currentSeason.id))
+        .orderBy(desc(waiverWindows.startedAt))
+        .limit(1);
+      const decision = evaluatePlayerStatusTransition({
+        from: currentSeason.status,
+        to: parsed.data.status,
+        now: new Date(),
+        activatedAt: currentSeason.activatedAt ?? undefined,
+        waiverStartedAt: waiver?.startedAt,
+      });
+      if (!decision.allowed) {
+        return NextResponse.json({ error: decision.reason, code: decision.code }, { status: 409 });
+      }
     }
     await db.transaction(async (tx) => {
       await tx.update(players).set({

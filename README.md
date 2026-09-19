@@ -72,7 +72,7 @@ Set that URL as the Discord application's **Interactions Endpoint URL**, configu
 npm run discord:register
 ```
 
-The included `/status`, `/standings`, `/schedule`, and `/help` commands wake the Vercel function on demand. Vercel cannot maintain a continuous Discord Gateway connection or green presence indicator; features requiring Gateway events must run in a separate persistent worker.
+The included `/status`, `/standings`, `/schedule`, `/teams`, `/events`, and `/help` commands wake the Vercel function on demand. Vercel cannot maintain a continuous Discord Gateway connection or green presence indicator; features requiring Gateway events must run in a separate persistent worker.
 
 Replay uploads will use Vercel Blob through `BLOB_READ_WRITE_TOKEN`. As of September 2026, Vercel Hobby includes 1 GB-month of Blob storage, 10,000 simple operations, 2,000 advanced operations, and 10 GB of transfer per month. Hobby access pauses when limits are exceeded rather than generating overage charges.
 
@@ -86,4 +86,4 @@ src/lib/          Presentation/demo data (replaced by database queries in produc
 public/branding/  Official RLCA assets
 ```
 
-The remaining delivery phases are authentication/RBAC, persisted draft and match workflows, event administration, atomic transactions and exceptions, Discord worker, replay storage/jobs/parser, evidence-only AI coaching, and full admin operations.
+The Staff/Owner Operations system uses live Discord verification plus database-scoped assignments. Applications, roster transactions, players, franchises, documents, rules, media, content, season/channel settings, bot health, and audit records read and write PostgreSQL-backed records. See `docs/STAFF_OWNER_SYSTEM_AUDIT.md` for route, table, permission, and production-configuration details.

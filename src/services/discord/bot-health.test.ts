@@ -25,6 +25,10 @@ describe("Discord bot health", () => {
       discordApi: false,
       commandsRegistered: false,
     });
+    expect(health.missingConfiguration).toEqual(expect.arrayContaining([
+      "DISCORD_BOT_TOKEN",
+      "DATABASE_URL",
+    ]));
   });
 
   it("verifies Discord connectivity and registered command names", async () => {
@@ -49,5 +53,6 @@ describe("Discord bot health", () => {
       commandsRegistered: true,
       database: false,
     });
+    expect(health.missingConfiguration).toEqual(["DATABASE_URL"]);
   });
 });

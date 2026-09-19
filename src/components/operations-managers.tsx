@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { readApiResult } from "@/services/api-response";
 
 function Feedback({ message }: { message?: string }) {
   return message
@@ -16,7 +17,7 @@ export function BotControl() {
   async function register() {
     setMessage("Registering commands with Discord…");
     const response = await fetch("/api/admin/discord/register", { method: "POST" });
-    const result = await response.json() as { error?: string; registered?: number };
+    const result = await readApiResult<{ registered?: number }>(response);
     setMessage(response.ok ? `${result.registered} commands registered. Refreshing health…` : result.error ?? "Command registration failed");
     if (response.ok) router.refresh();
   }
@@ -66,7 +67,17 @@ type TransactionRow = {
   proposedState: Record<string, unknown>;
 };
 
-export function TransactionManager({ transactions }: { transactions: TransactionRow[] }) {
+export function TransactionManager({
+  transactions,
+  page,
+  pages,
+  total,
+}: {
+  transactions: TransactionRow[];
+  page: number;
+  pages: number;
+  total: number;
+}) {
   const router = useRouter();
   const [message, setMessage] = useState<string>();
   async function decide(formData: FormData) {
@@ -76,7 +87,7 @@ export function TransactionManager({ transactions }: { transactions: Transaction
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(Object.fromEntries(formData.entries())),
     });
-    const result = await response.json() as { error?: string };
+    const result = await readApiResult<object>(response);
     setMessage(response.ok ? "Transaction decision saved and audited." : result.error ?? "Decision failed");
     if (response.ok) router.refresh();
   }
@@ -90,6 +101,7 @@ export function TransactionManager({ transactions }: { transactions: Transaction
               <p className="text-xs font-black uppercase tracking-wider text-blue-600">{transaction.type.replaceAll("_", " ")}</p>
               <h3 className="mt-1 text-lg font-black text-[#081e3a]">{transaction.teamName}</h3>
               <p className="text-sm text-slate-500">Submitted by {transaction.submittedByName} · {new Date(transaction.createdAt).toLocaleString()}</p>
+              <p className="mt-1 font-mono text-xs text-slate-400">Transaction {transaction.id}</p>
             </div>
             <span className="h-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-black">{transaction.status.replaceAll("_", " ")}</span>
           </div>
@@ -101,22 +113,33 @@ export function TransactionManager({ transactions }: { transactions: Transaction
               proposed: transaction.proposedState,
             }, null, 2)}</pre>
           </details>
-          <form action={decide} className="mt-4 grid gap-3 sm:grid-cols-[12rem_1fr_auto]">
-            <input type="hidden" name="id" value={transaction.id} />
-            <select name="status" defaultValue={transaction.status === "PENDING" ? "ON_HOLD" : transaction.status} className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">
-              <option value="MORE_INFO_REQUIRED">More information</option>
-              <option value="ON_HOLD">On hold</option>
-              <option value="EXCEPTION_REQUIRED">Exception required</option>
-              <option value="APPROVED">Approved</option>
-              <option value="DENIED">Denied</option>
-              <option value="CANCELLED">Cancelled</option>
-            </select>
-            <input name="reason" required minLength={3} maxLength={2000} placeholder="Required decision reason" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
-            <button className="rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Save decision</button>
-          </form>
+          {!["APPROVED", "DENIED", "EXPIRED", "CANCELLED"].includes(transaction.status) && (
+            <form action={decide} className="mt-4 grid gap-3 sm:grid-cols-[12rem_1fr_auto]">
+              <input type="hidden" name="id" value={transaction.id} />
+              <select name="status" defaultValue={transaction.status === "PENDING" ? "ON_HOLD" : transaction.status} className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">
+                <option value="MORE_INFO_REQUIRED">More information</option>
+                <option value="ON_HOLD">On hold</option>
+                <option value="EXCEPTION_REQUIRED">Exception required</option>
+                <option value="APPROVED">Approve and apply roster</option>
+                <option value="DENIED">Denied</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+              <input name="reason" required minLength={3} maxLength={2000} placeholder="Required decision reason" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
+              <button className="rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Save decision</button>
+            </form>
+          )}
         </article>
       ))}
       {!transactions.length && <Empty text="No transaction requests are stored yet." />}
+      {pages > 1 && (
+        <div className="flex items-center justify-between rounded-lg bg-slate-50 p-4 text-sm">
+          <span>{total} transactions · Page {page} of {pages}</span>
+          <div className="flex gap-2">
+            {page > 1 && <Link href={`/operations/transactions?page=${page - 1}`} className="rounded border border-slate-300 bg-white px-3 py-1.5 font-bold">Previous</Link>}
+            {page < pages && <Link href={`/operations/transactions?page=${page + 1}`} className="rounded border border-slate-300 bg-white px-3 py-1.5 font-bold">Next</Link>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -152,7 +175,7 @@ export function PlayerManager({ players }: { players: PlayerRow[] }) {
         status: payload.status || null,
       }),
     });
-    const result = await response.json() as { error?: string };
+    const result = await readApiResult<object>(response);
     setMessage(response.ok ? "Player profile and status saved." : result.error ?? "Player update failed");
     if (response.ok) router.refresh();
   }
@@ -203,7 +226,7 @@ export function TeamManager({ teams }: { teams: TeamRow[] }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...payload, active: payload.active === "on" }),
     });
-    const result = await response.json() as { error?: string };
+    const result = await readApiResult<object>(response);
     setMessage(response.ok ? "Franchise settings saved and audited." : result.error ?? "Franchise update failed");
     if (response.ok) router.refresh();
   }
@@ -234,6 +257,7 @@ export function TeamManager({ teams }: { teams: TeamRow[] }) {
 
 type DocumentRow = {
   id: string;
+  subject: string;
   fileName: string;
   contentType: string;
   sizeBytes: number;
@@ -244,16 +268,47 @@ type DocumentRow = {
   sentByName: string;
 };
 
-export function DocumentManager({ documents }: { documents: DocumentRow[] }) {
+export function DocumentManager({
+  documents,
+  applications,
+}: {
+  documents: DocumentRow[];
+  applications: Array<{ id: string; name: string }>;
+}) {
+  const router = useRouter();
+  const [message, setMessage] = useState<string>();
+  async function send(formData: FormData) {
+    setMessage("Sending document through the configured email provider…");
+    const response = await fetch("/api/applications/send-document", {
+      method: "POST",
+      body: formData,
+    });
+    const result = await readApiResult<object>(response);
+    setMessage(response.ok ? "Document sent and recorded in the delivery ledger." : result.error ?? "Document delivery failed");
+    if (response.ok) router.refresh();
+  }
   return (
     <div className="mt-7 space-y-3">
-      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-        New documents are sent from an application in the Applications tab. This ledger preserves every delivery for auditing.
-      </div>
+      <Feedback message={message} />
+      <form action={send} className="rounded-xl border border-blue-200 bg-blue-50/50 p-5">
+        <h3 className="font-black text-blue-950">Send signup document</h3>
+        <p className="mt-1 text-sm text-blue-900">Delivery occurs only after Resend confirms the request. Every successful delivery is stored below.</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <select name="applicationId" className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">
+            <option value="">General signup document</option>
+            {applications.map((application) => <option key={application.id} value={application.id}>{application.name}</option>)}
+          </select>
+          <input name="subject" required minLength={3} maxLength={160} placeholder="Email subject" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
+          <textarea name="message" required minLength={3} maxLength={5000} rows={3} placeholder="Email message" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm md:col-span-2" />
+          <input name="document" type="file" required accept=".pdf,.docx,image/png,image/jpeg" className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm" />
+          <button className="rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Send document</button>
+        </div>
+      </form>
       {documents.map((document) => (
         <article key={document.id} className="grid gap-2 rounded-xl border border-slate-200 bg-white p-5 md:grid-cols-[1fr_auto]">
           <div>
-            <h3 className="font-black text-[#081e3a]">{document.fileName}</h3>
+            <h3 className="font-black text-[#081e3a]">{document.subject}</h3>
+            <p className="mt-1 text-sm font-semibold text-slate-600">{document.fileName}</p>
             <p className="mt-1 text-sm text-slate-500">{document.applicationName} · sent by {document.sentByName}</p>
             <p className="mt-1 text-xs text-slate-400">To {document.recipientEmail} · {(document.sizeBytes / 1024).toFixed(1)} KB · {new Date(document.sentAt).toLocaleString()}</p>
           </div>
@@ -293,7 +348,7 @@ export function SettingsManager({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const result = await response.json() as { error?: string };
+    const result = await readApiResult<object>(response);
     setMessage(response.ok ? "Configuration saved and audited." : result.error ?? "Configuration update failed");
     if (response.ok) router.refresh();
   }
@@ -387,13 +442,39 @@ export function FranchiseWorkspace({
 }: {
   data: {
     team: { name: string; primaryColor: string } | null;
-    roster: Array<{ id: string; handle: string; startsAt: string }>;
+    roster: Array<{ id: string; playerId: string; handle: string; startsAt: string }>;
     transactions: Array<{ id: string; type: string; status: string; createdAt: string }>;
+    candidates: Array<{
+      playerId: string;
+      handle: string;
+      division: string;
+      protectedRosterValue: string;
+      status: string;
+      rosteredByOtherTeam: boolean;
+      eligibleForProposal: boolean;
+    }>;
   };
 }) {
+  const router = useRouter();
+  const [message, setMessage] = useState<string>();
+  async function submitTransaction(formData: FormData) {
+    setMessage("Validating and submitting roster proposal…");
+    const response = await fetch("/api/transactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        proposedPlayerIds: formData.getAll("proposedPlayerIds"),
+        reason: formData.get("reason"),
+      }),
+    });
+    const result = await readApiResult<object>(response);
+    setMessage(response.ok ? "Transaction request saved for League Operations review." : result.error ?? "Transaction request failed");
+    if (response.ok) router.refresh();
+  }
   if (!data.team) return <div className="mt-7"><Empty text="Your verified Discord account is not assigned to exactly one franchise." /></div>;
   return (
     <div className="mt-7 grid gap-5 lg:grid-cols-2">
+      <div className="lg:col-span-2"><Feedback message={message} /></div>
       <section className="rounded-xl border border-slate-200 bg-white p-5">
         <div className="h-2 rounded-full" style={{ backgroundColor: data.team.primaryColor }} />
         <h3 className="mt-4 text-xl font-black text-[#081e3a]">{data.team.name} roster</h3>
@@ -404,6 +485,31 @@ export function FranchiseWorkspace({
         <h3 className="text-xl font-black text-[#081e3a]">Transaction requests</h3>
         <div className="mt-4 space-y-2">{data.transactions.map((transaction) => <div key={transaction.id} className="flex justify-between rounded-lg bg-slate-50 p-3 text-sm"><strong>{transaction.type.replaceAll("_", " ")}</strong><span>{transaction.status.replaceAll("_", " ")}</span></div>)}</div>
         {!data.transactions.length && <p className="mt-4 text-sm text-slate-500">No franchise transaction requests.</p>}
+      </section>
+      <section className="rounded-xl border border-blue-200 bg-blue-50/40 p-5 lg:col-span-2">
+        <h3 className="text-xl font-black text-[#081e3a]">Submit roster transaction</h3>
+        <p className="mt-2 text-sm text-slate-600">Propose one Master, one Challenger, and one Contender. The backend recalculates roster limits and re-checks every player before saving.</p>
+        <form action={submitTransaction} className="mt-5 grid gap-3 md:grid-cols-3">
+          {[0, 1, 2].map((slot) => (
+            <select
+              key={slot}
+              name="proposedPlayerIds"
+              required
+              defaultValue={data.roster[slot]?.playerId ?? ""}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
+              aria-label={`Proposed roster player ${slot + 1}`}
+            >
+              <option value="">Select player</option>
+              {data.candidates.map((candidate) => (
+                <option key={candidate.playerId} value={candidate.playerId} disabled={candidate.rosteredByOtherTeam || !candidate.eligibleForProposal}>
+                  {candidate.handle} · {candidate.division} · {candidate.protectedRosterValue} PRV{candidate.rosteredByOtherTeam ? " · rostered elsewhere" : !candidate.eligibleForProposal ? ` · ${candidate.status.toLowerCase().replaceAll("_", " ")}` : ""}
+                </option>
+              ))}
+            </select>
+          ))}
+          <textarea name="reason" required minLength={10} maxLength={2000} rows={3} placeholder="Explain the requested roster change" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm md:col-span-3" />
+          <button className="rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white md:col-span-3">Submit transaction</button>
+        </form>
       </section>
     </div>
   );

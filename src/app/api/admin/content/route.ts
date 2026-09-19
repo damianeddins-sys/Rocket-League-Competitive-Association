@@ -21,6 +21,9 @@ const categoryPermissions: Record<ContentCategory, Permission> = {
 };
 
 export async function POST(request: Request) {
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: "Content database is not configured" }, { status: 503 });
+  }
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
@@ -47,6 +50,12 @@ export async function POST(request: Request) {
   }
 
   const db = getDatabase();
+  const [existing] = await db.select().from(siteContent).where(eq(siteContent.key, parsed.data.key)).limit(1);
+  if (existing && existing.category !== parsed.data.category) {
+    return NextResponse.json({
+      error: `Content key already belongs to ${existing.category.toLowerCase().replaceAll("_", " ")}`,
+    }, { status: 409 });
+  }
   const saved = await db.transaction(async (tx) => {
     const [record] = await tx
       .insert(siteContent)
@@ -76,6 +85,13 @@ export async function POST(request: Request) {
       action: "SITE_CONTENT_SAVED",
       entityType: "SITE_CONTENT",
       entityId: record.id,
+      previousState: existing ? {
+        title: existing.title,
+        body: existing.body,
+        mediaUrl: existing.mediaUrl,
+        published: existing.published,
+        sortOrder: existing.sortOrder,
+      } : undefined,
       nextState: {
         key: parsed.data.key,
         category: parsed.data.category,
@@ -89,6 +105,9 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: "Content database is not configured" }, { status: 503 });
+  }
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { readApiResult } from "@/services/api-response";
 
 export function MediaUploader() {
   const router = useRouter();
@@ -9,7 +10,7 @@ export function MediaUploader() {
   async function upload(formData: FormData) {
     setMessage("Uploading image…");
     const response = await fetch("/api/admin/media", { method: "POST", body: formData });
-    const result = await response.json() as { error?: string };
+    const result = await readApiResult<object>(response);
     setMessage(response.ok ? "Image uploaded, saved, and audited." : result.error ?? "Image upload failed");
     if (response.ok) router.refresh();
   }

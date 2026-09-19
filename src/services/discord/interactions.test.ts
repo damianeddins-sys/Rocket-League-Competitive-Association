@@ -39,6 +39,22 @@ const leagueData: PublicLeagueData = {
 };
 
 describe("Discord interactions", () => {
+  it("does not report all systems online when official data is unavailable", async () => {
+    await expect(respondToDiscordInteraction({
+      type: 2,
+      data: { name: "status" },
+    }, async () => ({
+      status: "unavailable",
+      reason: "DATABASE_NOT_CONFIGURED",
+    }))).resolves.toMatchObject({
+      type: 4,
+      data: {
+        content: expect.stringContaining("official league data is unavailable"),
+        flags: 64,
+      },
+    });
+  });
+
   it("accepts current Discord signatures and rejects tampering", () => {
     const { privateKey, publicKey } = generateKeyPairSync("ed25519");
     const publicKeyDer = publicKey.export({ format: "der", type: "spki" });

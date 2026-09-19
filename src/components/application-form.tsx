@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ApplicationType } from "@/services/applications";
+import { readApiResult } from "@/services/api-response";
 
 export function ApplicationForm({
   type,
@@ -32,7 +33,7 @@ export function ApplicationForm({
           alternateAccountsDeclared: payload.alternateAccountsDeclared === "on",
         }),
       });
-      const result = await response.json() as { error?: string; id?: string };
+      const result = await readApiResult<{ id?: string }>(response);
       if (!response.ok) throw new Error(result.error ?? "Application could not be submitted");
       setState({
         status: "success",

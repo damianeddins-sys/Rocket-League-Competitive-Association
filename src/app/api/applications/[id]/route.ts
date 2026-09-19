@@ -11,6 +11,7 @@ import {
   players,
   playerSeasons,
   playerStatusHistory,
+  rocketLeagueAccounts,
   seasons,
 } from "@/db/schema";
 import { buildAuditLogRecord } from "@/services/audit";
@@ -27,6 +28,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: "Application database is not configured" }, { status: 503 });
+  }
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
@@ -90,6 +94,28 @@ export async function PATCH(
           .insert(players)
           .values({ userId: current.userId, handle: current.handle })
           .returning({ id: players.id });
+      }
+      if (!current.platform || !current.epicAccountId) {
+        throw new Error("Player application is missing platform account details");
+      }
+      const [existingAccount] = await tx
+        .select({ playerId: rocketLeagueAccounts.playerId })
+        .from(rocketLeagueAccounts)
+        .where(and(
+          eq(rocketLeagueAccounts.platform, current.platform),
+          eq(rocketLeagueAccounts.platformAccountId, current.epicAccountId),
+        ))
+        .limit(1);
+      if (existingAccount && existingAccount.playerId !== player.id) {
+        throw new Error("Rocket League account is already linked to another player");
+      }
+      if (!existingAccount) {
+        await tx.insert(rocketLeagueAccounts).values({
+          playerId: player.id,
+          platform: current.platform,
+          platformAccountId: current.epicAccountId,
+          trackerUrl: current.trackerUrl,
+        });
       }
 
       const [newPlayerSeason] = await tx
@@ -170,6 +196,8 @@ export async function PATCH(
     const message = error instanceof Error ? error.message : "Application review failed";
     if (
       message === "Player application is missing a competitive handle"
+      || message === "Player application is missing platform account details"
+      || message === "Rocket League account is already linked to another player"
       || message === "An active season is required before approving a player"
       || message === "Player season record could not be created"
     ) {

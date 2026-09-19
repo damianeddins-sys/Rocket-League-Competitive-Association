@@ -8,11 +8,14 @@ import { loadSiteContent } from "@/services/site-content";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [data, managedContent, managedMedia] = await Promise.all([
+  const [data, managedContent, managedSiteInfo, managedMedia] = await Promise.all([
     loadPublicLeagueData(),
     loadSiteContent("CONTENT"),
+    loadSiteContent("LEAGUE_INFO"),
     loadSiteContent("MEDIA"),
   ]);
+  const websiteContent = [...managedSiteInfo, ...managedContent]
+    .sort((a, b) => a.sortOrder - b.sortOrder);
   const upcomingMatches =
     data.status === "ready"
       ? data.matches.filter((match) => match.status === "SCHEDULED").slice(0, 2)
@@ -128,11 +131,11 @@ export default async function Home() {
         </div>}
       </section>
 
-      {(managedContent.length > 0 || managedMedia.length > 0) && (
+      {(websiteContent.length > 0 || managedMedia.length > 0) && (
         <section className="mx-auto max-w-7xl px-5 py-16 lg:px-8">
-          {managedContent.length > 0 && (
+          {websiteContent.length > 0 && (
             <div className="grid gap-5 md:grid-cols-2">
-              {managedContent.map((item) => (
+              {websiteContent.map((item) => (
                 <article key={item.id} className="panel p-7">
                   <p className="eyebrow text-[#1683ff]">League update</p>
                   <h2 className="mt-2 text-2xl font-black text-[#081e3a]">{item.title}</h2>

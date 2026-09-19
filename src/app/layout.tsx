@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Menu } from "lucide-react";
 import { getSession } from "@/services/auth/session";
+import { getVerifiedAccess } from "@/services/auth/portal-access";
 import "./globals.css";
 
 const navigation = [
@@ -46,15 +47,17 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const session = await getSession();
-  const hasOperations = session?.user.access.portals.some((portal) => portal !== "PLAYER") ?? false;
-  const isOwner = session?.user.access.permissions.includes("league.full") ?? false;
-  const operationsHref = session?.user.access.portals.includes("LEAGUE_OPERATIONS")
+  const verified = session ? await getVerifiedAccess() : null;
+  const access = verified?.allowed ? verified.access : null;
+  const hasOperations = access?.portals.some((portal) => portal !== "PLAYER") ?? false;
+  const isOwner = access?.permissions.includes("league.full") ?? false;
+  const operationsHref = access?.portals.includes("LEAGUE_OPERATIONS")
     ? "/operations"
-    : session?.user.access.portals.includes("SIGN_UP_MANAGER")
+    : access?.portals.includes("SIGN_UP_MANAGER")
       ? "/operations/applications"
-      : session?.user.access.portals.includes("FRANCHISE_MANAGER")
+      : access?.portals.includes("FRANCHISE_MANAGER")
         ? "/operations/franchise"
-        : session?.user.access.portals.includes("STATISTICS")
+        : access?.portals.includes("STATISTICS")
           ? "/operations/statistics"
           : "/operations/production";
 

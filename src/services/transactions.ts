@@ -3,6 +3,36 @@ import { evaluatePlayerStatusTransition } from "./player-lifecycle";
 import type { RosterPlayer } from "./rosters";
 import { playerEligibility, transactionWindow, validateRoster } from "./rosters";
 
+export const transactionRequestStatuses = [
+  "PENDING",
+  "MORE_INFO_REQUIRED",
+  "ON_HOLD",
+  "EXCEPTION_REQUIRED",
+  "APPROVED",
+  "DENIED",
+  "EXPIRED",
+  "CANCELLED",
+] as const;
+export type TransactionRequestStatus = (typeof transactionRequestStatuses)[number];
+
+const transactionTransitions: Record<TransactionRequestStatus, readonly TransactionRequestStatus[]> = {
+  PENDING: ["MORE_INFO_REQUIRED", "ON_HOLD", "EXCEPTION_REQUIRED", "APPROVED", "DENIED", "CANCELLED"],
+  MORE_INFO_REQUIRED: ["ON_HOLD", "APPROVED", "DENIED", "CANCELLED"],
+  ON_HOLD: ["MORE_INFO_REQUIRED", "EXCEPTION_REQUIRED", "APPROVED", "DENIED", "CANCELLED"],
+  EXCEPTION_REQUIRED: ["ON_HOLD", "DENIED", "CANCELLED"],
+  APPROVED: [],
+  DENIED: [],
+  EXPIRED: [],
+  CANCELLED: [],
+};
+
+export function canTransitionTransactionRequest(
+  from: TransactionRequestStatus,
+  to: TransactionRequestStatus,
+) {
+  return from !== to && transactionTransitions[from].includes(to);
+}
+
 export type TransactionCheck = {
   code: string;
   passed: boolean;

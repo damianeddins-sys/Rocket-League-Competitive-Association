@@ -28,7 +28,10 @@ async function load<T>(query: () => Promise<T>): Promise<OperationsData<T>> {
   if (!process.env.DATABASE_URL) return { status: "DATABASE_NOT_CONFIGURED", data: null };
   try {
     return { status: "READY", data: await query() };
-  } catch {
+  } catch (error) {
+    console.error("Operations data query failed", {
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
     return { status: "DATABASE_UNAVAILABLE", data: null };
   }
 }
@@ -59,23 +62,33 @@ export function loadOperationsOverview() {
   });
 }
 
-export function loadTransactionManagement() {
+export function loadTransactionManagement(page = 1) {
   return load(async () => {
     const db = getDatabase();
-    const [requests, teamRows, userRows] = await Promise.all([
-      db.select().from(transactionRequests).orderBy(desc(transactionRequests.createdAt)).limit(250),
+    const pageSize = 50;
+    const [requests, teamRows, userRows, [totalRow]] = await Promise.all([
+      db.select().from(transactionRequests)
+        .orderBy(desc(transactionRequests.createdAt))
+        .limit(pageSize)
+        .offset((page - 1) * pageSize),
       db.select({ id: teams.id, name: teams.name }).from(teams),
       db.select({ id: users.id, name: users.displayName }).from(users),
+      db.select({ value: count() }).from(transactionRequests),
     ]);
     const teamNames = new Map(teamRows.map((team) => [team.id, team.name]));
     const userNames = new Map(userRows.map((user) => [user.id, user.name]));
-    return requests.map((request) => ({
-      ...request,
-      createdAt: request.createdAt.toISOString(),
-      reviewedAt: request.reviewedAt?.toISOString() ?? null,
-      teamName: teamNames.get(request.teamId) ?? "Unknown franchise",
-      submittedByName: userNames.get(request.submittedBy) ?? "Unknown member",
-    }));
+    return {
+      items: requests.map((request) => ({
+        ...request,
+        createdAt: request.createdAt.toISOString(),
+        reviewedAt: request.reviewedAt?.toISOString() ?? null,
+        teamName: teamNames.get(request.teamId) ?? "Unknown franchise",
+        submittedByName: userNames.get(request.submittedBy) ?? "Unknown member",
+      })),
+      page,
+      pages: Math.max(1, Math.ceil(totalRow.value / pageSize)),
+      total: totalRow.value,
+    };
   });
 }
 
@@ -135,14 +148,20 @@ export function loadDocumentManagement() {
     ]);
     const applicationNames = new Map(applicationRows.map((entry) => [entry.id, entry.name]));
     const userNames = new Map(userRows.map((entry) => [entry.id, entry.name]));
-    return documents.map((document) => ({
-      ...document,
-      sentAt: document.sentAt.toISOString(),
-      applicationName: document.applicationId
-        ? applicationNames.get(document.applicationId) ?? "Deleted application"
-        : "General document",
-      sentByName: userNames.get(document.sentBy) ?? "Unknown staff member",
-    }));
+    return {
+      documents: documents.map((document) => ({
+        ...document,
+        sentAt: document.sentAt.toISOString(),
+        applicationName: document.applicationId
+          ? applicationNames.get(document.applicationId) ?? "Deleted application"
+          : "General document",
+        sentByName: userNames.get(document.sentBy) ?? "Unknown staff member",
+      })),
+      applications: applicationRows.map((application) => ({
+        id: application.id,
+        name: application.name,
+      })),
+    };
   });
 }
 
@@ -211,20 +230,32 @@ export function loadStaffSummary() {
 
 export function loadFranchiseWorkspace(franchiseNumber: number | null) {
   return load(async () => {
-    if (!franchiseNumber) return { team: null, roster: [], transactions: [] };
+    if (!franchiseNumber) return { team: null, roster: [], transactions: [], candidates: [] };
     const db = getDatabase();
     const [team] = await db.select().from(teams).where(eq(teams.franchiseNumber, franchiseNumber)).limit(1);
-    if (!team) return { team: null, roster: [], transactions: [] };
-    const [memberships, playerRows, requestRows] = await Promise.all([
-      db.select().from(rosterMemberships).where(eq(rosterMemberships.teamId, team.id)),
+    if (!team) return { team: null, roster: [], transactions: [], candidates: [] };
+    const [activeSeason] = await db.select({ id: seasons.id }).from(seasons).where(eq(seasons.active, true)).limit(1);
+    const [memberships, playerRows, requestRows, seasonPlayers, divisionRows] = await Promise.all([
+      activeSeason
+        ? db.select().from(rosterMemberships).where(eq(rosterMemberships.seasonId, activeSeason.id))
+        : Promise.resolve([]),
       db.select().from(players),
       db.select().from(transactionRequests).where(eq(transactionRequests.teamId, team.id)).orderBy(desc(transactionRequests.createdAt)),
+      activeSeason
+        ? db.select().from(playerSeasons).where(eq(playerSeasons.seasonId, activeSeason.id))
+        : Promise.resolve([]),
+      activeSeason
+        ? db.select().from(divisions).where(eq(divisions.seasonId, activeSeason.id))
+        : Promise.resolve([]),
     ]);
     const handles = new Map(playerRows.map((player) => [player.id, player.handle]));
+    const divisionNames = new Map(divisionRows.map((division) => [division.id, division.displayName]));
+    const currentMemberships = memberships.filter((entry) => !entry.endsAt);
     return {
       team,
-      roster: memberships.filter((entry) => !entry.endsAt).map((entry) => ({
+      roster: currentMemberships.filter((entry) => entry.teamId === team.id).map((entry) => ({
         id: entry.id,
+        playerId: entry.playerId,
         handle: handles.get(entry.playerId) ?? "Unknown player",
         startsAt: entry.startsAt.toISOString(),
       })),
@@ -234,6 +265,22 @@ export function loadFranchiseWorkspace(franchiseNumber: number | null) {
         status: entry.status,
         createdAt: entry.createdAt.toISOString(),
       })),
+      candidates: seasonPlayers
+        .filter((entry) => entry.divisionId && entry.protectedRosterValue !== null)
+        .map((entry) => ({
+          playerId: entry.playerId,
+          handle: handles.get(entry.playerId) ?? "Unknown player",
+          division: divisionNames.get(entry.divisionId!) ?? "Unplaced",
+          protectedRosterValue: entry.protectedRosterValue!,
+          status: entry.status,
+          rosteredByOtherTeam: currentMemberships.some(
+            (membership) => membership.playerId === entry.playerId && membership.teamId !== team.id,
+          ),
+          eligibleForProposal: currentMemberships.some(
+            (membership) => membership.playerId === entry.playerId && membership.teamId === team.id,
+          ) || entry.status === "ACTIVE" || entry.status === "FREE_AGENT",
+        }))
+        .sort((a, b) => a.handle.localeCompare(b.handle)),
     };
   });
 }

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ApplicationForm } from "@/components/application-form";
 import { getSession } from "@/services/auth/session";
 import type { ApplicationType } from "@/services/applications";
+import { loadApplicantStatus } from "@/services/application-status";
 
 export const metadata: Metadata = { title: "Apply" };
 
@@ -24,6 +25,10 @@ export default async function ApplyPage({
     : null;
   if (!type) redirect("/applications");
   const session = await getSession();
+  const existing = session?.user
+    ? await loadApplicantStatus(session.user.id, type)
+    : null;
+  const canSubmit = !existing || existing.status === "DENIED" || existing.status === "WITHDRAWN";
 
   return (
     <div className="min-h-screen bg-[#f3f6fa]">
@@ -46,12 +51,28 @@ export default async function ApplyPage({
               Sign in with Discord
             </Link>
           </div>
+        ) : existing && !canSubmit ? (
+          <div className="panel p-8">
+            <p className="eyebrow text-[#1683ff]">Application status</p>
+            <h2 className="mt-3 text-2xl font-black text-[#081e3a]">{existing.status.replaceAll("_", " ")}</h2>
+            <p className="mt-3 text-slate-600">
+              Submitted {new Date(existing.submittedAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC. This status is loaded from the official application record and remains available after refresh.
+            </p>
+            <p className="mt-4 font-mono text-xs text-slate-400">Reference: {existing.id}</p>
+          </div>
         ) : (
+          <>
+            {existing && (
+              <p className="mb-5 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+                Previous application: <strong>{existing.status.replaceAll("_", " ")}</strong>. You may submit a new application.
+              </p>
+            )}
           <ApplicationForm
             type={type}
             defaultName={session.user.name}
             defaultEmail={session.user.email?.endsWith("@pending.rlca.invalid") ? "" : session.user.email ?? ""}
           />
+          </>
         )}
       </main>
     </div>

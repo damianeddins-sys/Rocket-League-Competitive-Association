@@ -21,6 +21,8 @@ export type DiscordBotHealth = {
     commandsRegistered: boolean;
     database: boolean;
   };
+  missingConfiguration: string[];
+  interactionEndpoint: string;
   checkedAt: string;
 };
 
@@ -81,6 +83,13 @@ export async function getDiscordBotHealth(): Promise<DiscordBotHealth> {
     database,
   };
   const coreOnline = interactionSignature && botCredentials && discordApi;
+  const missingConfiguration = [
+    !process.env.DISCORD_PUBLIC_KEY ? "DISCORD_PUBLIC_KEY" : null,
+    !botToken ? "DISCORD_BOT_TOKEN" : null,
+    !applicationId ? "DISCORD_APPLICATION_ID" : null,
+    !guildId ? "DISCORD_GUILD_ID" : null,
+    !process.env.DATABASE_URL ? "DATABASE_URL" : null,
+  ].filter((key): key is string => Boolean(key));
   return {
     status: !coreOnline
       ? "OFFLINE"
@@ -89,6 +98,8 @@ export async function getDiscordBotHealth(): Promise<DiscordBotHealth> {
         : "DEGRADED",
     mode: "HTTP_INTERACTIONS",
     checks,
+    missingConfiguration,
+    interactionEndpoint: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/api/discord/interactions`,
     checkedAt: new Date().toISOString(),
   };
 }

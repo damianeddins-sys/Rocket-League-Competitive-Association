@@ -387,6 +387,7 @@ export const applicationEmailDocuments = pgTable(
     id: id(),
     applicationId: uuid("application_id").references(() => applications.id),
     recipientEmail: text("recipient_email").notNull(),
+    subject: text("subject").default("Signup document").notNull(),
     fileName: text("file_name").notNull(),
     contentType: text("content_type").notNull(),
     sizeBytes: integer("size_bytes").notNull(),
@@ -467,6 +468,9 @@ export const rosterMemberships = pgTable(
   (table) => [
     index("roster_team_season").on(table.teamId, table.seasonId),
     index("roster_player_season").on(table.playerId, table.seasonId),
+    uniqueIndex("roster_active_player_season")
+      .on(table.playerId, table.seasonId)
+      .where(sql`${table.endsAt} is null`),
   ],
 );
 
@@ -696,22 +700,30 @@ export const bracketMatches = pgTable("bracket_matches", {
   bestOf: integer("best_of").notNull(),
 });
 
-export const transactionRequests = pgTable("transaction_requests", {
-  id: id(),
-  seasonId: uuid("season_id").notNull().references(() => seasons.id),
-  teamId: uuid("team_id").notNull().references(() => teams.id),
-  type: text("type").notNull(),
-  status: transactionStatus("status").default("PENDING").notNull(),
-  submittedBy: uuid("submitted_by").notNull().references(() => users.id),
-  idempotencyKey: text("idempotency_key").notNull().unique(),
-  requestData: jsonb("request_data").$type<Record<string, unknown>>().notNull(),
-  beforeState: jsonb("before_state").$type<Record<string, unknown>>().notNull(),
-  proposedState: jsonb("proposed_state").$type<Record<string, unknown>>().notNull(),
-  exceptionReason: text("exception_reason"),
-  reviewedBy: uuid("reviewed_by").references(() => users.id),
-  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
-  createdAt: createdAt(),
-});
+export const transactionRequests = pgTable(
+  "transaction_requests",
+  {
+    id: id(),
+    seasonId: uuid("season_id").notNull().references(() => seasons.id),
+    teamId: uuid("team_id").notNull().references(() => teams.id),
+    type: text("type").notNull(),
+    status: transactionStatus("status").default("PENDING").notNull(),
+    submittedBy: uuid("submitted_by").notNull().references(() => users.id),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    requestData: jsonb("request_data").$type<Record<string, unknown>>().notNull(),
+    beforeState: jsonb("before_state").$type<Record<string, unknown>>().notNull(),
+    proposedState: jsonb("proposed_state").$type<Record<string, unknown>>().notNull(),
+    exceptionReason: text("exception_reason"),
+    reviewedBy: uuid("reviewed_by").references(() => users.id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("transaction_one_open_team_season")
+      .on(table.teamId, table.seasonId)
+      .where(sql`${table.status} in ('PENDING', 'MORE_INFO_REQUIRED', 'ON_HOLD', 'EXCEPTION_REQUIRED')`),
+  ],
+);
 
 export const exceptions = pgTable("exceptions", {
   id: id(),

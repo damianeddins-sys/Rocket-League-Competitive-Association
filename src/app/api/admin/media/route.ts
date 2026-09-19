@@ -19,6 +19,9 @@ function isManagedBlob(url: string | null) {
 }
 
 export async function POST(request: Request) {
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: "Media database is not configured" }, { status: 503 });
+  }
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
@@ -54,14 +57,17 @@ export async function POST(request: Request) {
   }
   if (!fields.success) return NextResponse.json({ error: "Media details are invalid" }, { status: 400 });
 
+  const db = getDatabase();
+  const [previous] = await db.select().from(siteContent).where(eq(siteContent.key, fields.data.key)).limit(1);
+  if (previous && previous.category !== "MEDIA") {
+    return NextResponse.json({ error: "Media key is already used by non-media website content" }, { status: 409 });
+  }
   const extension = file.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8) || "img";
   const blob = await put(`website-media/${fields.data.key}.${extension}`, file, {
     access: "public",
     addRandomSuffix: true,
     token,
   });
-  const db = getDatabase();
-  const [previous] = await db.select().from(siteContent).where(eq(siteContent.key, fields.data.key)).limit(1);
   try {
     const saved = await db.transaction(async (tx) => {
       const [record] = await tx.insert(siteContent).values({

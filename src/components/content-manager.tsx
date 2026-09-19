@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ContentCategory } from "@/services/site-content";
+import { readApiResult } from "@/services/api-response";
 
 type ContentItem = {
   id: string;
@@ -28,7 +29,7 @@ function ContentForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-bold text-slate-700">
           Content key
-          <input name="key" required pattern="[a-z0-9-]+" defaultValue={item?.key} placeholder="unique-content-key" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-mono text-sm" />
+          <input name="key" required readOnly={Boolean(item)} pattern="[a-z0-9-]+" defaultValue={item?.key} placeholder="unique-content-key" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-mono text-sm read-only:bg-slate-100" />
         </label>
         <label className="text-sm font-bold text-slate-700">
           Display order
@@ -80,7 +81,7 @@ export function ContentManager({
         sortOrder: Number(payload.sortOrder),
       }),
     });
-    const result = await response.json() as { error?: string };
+    const result = await readApiResult<object>(response);
     setMessage(response.ok ? "Content saved and audited." : result.error ?? "Content could not be saved");
     if (response.ok) router.refresh();
   }
@@ -92,7 +93,7 @@ export function ContentManager({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(Object.fromEntries(formData.entries())),
     });
-    const result = await response.json() as { error?: string };
+    const result = await readApiResult<object>(response);
     setMessage(response.ok ? "Content removed and audited." : result.error ?? "Content could not be removed");
     if (response.ok) router.refresh();
   }

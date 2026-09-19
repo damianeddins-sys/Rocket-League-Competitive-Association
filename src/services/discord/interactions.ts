@@ -65,9 +65,15 @@ export async function respondToDiscordInteraction(
 
   switch (interaction.data?.name) {
     case "status":
-      return message(
-        `✅ RLCA systems are online.\nWebsite: ${process.env.NEXT_PUBLIC_APP_URL ?? "https://rlca.gg"}`,
-      );
+      {
+        const league = await loadLeagueData();
+        return message(
+          league.status === "ready"
+            ? `✅ RLCA website, bot, and official league database are online.\nWebsite: ${process.env.NEXT_PUBLIC_APP_URL ?? "https://rlca.gg"}`
+            : `⚠️ RLCA bot endpoint is online, but official league data is unavailable.\nWebsite: ${process.env.NEXT_PUBLIC_APP_URL ?? "https://rlca.gg"}`,
+          league.status !== "ready",
+        );
+      }
     case "standings":
       {
         const league = await loadLeagueData();

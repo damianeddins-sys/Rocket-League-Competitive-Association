@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { UploadCloud } from "lucide-react";
+import { readApiResult } from "@/services/api-response";
 
 export function CoachReplayUploader() {
   const formRef = useRef<HTMLFormElement>(null);
@@ -14,7 +15,7 @@ export function CoachReplayUploader() {
     setState({ status: "uploading", message: "Uploading securely…" });
     try {
       const response = await fetch("/api/coach/replays", { method: "POST", body: formData });
-      const result = await response.json() as { error?: string; id?: string };
+      const result = await readApiResult<{ id?: string }>(response);
       if (!response.ok) throw new Error(result.error ?? "Replay upload failed");
       formRef.current?.reset();
       setState({

@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { getDatabase } from ".";
 import {
   discordChannelConfigurations,
+  discordRoleConfigurations,
   divisions,
   events,
   seasons,
@@ -11,6 +12,7 @@ import {
 import { buildSeasonOneEvents, buildSeasonOneWeeks } from "../services/season-calendar";
 import { DISCORD_CHANNELS } from "../services/discord/channels";
 import { SEASON_ONE_FRANCHISES } from "../services/franchises";
+import { DISCORD_ROLE_IDS } from "../services/auth/discord-roles";
 
 export async function seedSeasonOne(startsAt: Date) {
   const weeks = buildSeasonOneWeeks(startsAt);
@@ -104,6 +106,30 @@ export async function seedSeasonOne(startsAt: Date) {
           },
         });
     }
+    const roleValues = Object.entries(DISCORD_ROLE_IDS).map(([key, roleId]) => ({
+      key,
+      roleId,
+      displayName: key.replaceAll("_", " "),
+      category: key.startsWith("FRANCHISE_")
+        ? "FRANCHISE"
+        : key.endsWith("_TIER")
+          ? "TIER"
+          : ["FREE_AGENT", "UNRESTRICTED_FREE_AGENT", "INACTIVE_RESERVE"].includes(key)
+            ? "PLAYER_STATUS"
+            : "STAFF",
+    }));
+    for (const role of roleValues) {
+      await tx.insert(discordRoleConfigurations).values(role).onConflictDoUpdate({
+        target: discordRoleConfigurations.key,
+        set: {
+          roleId: role.roleId,
+          displayName: role.displayName,
+          category: role.category,
+          active: true,
+          updatedAt: new Date(),
+        },
+      });
+    }
 
     return {
       seasonId: existingSeason.id,
@@ -111,6 +137,7 @@ export async function seedSeasonOne(startsAt: Date) {
       events: seasonEvents.length,
       franchises: SEASON_ONE_FRANCHISES.length,
       channels: channelValues.length,
+      roles: roleValues.length,
     };
   });
 }
