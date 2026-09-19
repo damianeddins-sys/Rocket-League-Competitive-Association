@@ -174,7 +174,7 @@ const permissions: Record<string, Permission> = {
   "team-tiers": "league.manage",
   matches: "matches.manage",
 };
-const portals: Record<string, "LEAGUE_OPERATIONS" | "SIGN_UP_MANAGER"> = {
+const portals: Record<string, "LEAGUE_OPERATIONS" | "SIGN_UP_MANAGER" | "PRODUCTION"> = {
   transactions: "LEAGUE_OPERATIONS",
   players: "SIGN_UP_MANAGER",
   teams: "LEAGUE_OPERATIONS",

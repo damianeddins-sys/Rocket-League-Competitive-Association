@@ -121,7 +121,7 @@ describe("Discord interactions", () => {
       data: { name: "standings" },
     }, async () => leagueData)).resolves.toMatchObject({
       type: 4,
-      data: { content: expect.stringContaining("RLCA Standings") },
+      data: { content: expect.stringContaining("Challenger Standings") },
     });
     await expect(respondToDiscordInteraction({
       type: 2,
