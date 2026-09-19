@@ -208,7 +208,7 @@ export async function PATCH(
       },
       sourceEntityType: "APPLICATION",
       sourceEntityId: id,
-      idempotencyKey: `application-decision:${id}:${parsed.data.status}`,
+      idempotencyKey: `application-decision:${id}:${requestId}`,
     })).onConflictDoNothing();
     });
   } catch (error) {

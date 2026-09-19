@@ -363,7 +363,7 @@ export async function PATCH(
           },
           sourceEntityType: "TRANSACTION_REQUEST",
           sourceEntityId: current.id,
-          idempotencyKey: `transaction-decision:${current.id}:${parsed.data.status}`,
+          idempotencyKey: `transaction-decision:${current.id}:${requestId}`,
         })).onConflictDoNothing();
       });
     } catch (error) {

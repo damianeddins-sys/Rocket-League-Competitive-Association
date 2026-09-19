@@ -9,7 +9,7 @@ Audited branch: `cursor/final-spec-foundation-8541`
 - Database: PostgreSQL through Drizzle ORM and `postgres.js`.
 - Authentication: Discord OAuth2 authorization-code flow with encrypted, HTTP-only JWE sessions.
 - Authorization: live Discord guild-role verification plus active database role assignments. The verified RLCA Owner Discord role bypasses database assignment restrictions but does not bypass authentication or validation.
-- Bot: Discord signed HTTP Interactions hosted as Vercel functions. It does not use a persistent Gateway connection.
+- Bot: Discord signed HTTP Interactions hosted with the website plus a separately deployed persistent Gateway worker for online presence, reconnect monitoring, and durable notification delivery.
 - File storage: Vercel Blob for replay and website-media uploads.
 - Email: Resend for application/signup document delivery.
 
@@ -29,7 +29,7 @@ Audited branch: `cursor/final-spec-foundation-8541`
 | `/operations/rules` | `site_content` | Create/edit/delete/reorder public rules |
 | `/operations/settings` | `seasons`, Discord channel/role configuration | Season and channel configuration |
 | `/operations/permissions` | `role_assignments` | Scoped grant/revoke |
-| `/operations/bot` | Discord API, command registry, PostgreSQL health | Owner command registration/repair |
+| `/operations/bot` | Discord API, command registry, Gateway heartbeat, PostgreSQL health | Owner command registration/repair |
 | `/operations/audit` | `audit_logs` | Append-only |
 | `/operations/franchise` | Franchise roster and transactions | Submit validated roster proposal |
 | `/operations/statistics` | `replays` | Read/review workspace |
@@ -42,7 +42,7 @@ Audited branch: `cursor/final-spec-foundation-8541`
 - Player/team/settings administration: `/api/admin/operations/[resource]`
 - Staff/RBAC: `/api/admin/users`, `/api/admin/role-assignments`
 - Rules/content/media: `/api/admin/content`, `/api/admin/media`
-- Bot: `/api/discord/interactions`, `/api/discord/health`, `/api/admin/discord/register`
+- Bot: `/api/discord/interactions`, `/api/discord/health`, `/api/admin/discord/register`, `/api/internal/discord/worker`
 - Authentication: `/api/auth/discord/start`, `/api/auth/discord/callback`, `/api/auth/session`, `/api/auth/logout`
 
 All Staff mutations perform server-side identity and permission checks. Non-Owner Staff access is the intersection of live Discord roles and unexpired database assignments. Owner authority requires the configured live Discord Owner role ID.
@@ -50,7 +50,8 @@ All Staff mutations perform server-side identity and permission checks. Non-Owne
 ## Required production environment
 
 - Core: `NEXT_PUBLIC_APP_URL`, `DATABASE_URL`, `SESSION_SECRET`
-- Discord OAuth/bot: `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_APPLICATION_ID`, `DISCORD_BOT_TOKEN`, `DISCORD_PUBLIC_KEY`, `DISCORD_GUILD_ID`, `DISCORD_REDIRECT_URI`
+- Discord OAuth/bot: `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_APPLICATION_ID`, `DISCORD_BOT_TOKEN`, `DISCORD_PUBLIC_KEY`, `DISCORD_GUILD_ID`, `DISCORD_REDIRECT_URI`, `DISCORD_WORKER_SECRET`
+- Gateway worker only: `RLCA_BACKEND_URL`, `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`, `DISCORD_WORKER_SECRET`
 - Media: `BLOB_READ_WRITE_TOKEN`
 - Documents: `RLCA_SIGNUP_EMAIL`, `RLCA_EMAIL_FROM`, `RESEND_API_KEY`
 - Initial season seed: `RLCA_SEASON_ONE_STARTS_AT`
@@ -61,4 +62,13 @@ The Discord Developer Portal Interactions Endpoint URL must be:
 
 ## Production observation
 
-At audit time, `https://rlcasystem.vercel.app/api/auth/discord/health` reported `databaseConfigured: false`. The deployed `/api/discord/interactions` reported `configured: false`, and `/api/discord/health` plus `/operations` returned 404. This proves the live production deployment is older than this branch and is missing at least `DATABASE_URL` and/or current bot interaction configuration. Code changes alone cannot alter Vercel secrets or the Discord Developer Portal endpoint.
+At the September 19, 2026 audit, `https://rlcasystem.vercel.app/api/auth/discord/health`
+reported `databaseConfigured: false`, while `/api/discord/health` returned 404. The
+alternate Vercel deployment also returned 404 for bot health. No Gateway worker
+deployment existed in the repository, so there was no process capable of establishing
+a persistent Discord connection or online presence. The local Cloud Agent environment
+also had none of the Discord/database environment variables, so a live login was not
+possible there. These are concrete deployment/configuration blockers, not a Discord
+status-display bug. The new worker and health routes must be deployed, migration 0014
+must be applied, and the documented secrets must be configured before the live
+end-to-end Discord test can pass.

@@ -45,14 +45,20 @@ describe("Discord bot health", () => {
       return new Response(JSON.stringify({ id: "bot" }), { status: 200 });
     }));
     const health = await getDiscordBotHealth();
-    expect(health.status).toBe("DEGRADED");
+    expect(health.status).toBe("OFFLINE");
     expect(health.checks).toMatchObject({
       interactionSignature: true,
       botCredentials: true,
       discordApi: true,
       commandsRegistered: true,
       database: false,
+      gatewayConnected: false,
+      targetGuildConnected: false,
+      workerAuthentication: false,
     });
-    expect(health.missingConfiguration).toEqual(["DATABASE_URL"]);
+    expect(health.missingConfiguration).toEqual([
+      "DATABASE_URL",
+      "DISCORD_WORKER_SECRET",
+    ]);
   });
 });

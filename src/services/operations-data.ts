@@ -215,8 +215,14 @@ export function loadSettingsManagement() {
       }),
       integration: {
         runtime: runtime[0] ? {
-          status: runtime[0].status,
-          targetGuildConnected: runtime[0].targetGuildConnected,
+          status: runtime[0].status === "ONLINE"
+            && runtime[0].lastHeartbeatAt
+            && Date.now() - runtime[0].lastHeartbeatAt.getTime() < 45_000
+            ? "ONLINE"
+            : "OFFLINE",
+          targetGuildConnected: runtime[0].targetGuildConnected
+            && Boolean(runtime[0].lastHeartbeatAt)
+            && Date.now() - runtime[0].lastHeartbeatAt!.getTime() < 45_000,
           lastHeartbeatAt: runtime[0].lastHeartbeatAt?.toISOString() ?? null,
           lastDisconnectAt: runtime[0].lastDisconnectAt?.toISOString() ?? null,
           lastError: runtime[0].lastError,

@@ -21,12 +21,22 @@ export function BotControl() {
     setMessage(response.ok ? `${result.registered} commands registered. Refreshing health…` : result.error ?? "Command registration failed");
     if (response.ok) router.refresh();
   }
+  async function retryNotifications() {
+    setMessage("Re-queuing failed Discord notifications…");
+    const response = await fetch("/api/admin/discord/notifications/retry", { method: "POST" });
+    const result = await readApiResult<{ retried?: number }>(response);
+    setMessage(response.ok ? `${result.retried ?? 0} failed notifications re-queued.` : result.error ?? "Notification retry failed");
+    if (response.ok) router.refresh();
+  }
   return (
     <div className="mt-5 rounded-lg border border-blue-200 bg-blue-50 p-5">
       <h3 className="font-black text-blue-950">Discord command control</h3>
       <p className="mt-2 text-sm leading-6 text-blue-900">Signed slash commands are handled by the website. Online presence, reconnect monitoring, and queued notifications are handled by the persistent Gateway worker.</p>
       {message && <p className="mt-3 text-sm font-bold text-blue-950" role="status">{message}</p>}
-      <button onClick={register} className="mt-4 rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Register or repair Discord commands</button>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <button onClick={register} className="rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Register or repair Discord commands</button>
+        <button onClick={retryNotifications} className="rounded-lg border border-blue-300 bg-white px-4 py-2.5 text-sm font-black text-blue-900">Retry failed notifications</button>
+      </div>
     </div>
   );
 }
@@ -344,6 +354,7 @@ export function SettingsManager({
   roles,
   notificationRoutes,
   integration,
+  owner,
 }: {
   seasons: SeasonRow[];
   channels: ChannelRow[];
@@ -364,6 +375,7 @@ export function SettingsManager({
     queued: number;
     failed: number;
   };
+  owner: boolean;
 }) {
   const router = useRouter();
   const [message, setMessage] = useState<string>();
@@ -491,7 +503,7 @@ export function SettingsManager({
           ))}
         </div>
       </section>
-      <section>
+      {owner && <section>
         <h3 className="text-lg font-black text-[#081e3a]">Notification routing</h3>
         <p className="mt-1 text-sm text-slate-600">Choose which website events are sent to each configured Discord channel. Sensitive application fields are never included.</p>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -511,7 +523,7 @@ export function SettingsManager({
             </form>
           ))}
         </div>
-      </section>
+      </section>}
       <section>
         <h3 className="text-lg font-black text-[#081e3a]">Verified Discord role mappings</h3>
         <div className="mt-3 grid gap-2 md:grid-cols-2">{roles.map((role) => <div key={role.id} className="rounded-lg border border-slate-200 bg-white p-4 text-sm"><strong>{role.displayName}</strong><p className="font-mono text-xs text-slate-500">{role.key} · {role.roleId}</p></div>)}</div>

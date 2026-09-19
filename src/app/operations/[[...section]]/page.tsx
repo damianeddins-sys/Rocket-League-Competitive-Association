@@ -195,7 +195,10 @@ export default async function OperationsPage({
             ) : documentManagement?.status === "READY" ? (
               <DocumentManager {...documentManagement.data} />
             ) : settingsManagement?.status === "READY" ? (
-              <SettingsManager {...settingsManagement.data} />
+              <SettingsManager
+                {...settingsManagement.data}
+                owner={access.permissions.includes("league.full")}
+              />
             ) : auditManagement?.status === "READY" ? (
               <AuditManager logs={auditManagement.data} />
             ) : franchiseWorkspace?.status === "READY" ? (

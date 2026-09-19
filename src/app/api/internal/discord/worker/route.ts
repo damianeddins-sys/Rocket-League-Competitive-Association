@@ -63,6 +63,10 @@ export async function POST(request: Request) {
   if (!authorized(request)) {
     return NextResponse.json({ error: "Worker authentication failed" }, { status: 401 });
   }
+  const contentLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > 32_000) {
+    return NextResponse.json({ error: "Worker request is too large" }, { status: 413 });
+  }
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: "Worker database is not configured" }, { status: 503 });
   }
@@ -73,9 +77,10 @@ export async function POST(request: Request) {
 
   const db = getDatabase();
   const now = new Date();
-  const workerId = parsed.data.sessionId;
+  const data = parsed.data;
+  const workerId = data.sessionId;
 
-  if (parsed.data.action === "heartbeat") {
+  if (data.action === "heartbeat") {
     const [current] = await db
       .select()
       .from(discordBotRuntime)
@@ -91,9 +96,9 @@ export async function POST(request: Request) {
           key: "gateway",
           status: "ONLINE",
           sessionId: workerId,
-          botUserId: parsed.data.botUserId,
-          guildCount: parsed.data.guildCount,
-          targetGuildConnected: parsed.data.targetGuildConnected,
+          botUserId: data.botUserId,
+          guildCount: data.guildCount,
+          targetGuildConnected: data.targetGuildConnected,
           startedAt: wasOnline && current?.sessionId === workerId
             ? current.startedAt
             : now,
@@ -106,9 +111,9 @@ export async function POST(request: Request) {
           set: {
             status: "ONLINE",
             sessionId: workerId,
-            botUserId: parsed.data.botUserId,
-            guildCount: parsed.data.guildCount,
-            targetGuildConnected: parsed.data.targetGuildConnected,
+            botUserId: data.botUserId,
+            guildCount: data.guildCount,
+            targetGuildConnected: data.targetGuildConnected,
             startedAt: wasOnline && current?.sessionId === workerId
               ? current.startedAt
               : now,
@@ -125,7 +130,7 @@ export async function POST(request: Request) {
             description: "The Discord Gateway worker authenticated and is online.",
             color: 0x22c55e,
             fields: [
-              { name: "Guilds", value: String(parsed.data.guildCount), inline: true },
+              { name: "Guilds", value: String(data.guildCount), inline: true },
               { name: "Connected", value: now.toISOString(), inline: true },
             ],
           },
@@ -142,9 +147,9 @@ export async function POST(request: Request) {
           entityId: "gateway",
           nextState: {
             status: "ONLINE",
-            botUserId: parsed.data.botUserId,
-            guildCount: parsed.data.guildCount,
-            targetGuildConnected: parsed.data.targetGuildConnected,
+            botUserId: data.botUserId,
+            guildCount: data.guildCount,
+            targetGuildConnected: data.targetGuildConnected,
           },
           requestId: workerId,
         }));
@@ -159,32 +164,32 @@ export async function POST(request: Request) {
     }, { headers: { "Cache-Control": "no-store" } });
   }
 
-  if (parsed.data.action === "complete") {
+  if (data.action === "complete") {
     const completed = await completeDiscordNotification({
-      jobId: parsed.data.jobId,
+      jobId: data.jobId,
       workerId,
-      discordMessageId: parsed.data.discordMessageId,
+      discordMessageId: data.discordMessageId,
     });
     return NextResponse.json({ completed }, { status: completed ? 200 : 409 });
   }
 
-  if (parsed.data.action === "failure") {
+  if (data.action === "failure") {
     const rescheduled = await failDiscordNotification({
-      jobId: parsed.data.jobId,
+      jobId: data.jobId,
       workerId,
-      error: parsed.data.error,
+      error: data.error,
     });
     return NextResponse.json({ rescheduled }, { status: rescheduled ? 200 : 409 });
   }
 
-  if (parsed.data.action === "shutdown") {
+  if (data.action === "shutdown") {
     await db.transaction(async (tx) => {
       await tx
         .update(discordBotRuntime)
         .set({
           status: "OFFLINE",
           lastDisconnectAt: now,
-          lastError: parsed.data.reason,
+          lastError: data.reason,
           updatedAt: now,
         })
         .where(eq(discordBotRuntime.key, "gateway"));
@@ -192,7 +197,7 @@ export async function POST(request: Request) {
         eventType: "BOT_STOPPED",
         payload: {
           title: "RLCA bot disconnected",
-          description: parsed.data.reason,
+          description: data.reason,
           color: 0xef4444,
           fields: [{ name: "Disconnected", value: now.toISOString() }],
         },
@@ -207,13 +212,13 @@ export async function POST(request: Request) {
   await db.transaction(async (tx) => {
     await tx
       .update(discordBotRuntime)
-      .set({ status: "DEGRADED", lastError: parsed.data.error, updatedAt: now })
+      .set({ status: "DEGRADED", lastError: data.error, updatedAt: now })
       .where(eq(discordBotRuntime.key, "gateway"));
     await tx.insert(discordNotificationJobs).values(notificationJob({
       eventType: "BOT_ERROR",
       payload: {
         title: "RLCA bot integration error",
-        description: parsed.data.error,
+        description: data.error,
         color: 0xf59e0b,
         fields: [{ name: "Recorded", value: now.toISOString() }],
       },
