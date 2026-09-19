@@ -18,10 +18,17 @@ Two processes are intentionally used:
    connection, reports heartbeats to the secure backend, and delivers leased
    notification jobs.
 
-Vercel can host the Next.js process but cannot keep a general-purpose Discord
-Gateway WebSocket worker alive. Deploy `Dockerfile.bot` as an always-running worker
-on a container/worker host such as Render, Railway, Fly.io, or an equivalent service.
-Do not configure a web service that sleeps when it receives no HTTP traffic.
+Vercel hosts the Next.js process only. The Discord Gateway worker must run as a
+separate persistent process. The recommended cost-minimizing target is an Oracle
+Cloud Infrastructure Always Free Ampere A1 Flex VM running Docker. Render Free
+services can sleep and Railway's free usage credit is not a durable capacity
+guarantee, so neither is the default production target.
+
+As of September 2026, Oracle documents 2 A1 OCPUs and 12 GB of memory total for an
+Always Free tenancy. Start with 1 OCPU and 4 GB RAM. Free limits, regional capacity,
+account eligibility, and provider terms can change. Oracle may reclaim instances
+that satisfy its idle criteria, so this deployment has no contractual 24/7 SLA.
+Use a paid persistent worker host if an uptime commitment is required.
 
 The Gateway worker never receives `DATABASE_URL`. It communicates through
 `/api/internal/discord/worker`, authenticated by `DISCORD_WORKER_SECRET`.
@@ -151,24 +158,38 @@ after its lease expires.
 
 ## Deployment and final verification
 
-1. Deploy the website revision and run all migrations.
-2. Configure the website environment variables.
-3. Add channel mappings and notification routes in Owner Settings.
-4. Set the Discord Interactions Endpoint URL and install the bot with the scopes and
+The exact OCI procedure and restart configuration are in
+`deploy/discord-worker/README.md`.
+
+1. Rotate any Discord bot token that has ever been copied into source, chat,
+   screenshots, logs, or another untrusted location. Update the website and worker
+   with the replacement; never commit it.
+2. Deploy the website revision and run all migrations through
+   `0020_friendly_groot.sql`.
+3. Configure the website environment variables.
+4. Add channel mappings and notification routes in Owner Settings.
+5. Set the Discord Interactions Endpoint URL and install the bot with the scopes and
    permissions above.
-5. Build the worker with `Dockerfile.bot` and deploy one always-running instance.
-6. Confirm `/operations/bot` reports the Gateway heartbeat and target guild as
+6. Register commands with `npm run discord:register`.
+7. Build `Dockerfile.bot` on the OCI VM and start the Compose service. The worker
+   environment must contain only the four worker variables documented above.
+8. Confirm `/operations/bot` reports the Gateway heartbeat and target guild as
    connected.
-7. Register/repair commands from `/operations/bot`.
-8. Test all registered commands and verify public responses expose no private data.
-9. Submit each Discord application type and verify its database record exists before
-   the staff-channel notification appears.
-10. Review, request changes, update, approve, and deny test applications. Verify
+9. Test all registered commands and verify public responses expose no private data.
+10. Submit each Discord application type and verify its database record exists before
+    the staff-channel notification appears.
+11. Review, request changes, update, approve, and deny test applications. Verify
     applicant direct messages, database history, and audit records.
-11. Grant and revoke a test staff assignment and verify the audit record and staff
+12. Grant and revoke a test staff assignment and verify the audit record and staff
     log notification.
-12. Restart the worker and confirm Discord returns it to online status, a new
-    heartbeat is recorded, and queued jobs continue.
+13. Restart the container and then reboot the VM. After each operation, confirm
+    Discord returns online, a new heartbeat is recorded, and queued jobs continue.
+14. Test a real Gateway disconnect/reconnect and confirm the SDK reconnects without
+    creating duplicate notification deliveries.
+
+Do not mark the integration as production-ready merely because the process starts.
+The production gate in `docs/RLCA_FINAL_QA_REPORT.md` must pass against the deployed
+website, database, worker, and Discord guild.
 
 If the bot remains offline, inspect worker logs first. The process exits immediately
 with the exact missing variable name when its configuration is incomplete. Invalid

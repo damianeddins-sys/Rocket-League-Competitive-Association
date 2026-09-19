@@ -141,18 +141,24 @@ Optional integrations remain documented in `.env.example`.
 
 ## Deployment instructions
 
-1. Deploy the website revision.
-2. Apply every database migration through `0020_friendly_groot.sql`.
-3. Seed/configure the active season, four tiers, teams, Discord roles, channels,
+1. Rotate the Discord bot token if it has ever been exposed, then update both the
+   website and worker environments with the replacement.
+2. Deploy the website revision and verify production is serving that exact commit.
+3. Apply every database migration through `0020_friendly_groot.sql`.
+4. Seed/configure the active season, four tiers, teams, Discord roles, channels,
    and notification routes.
-4. Configure all website environment variables.
-5. Set the Discord Interactions Endpoint URL to
+5. Configure all website environment variables.
+6. Set the Discord Interactions Endpoint URL to
    `https://YOUR_DOMAIN/api/discord/interactions`.
-6. Register the expanded Discord command set.
-7. Deploy `Dockerfile.bot` as one always-running process outside Vercel.
-8. Confirm `/api/discord/health` reports `HEALTHY`.
-9. Run the authenticated role matrix and website/Discord application journeys.
-10. Run desktop and mobile visual QA with a functioning browser harness.
+7. Register the expanded Discord command set.
+8. Deploy `Dockerfile.bot` as one always-running process outside Vercel. The
+   recommended OCI Always Free runbook is
+   `deploy/discord-worker/README.md`.
+9. Confirm `/api/discord/health` reports `HEALTHY`.
+10. Run the authenticated role matrix and website/Discord application journeys.
+11. Run desktop and mobile visual QA with a functioning browser harness.
+12. Restart the worker container and VM, interrupt/reconnect the Gateway, and verify
+    automatic recovery without duplicate notifications.
 
 ## Known release blockers
 
@@ -163,4 +169,44 @@ The system must not be called production-ready yet:
 3. Authenticated normal/staff/owner journeys have not been executed against live roles.
 4. Website-to-Discord and Discord-to-website persistence has not been tested live.
 5. Desktop/mobile visual and every-button QA remain untested because browser automation failed before launch.
+
+## Production acceptance gate
+
+This table tracks the deployed system, not local code or compile-time coverage.
+`NOT TESTED` must never be converted to `PASS` without executing the corresponding
+production check.
+
+| Production area | Result |
+| --- | --- |
+| Website deployment/current revision | NOT TESTED |
+| Database connection and migrations | FAIL |
+| Owner authentication | NOT TESTED |
+| Owner permission matrix | NOT TESTED |
+| Staff permission matrix | NOT TESTED |
+| Applications | NOT TESTED |
+| Rules | NOT TESTED |
+| Teams | NOT TESTED |
+| Players | NOT TESTED |
+| Rosters | NOT TESTED |
+| Matches | NOT TESTED |
+| Standings | NOT TESTED |
+| Statistics | NOT TESTED |
+| MMR | NOT TESTED |
+| Tier separation | NOT TESTED |
+| Discord worker | FAIL |
+| Discord online presence | FAIL |
+| Discord commands | NOT TESTED |
+| Discord buttons | NOT TESTED |
+| Discord modals | NOT TESTED |
+| Website → Discord | NOT TESTED |
+| Discord → Website | NOT TESTED |
+| Mobile visual QA | NOT TESTED |
+| Desktop visual QA | NOT TESTED |
+| Every-button QA | NOT TESTED |
+| Dead-link sweep | NOT TESTED |
+| Browser console errors | NOT TESTED |
+| Production database errors | NOT TESTED |
+
+After every row passes, run the complete automated suite twice from clean processes
+and record both results. Local success alone is not production evidence.
 
