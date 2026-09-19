@@ -7,7 +7,7 @@ import { auditLogs, roleAssignments, users } from "@/db/schema";
 import { buildAuditLogRecord } from "@/services/audit";
 import { checkPortalAccess } from "@/services/auth/portal-access";
 import { getSession } from "@/services/auth/session";
-import { assignableRoleCodes } from "@/services/user-management";
+import { assignableRoleCodes } from "@/services/role-assignments";
 
 const assignmentSchema = z.object({
   userId: z.string().uuid(),

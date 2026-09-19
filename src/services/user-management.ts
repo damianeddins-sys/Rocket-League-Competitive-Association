@@ -2,23 +2,6 @@ import { asc, isNull } from "drizzle-orm";
 import { getDatabase } from "../db";
 import { roleAssignments, users } from "../db/schema";
 
-export const assignableRoleCodes = [
-  "LEAGUE_OPERATIONS_MANAGER",
-  "HEAD_LEAGUE_ADMIN",
-  "SENIOR_LEAGUE_ADMIN",
-  "LEAGUE_ADMIN",
-  "SIGN_UP_MANAGER",
-  "ROSTER_ADMIN",
-  "STATISTICS_ANALYST",
-  "PRODUCTION_DIRECTOR",
-  "PRODUCTION_CREW",
-  "MODERATOR",
-  "MODERATOR_TRAINEE",
-  "GENERAL_MANAGER",
-  "ASSISTANT_GENERAL_MANAGER",
-  "TEAM_CAPTAIN",
-] as const;
-
 export async function loadUserManagement() {
   if (!process.env.DATABASE_URL) return { status: "DATABASE_NOT_CONFIGURED" as const, users: [] };
   try {

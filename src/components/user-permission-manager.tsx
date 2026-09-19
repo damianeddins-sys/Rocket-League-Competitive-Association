@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { assignableRoleCodes } from "@/services/user-management";
+import { assignableRoleCodes } from "@/services/role-assignments";
 
 type ManagedUser = {
   id: string;
