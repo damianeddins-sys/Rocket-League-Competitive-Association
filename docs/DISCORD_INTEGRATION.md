@@ -4,8 +4,9 @@
 
 PostgreSQL and the website backend are the only source of truth for applications,
 members, permissions, franchises, transactions, rules, settings, and audit records.
-Discord provides communication, signed read-only slash commands, online bot presence,
-and notifications. It does not maintain a second copy of league records.
+Discord provides communication, signed interactive panels, online bot presence,
+private application workflows, and notifications. It does not maintain a second
+copy of league records.
 
 ## Runtime architecture
 
@@ -62,8 +63,10 @@ secret, or Vercel Blob credentials.
   Server Members intent is required by this worker.
 
 Staff channels must deny normal-member access in Discord. The bot role should be
-granted access explicitly. The application never places tokens, private documents,
-application notes, email addresses, or review reasons in Discord notifications.
+granted access explicitly. Public messages never contain tokens, private documents,
+application answers, email addresses, staff notes, or review reasons. Change
+requests are sent only in an ephemeral applicant panel and a direct message to that
+applicant.
 
 ## Owner configuration
 
@@ -89,7 +92,8 @@ Existing RLCA keys such as `PLAYER_SIGNUPS`, `STAFF_SIGNUPS`,
 Channel IDs live in `discord_channel_configurations`; they are not repeated through
 the codebase. Running the season seed again does not overwrite Owner changes.
 
-Apply database migration `0014_easy_reptil.sql` before enabling the worker.
+Apply all database migrations through `0020_friendly_groot.sql` before enabling the
+interactive application and private-notification workflows.
 
 ## Commands
 
@@ -97,15 +101,34 @@ The registered commands are:
 
 | Command | Data source | Permission model |
 | --- | --- | --- |
-| `/status` | Website/database availability | Public, no sensitive data |
-| `/standings` | Official database standings | Public |
-| `/schedule` | Official database schedule | Public |
-| `/teams` | Official database franchises | Public |
-| `/events` | Official database events | Public |
-| `/help` | Static command list | Ephemeral |
+| `/panel` | Member or authorized staff navigation | Staff views require Discord and database authorization |
+| `/apply` | Private application modal | Public command, ephemeral answers |
+| `/applications` | Applicant's own records | Applicant only |
+| `/status`, `/health` | Integration health | Ephemeral, no secrets |
+| `/standings`, `/schedule`, `/results` | Tier-scoped official competition data | Public data |
+| `/teams`, `/player` | Public team and player profiles | Public data only |
+| `/statistics`, `/rankings` | Tier-scoped public statistics | Public data |
+| `/rules`, `/faq`, `/help` | League guidance | Public information |
 
-All are read-only. Unknown or failed commands return an ephemeral error. Command
-registration is controlled from `/operations/bot` by an authenticated Owner.
+Buttons open the next page through interaction updates or ephemeral responses;
+they do not generate a new public message for every click. Private pages include
+Back, Home, or Close controls. Command registration is controlled from
+`/operations/bot` by an authenticated Owner.
+
+### Normal member experience
+
+Normal members can browse public league data, submit one of the four application
+types, and view only their own application status. They never receive staff buttons,
+audit data, internal IDs, SQL/API details, private answers, or moderation records.
+Public data queries are filtered by season and tier on the backend.
+
+### Staff application experience
+
+Verified application managers can open private queues, paginate records, inspect
+answers, begin review, approve with confirmation, deny with a reason, or request
+changes. The server checks the member's signed Discord roles and active database
+assignment for each staff action. Every state transition writes application history
+and an audit record.
 
 ## Durable notifications and logging
 
@@ -127,10 +150,11 @@ after its lease expires.
 6. Confirm `/operations/bot` reports the Gateway heartbeat and target guild as
    connected.
 7. Register/repair commands from `/operations/bot`.
-8. Test all six commands and verify public responses expose no private data.
-9. Submit a test website application and verify its database record exists before
+8. Test all registered commands and verify public responses expose no private data.
+9. Submit each Discord application type and verify its database record exists before
    the staff-channel notification appears.
-10. Approve or deny it and verify the database status and configured decision log.
+10. Review, request changes, update, approve, and deny test applications. Verify
+    applicant direct messages, database history, and audit records.
 11. Grant and revoke a test staff assignment and verify the audit record and staff
     log notification.
 12. Restart the worker and confirm Discord returns it to online status, a new
