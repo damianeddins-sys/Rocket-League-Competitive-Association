@@ -7,16 +7,10 @@ export type RosterPlayer = {
   protectedValue: number;
 };
 
-export function calculateCapRange(playersByDivision: Record<Division, RosterPlayer[]>) {
-  const average = (players: RosterPlayer[]) => {
-    if (players.length === 0) throw new Error("Each active division needs players");
-    return players.reduce((sum, player) => sum + player.protectedValue, 0) / players.length;
-  };
-  const expected =
-    average(playersByDivision.MASTER) +
-    average(playersByDivision.CHALLENGER) +
-    average(playersByDivision.CONTENDER);
-
+export function calculateTierCapRange(players: RosterPlayer[]) {
+  if (players.length === 0) throw new Error("The active tier needs players");
+  const average = players.reduce((sum, player) => sum + player.protectedValue, 0) / players.length;
+  const expected = average * SEASON_ONE_RULES.roster.size;
   return {
     expected,
     floor:
@@ -35,42 +29,19 @@ export function calculateCapRange(playersByDivision: Record<Division, RosterPlay
 export function validateRoster(
   roster: RosterPlayer[],
   range: { floor: number; cap: number },
+  requiredDivision: Division,
 ): { legal: boolean; value: number; reasons: string[] } {
   const reasons: string[] = [];
   const value = roster.reduce((sum, player) => sum + player.protectedValue, 0);
   if (roster.length !== SEASON_ONE_RULES.roster.size) {
     reasons.push(`Roster must contain exactly ${SEASON_ONE_RULES.roster.size} players`);
   }
-  for (const division of ["MASTER", "CHALLENGER", "CONTENDER"] as const) {
-    const count = roster.filter((player) => player.division === division).length;
-    if (count !== 1) reasons.push(`Roster must contain exactly one ${division} player`);
+  if (roster.some((player) => player.division !== requiredDivision)) {
+    reasons.push(`Every rostered player must belong to the ${requiredDivision} tier`);
   }
   if (value < range.floor) reasons.push(`Roster value ${value} is below floor ${range.floor}`);
   if (value > range.cap) reasons.push(`Roster value ${value} exceeds cap ${range.cap}`);
   return { legal: reasons.length === 0, value, reasons };
-}
-
-export function canCompleteRoster(
-  selected: RosterPlayer[],
-  available: RosterPlayer[],
-  range: { floor: number; cap: number },
-) {
-  const missing = (["MASTER", "CHALLENGER", "CONTENDER"] as const).filter(
-    (division) => !selected.some((player) => player.division === division),
-  );
-  if (missing.length + selected.length !== 3) return false;
-
-  const search = (index: number, roster: RosterPlayer[]): boolean => {
-    if (index === missing.length) return validateRoster(roster, range).legal;
-    return available
-      .filter(
-        (player) =>
-          player.division === missing[index] &&
-          !roster.some((selection) => selection.playerId === player.playerId),
-      )
-      .some((player) => search(index + 1, [...roster, player]));
-  };
-  return search(0, selected);
 }
 
 export function playerEligibility(

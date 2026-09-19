@@ -12,6 +12,7 @@ export const REQUIRED_DISCORD_COMMANDS = [
   "events",
   "help",
 ] as const;
+const TIERED_DISCORD_COMMANDS = new Set(["standings", "schedule", "teams", "events"]);
 
 export type DiscordBotHealth = {
   status: "HEALTHY" | "DEGRADED" | "OFFLINE";
@@ -63,9 +64,19 @@ export async function getDiscordBotHealth(): Promise<DiscordBotHealth> {
       ]);
       discordApi = identityResponse.ok;
       if (commandResponse.ok) {
-        const commands = await commandResponse.json() as Array<{ name?: string }>;
-        const names = new Set(commands.map((command) => command.name));
-        commandsRegistered = REQUIRED_DISCORD_COMMANDS.every((name) => names.has(name));
+        const commands = await commandResponse.json() as Array<{
+          name?: string;
+          options?: Array<{ name?: string; required?: boolean; choices?: Array<{ value?: string }> }>;
+        }>;
+        commandsRegistered = REQUIRED_DISCORD_COMMANDS.every((name) => {
+          const command = commands.find((candidate) => candidate.name === name);
+          if (!command) return false;
+          if (!TIERED_DISCORD_COMMANDS.has(name)) return true;
+          const tierOption = command.options?.find((option) => option.name === "tier");
+          const choices = new Set(tierOption?.choices?.map((choice) => choice.value));
+          return tierOption?.required === true
+            && ["challenger", "contender", "premier", "master"].every((tier) => choices.has(tier));
+        });
       }
     } catch {
       discordApi = false;

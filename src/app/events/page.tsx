@@ -2,13 +2,21 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, CalendarRange, Trophy, Users } from "lucide-react";
 import { LeagueDataState } from "@/components/league-data-state";
+import { TierBadge, TierNavigation } from "@/components/tier-navigation";
 import { loadPublicLeagueData } from "@/services/public-league-data";
+import { normalizeTierId } from "@/services/tiers";
 
 export const metadata: Metadata = { title: "Events" };
 export const dynamic = "force-dynamic";
 
-export default async function EventsPage() {
-  const data = await loadPublicLeagueData();
+export default async function EventsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tier?: string; season?: string }>;
+}) {
+  const query = await searchParams;
+  const tierId = normalizeTierId(query.tier) ?? "challenger";
+  const data = await loadPublicLeagueData({ tier: tierId, season: query.season });
 
   return (
     <>
@@ -27,12 +35,14 @@ export default async function EventsPage() {
         {data.status !== "ready" ? (
           <LeagueDataState state={data.reason} />
         ) : (
-          <div className="grid gap-5 md:grid-cols-2">
+          <>
+          <TierNavigation current={tierId} pathname="/events" searchParams={{ season: query.season }} />
+          <div className="mt-7 grid gap-5 md:grid-cols-2">
             {data.events.map((event) => {
               const championship = event.type === "CHAMPIONSHIP";
               return (
                 <Link
-                  href={`/events/${event.slug}`}
+                  href={`/events/${event.slug}?tier=${tierId}`}
                   key={event.id}
                   className={`panel group overflow-hidden p-7 hover:-translate-y-1 hover:shadow-xl ${championship ? "border-blue-300 bg-[#0b1f3a] text-white" : ""}`}
                 >
@@ -45,6 +55,7 @@ export default async function EventsPage() {
                     </span>
                   </div>
                   <h2 className="mt-6 text-3xl font-black">{event.name}</h2>
+                  <div className="mt-3"><TierBadge tierId={tierId} compact /></div>
                   <p className={`mt-2 text-sm ${championship ? "text-slate-300" : "text-slate-500"}`}>{event.format}</p>
                   <div className={`mt-7 grid gap-4 border-t pt-5 text-sm sm:grid-cols-3 ${championship ? "border-white/15 text-slate-300" : "border-slate-100 text-slate-500"}`}>
                     <span className="flex items-center gap-2"><CalendarRange size={16} /><strong>{`Weeks ${event.startWeek}–${event.endWeek}`}</strong></span>
@@ -61,6 +72,7 @@ export default async function EventsPage() {
               <p className="panel p-8 text-center text-slate-500">No events are configured.</p>
             )}
           </div>
+          </>
         )}
       </section>
     </>

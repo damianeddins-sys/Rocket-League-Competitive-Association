@@ -1,12 +1,21 @@
 import type { Metadata } from "next";
-import { loadPlayerManagement } from "@/services/operations-data";
+import { LeagueDataState } from "@/components/league-data-state";
+import { TierBadge, TierNavigation } from "@/components/tier-navigation";
+import { loadPublicLeagueData } from "@/services/public-league-data";
+import { normalizeTierId } from "@/services/tiers";
 
 export const metadata: Metadata = { title: "Players" };
 export const dynamic = "force-dynamic";
 
-export default async function PlayersPage() {
-  const result = await loadPlayerManagement();
-  const players = result.status === "READY" ? result.data.players : [];
+export default async function PlayersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tier?: string; season?: string }>;
+}) {
+  const query = await searchParams;
+  const tierId = normalizeTierId(query.tier) ?? "challenger";
+  const result = await loadPublicLeagueData({ tier: tierId, season: query.season });
+  const players = result.status === "ready" ? result.players : [];
   return (
     <div className="min-h-screen bg-[#f4f7fa]">
       <section className="bg-[#0b1f3a] px-5 py-14 text-white">
@@ -14,11 +23,15 @@ export default async function PlayersPage() {
           <p className="eyebrow text-blue-300">Season 1 player directory</p>
           <h1 className="mt-3 text-4xl font-black">RLCA players</h1>
           <p className="mt-4 max-w-2xl text-slate-300">
-            Verified player profiles, division placement, roster status, and replay-derived statistics.
+            Verified player profiles, tier placement, roster status, and replay-derived statistics.
           </p>
         </div>
       </section>
       <section className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
+        {result.status !== "ready" ? (
+          <LeagueDataState state={result.reason} />
+        ) : <>
+          <TierNavigation current={tierId} pathname="/players" searchParams={{ season: query.season }} />
         {players.length ? (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {players.map((player) => (
@@ -33,10 +46,11 @@ export default async function PlayersPage() {
                   <div>
                     <h2 className="text-xl font-black text-[#0b1f3a]">{player.handle}</h2>
                     <p className="text-sm font-semibold text-slate-500">{player.team ?? "Unrostered"}</p>
+                    <div className="mt-2"><TierBadge tierId={tierId} compact /></div>
                   </div>
                 </div>
                 <div className="mt-5 grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-400">Division</p><p className="mt-1 text-xs font-black">{player.division ?? "Unplaced"}</p></div>
+                  <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-400">Tier</p><p className="mt-1 text-xs font-black">{result.tier.name}</p></div>
                   <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-400">MMR</p><p className="mt-1 font-black">{player.currentMmr ?? "—"}</p></div>
                   <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-400">Status</p><p className="mt-1 text-xs font-black">{player.status?.replaceAll("_", " ") ?? "Pending"}</p></div>
                 </div>
@@ -51,7 +65,7 @@ export default async function PlayersPage() {
               Player cards appear after approved applications create official database records.
             </p>
           </div>
-        )}
+        )}</>}
       </section>
     </div>
   );

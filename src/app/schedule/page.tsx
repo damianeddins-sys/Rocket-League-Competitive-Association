@@ -2,16 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CalendarDays, ChevronRight, Clock3, Dumbbell, Swords, Trophy } from "lucide-react";
 import { LeagueDataState } from "@/components/league-data-state";
+import { TierBadge, TierNavigation } from "@/components/tier-navigation";
 import { seasonWeekLabel } from "@/services/competition-events";
 import { loadPublicLeagueData } from "@/services/public-league-data";
 import type { PublicMatch } from "@/services/public-league-data";
+import { normalizeTierId } from "@/services/tiers";
 
 export const metadata: Metadata = { title: "Schedule" };
 export const dynamic = "force-dynamic";
 
 function MatchCard({ match }: { match: PublicMatch }) {
   return (
-    <Link href={`/matches/${match.id}`} className="panel group block p-5 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg">
+    <Link href={`/matches/${match.id}?tier=${match.tierId}`} className="panel group block p-5 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg">
       <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-slate-500">
         <span>Match {match.id.slice(0, 8)}</span>
         <span className="rounded-full bg-slate-100 px-2.5 py-1">{match.status.replaceAll("_", " ")}</span>
@@ -63,10 +65,12 @@ function MatchBlock({ title, time, matches }: { title: string; time: string; mat
 export default async function SchedulePage({
   searchParams,
 }: {
-  searchParams: Promise<{ week?: string }>;
+  searchParams: Promise<{ week?: string; tier?: string; season?: string }>;
 }) {
-  const data = await loadPublicLeagueData();
-  const requestedWeek = Number((await searchParams).week);
+  const query = await searchParams;
+  const tierId = normalizeTierId(query.tier) ?? "challenger";
+  const data = await loadPublicLeagueData({ tier: tierId, season: query.season });
+  const requestedWeek = Number(query.week);
   const selectedWeek = data.status === "ready"
     ? data.weeks.find((week) => week.number === requestedWeek)
       ?? data.weeks.find((week) => week.number === data.currentWeek?.number)
@@ -100,6 +104,11 @@ export default async function SchedulePage({
           <LeagueDataState state={data.reason} />
         ) : (
           selectedWeek ? <>
+            <TierNavigation
+              current={tierId}
+              pathname="/schedule"
+              searchParams={{ week: selectedWeek.number, season: query.season }}
+            />
             <nav aria-label="Season weeks" className="-mx-5 overflow-x-auto px-5 pb-3">
               <div className="flex min-w-max gap-2">
                 {data.weeks.map((week) => {
@@ -107,7 +116,7 @@ export default async function SchedulePage({
                   return (
                     <Link
                       key={week.number}
-                      href={`/schedule?week=${week.number}`}
+                      href={`/schedule?week=${week.number}&tier=${tierId}${query.season ? `&season=${query.season}` : ""}`}
                       aria-current={active ? "page" : undefined}
                       className={`rounded-lg border px-4 py-3 text-left ${active ? "border-[#1677ff] bg-[#1677ff] text-white shadow-md" : "border-slate-200 bg-white text-slate-600 hover:border-blue-300"}`}
                     >
@@ -133,6 +142,7 @@ export default async function SchedulePage({
               <span className="rounded-full bg-blue-100 px-4 py-2 text-xs font-black text-blue-700">
                 {scheduled.length} OFFICIAL SERIES
               </span>
+              <TierBadge tierId={tierId} />
             </div>
 
             {isRegularWeek ? (

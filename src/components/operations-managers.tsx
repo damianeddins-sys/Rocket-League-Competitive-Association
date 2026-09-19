@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { TierBadge, TierNavigation } from "@/components/tier-navigation";
 import { readApiResult } from "@/services/api-response";
+import type { TierId } from "@/services/tiers";
 
 function Feedback({ message }: { message?: string }) {
   return message
@@ -44,7 +46,16 @@ export function BotControl() {
 export function OperationsOverview({
   counts,
 }: {
-  counts: Record<"applications" | "transactions" | "players" | "franchises" | "members", number>;
+  counts: Record<"applications" | "transactions" | "players" | "franchises" | "members", number> & {
+    tiers: Array<{
+      id: TierId;
+      name: string;
+      color: string;
+      teams: number;
+      matches: number;
+      completed: number;
+    }>;
+  };
 }) {
   const links = {
     applications: "/operations/applications",
@@ -53,14 +64,38 @@ export function OperationsOverview({
     franchises: "/operations/teams",
     members: "/operations/staff",
   };
+  const summary = {
+    applications: counts.applications,
+    transactions: counts.transactions,
+    players: counts.players,
+    franchises: counts.franchises,
+    members: counts.members,
+  };
   return (
-    <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-      {Object.entries(counts).map(([label, value]) => (
+    <div className="mt-7">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      {Object.entries(summary).map(([label, value]) => (
         <Link key={label} href={links[label as keyof typeof links]} className="rounded-xl border border-slate-200 bg-white p-5 hover:border-blue-300">
           <p className="text-3xl font-black text-[#081e3a]">{value}</p>
           <p className="mt-1 text-xs font-black uppercase tracking-wider text-slate-500">{label}</p>
         </Link>
       ))}
+    </div>
+    <section className="mt-7">
+      <h3 className="text-lg font-black text-[#081e3a]">Active season by tier</h3>
+      <div className="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {counts.tiers.map((tier) => (
+          <article key={tier.id} className="rounded-xl border bg-white p-5" style={{ borderTop: `4px solid ${tier.color}` }}>
+            <TierBadge tierId={tier.id} compact />
+            <dl className="mt-5 grid grid-cols-3 gap-2 text-center">
+              <div><dt className="text-[10px] font-bold uppercase text-slate-400">Teams</dt><dd className="mt-1 text-xl font-black">{tier.teams}</dd></div>
+              <div><dt className="text-[10px] font-bold uppercase text-slate-400">Matches</dt><dd className="mt-1 text-xl font-black">{tier.matches}</dd></div>
+              <div><dt className="text-[10px] font-bold uppercase text-slate-400">Complete</dt><dd className="mt-1 text-xl font-black">{tier.completed}</dd></div>
+            </dl>
+          </article>
+        ))}
+      </div>
+    </section>
     </div>
   );
 }
@@ -71,6 +106,7 @@ type TransactionRow = {
   status: string;
   teamName: string;
   submittedByName: string;
+  tier: { name: string; slug: string };
   createdAt: string;
   requestData: Record<string, unknown>;
   beforeState: Record<string, unknown>;
@@ -110,6 +146,7 @@ export function TransactionManager({
             <div>
               <p className="text-xs font-black uppercase tracking-wider text-blue-600">{transaction.type.replaceAll("_", " ")}</p>
               <h3 className="mt-1 text-lg font-black text-[#081e3a]">{transaction.teamName}</h3>
+              <p className="mt-1 text-xs font-black uppercase tracking-wider text-slate-600">{transaction.tier.name} tier</p>
               <p className="text-sm text-slate-500">Submitted by {transaction.submittedByName} · {new Date(transaction.createdAt).toLocaleString()}</p>
               <p className="mt-1 font-mono text-xs text-slate-400">Transaction {transaction.id}</p>
             </div>
@@ -355,12 +392,15 @@ export function SettingsManager({
   notificationRoutes,
   integration,
   owner,
+  tiers,
+  teamTierAssignments,
 }: {
   seasons: SeasonRow[];
   channels: ChannelRow[];
   roles: Array<{ id: string; key: string; roleId: string; displayName: string; active: boolean }>;
   notificationRoutes: Array<{
     eventType: string;
+    tierId: string;
     channelKey: string;
     enabled: boolean;
   }>;
@@ -376,6 +416,24 @@ export function SettingsManager({
     failed: number;
   };
   owner: boolean;
+  tiers: Array<{
+    id: string;
+    seasonId: string;
+    slug: string;
+    displayName: string;
+    color: string;
+    iconPath: string;
+    active: boolean;
+  }>;
+  teamTierAssignments: Array<{
+    teamId: string;
+    teamName: string;
+    seasonId: string;
+    seasonName: string;
+    tierId: string;
+    tierName: string;
+    active: boolean;
+  }>;
 }) {
   const router = useRouter();
   const [message, setMessage] = useState<string>();
@@ -422,6 +480,14 @@ export function SettingsManager({
       ...payload,
       enabled: payload.enabled === "on",
     });
+  }
+  async function saveTier(formData: FormData) {
+    const payload = Object.fromEntries(formData.entries());
+    await patch("tiers", { ...payload, active: payload.active === "on" });
+  }
+  async function saveTeamTier(formData: FormData) {
+    const payload = Object.fromEntries(formData.entries());
+    await patch("team-tiers", { ...payload, active: payload.active === "on" });
   }
   return (
     <div className="mt-7 space-y-7">
@@ -476,6 +542,44 @@ export function SettingsManager({
         </div>
       </section>
       <section>
+        <h3 className="text-lg font-black text-[#081e3a]">Season tier configuration</h3>
+        <p className="mt-1 text-sm text-slate-600">Canonical IDs are fixed to challenger, contender, premier, and master. Presentation and activation remain auditable.</p>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          {tiers.map((tier) => (
+            <form key={tier.id} action={saveTier} className="rounded-xl border bg-white p-4" style={{ borderTop: `4px solid ${tier.color}` }}>
+              <input type="hidden" name="id" value={tier.id} />
+              <p className="font-mono text-xs font-black uppercase text-slate-400">{tier.slug}</p>
+              <input name="displayName" required defaultValue={tier.displayName} className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" aria-label="Tier display name" />
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <input name="color" required pattern="#[0-9a-fA-F]{6}" defaultValue={tier.color} className="rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm" aria-label="Tier color" />
+                <input name="iconPath" required defaultValue={tier.iconPath} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" aria-label="Tier icon path" />
+              </div>
+              <input name="reason" required minLength={3} placeholder="Required audit reason" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <label className="mt-3 flex items-center gap-2 text-sm font-bold"><input name="active" type="checkbox" defaultChecked={tier.active} /> Active for season</label>
+              <button className="mt-3 rounded-lg bg-[#1683ff] px-3 py-2 text-xs font-black text-white">Save tier</button>
+            </form>
+          ))}
+        </div>
+      </section>
+      <section>
+        <h3 className="text-lg font-black text-[#081e3a]">Franchise tier entries</h3>
+        <p className="mt-1 text-sm text-slate-600">Each entry is season-specific. Deactivation preserves historical records.</p>
+        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          {teamTierAssignments.map((assignment) => (
+            <form key={`${assignment.seasonId}:${assignment.teamId}:${assignment.tierId}`} action={saveTeamTier} className="rounded-xl border border-slate-200 bg-white p-4">
+              <input type="hidden" name="seasonId" value={assignment.seasonId} />
+              <input type="hidden" name="teamId" value={assignment.teamId} />
+              <input type="hidden" name="tierId" value={assignment.tierId} />
+              <p className="font-black text-[#081e3a]">{assignment.teamName}</p>
+              <p className="mt-1 text-xs font-bold uppercase text-slate-500">{assignment.seasonName} · {assignment.tierName}</p>
+              <input name="reason" required minLength={3} placeholder="Required audit reason" className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs" />
+              <label className="mt-3 flex items-center gap-2 text-sm font-bold"><input name="active" type="checkbox" defaultChecked={assignment.active} /> Entered</label>
+              <button className="mt-3 rounded-lg border border-blue-300 px-3 py-2 text-xs font-black text-blue-800">Save entry</button>
+            </form>
+          ))}
+        </div>
+      </section>
+      <section>
         <h3 className="text-lg font-black text-[#081e3a]">Discord channels</h3>
         <form action={createChannel} className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
           <p className="font-black text-[#081e3a]">Add a secure channel mapping</p>
@@ -508,9 +612,10 @@ export function SettingsManager({
         <p className="mt-1 text-sm text-slate-600">Choose which website events are sent to each configured Discord channel. Sensitive application fields are never included.</p>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           {notificationRoutes.map((route) => (
-            <form key={route.eventType} action={saveNotificationRoute} className="rounded-xl border border-slate-200 bg-white p-4">
+            <form key={`${route.eventType}:${route.tierId}`} action={saveNotificationRoute} className="rounded-xl border border-slate-200 bg-white p-4">
               <input type="hidden" name="eventType" value={route.eventType} />
-              <p className="font-mono text-xs font-bold text-slate-500">{route.eventType}</p>
+              <input type="hidden" name="tierId" value={route.tierId} />
+              <p className="font-mono text-xs font-bold text-slate-500">{route.eventType} · {route.tierId}</p>
               <select name="channelKey" required defaultValue={route.channelKey} className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
                 <option value="" disabled>Select a configured channel</option>
                 {channels.map((channel) => (
@@ -559,12 +664,14 @@ export function FranchiseWorkspace({
 }: {
   data: {
     team: { name: string; primaryColor: string } | null;
-    roster: Array<{ id: string; playerId: string; handle: string; startsAt: string }>;
-    transactions: Array<{ id: string; type: string; status: string; createdAt: string }>;
+    tiers: Array<{ name: string; slug: string }>;
+    roster: Array<{ id: string; playerId: string; handle: string; tier: { name: string; slug: string }; startsAt: string }>;
+    transactions: Array<{ id: string; type: string; status: string; tier: { name: string; slug: string }; createdAt: string }>;
     candidates: Array<{
       playerId: string;
       handle: string;
       division: string;
+      tierId: string;
       protectedRosterValue: string;
       status: string;
       rosteredByOtherTeam: boolean;
@@ -580,6 +687,7 @@ export function FranchiseWorkspace({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        tierId: formData.get("tierId"),
         proposedPlayerIds: formData.getAll("proposedPlayerIds"),
         reason: formData.get("reason"),
       }),
@@ -595,29 +703,33 @@ export function FranchiseWorkspace({
       <section className="rounded-xl border border-slate-200 bg-white p-5">
         <div className="h-2 rounded-full" style={{ backgroundColor: data.team.primaryColor }} />
         <h3 className="mt-4 text-xl font-black text-[#081e3a]">{data.team.name} roster</h3>
-        <div className="mt-4 space-y-2">{data.roster.map((member) => <div key={member.id} className="rounded-lg bg-slate-50 p-3 text-sm font-bold">{member.handle}</div>)}</div>
+        <div className="mt-4 space-y-2">{data.roster.map((member) => <div key={member.id} className="rounded-lg bg-slate-50 p-3 text-sm font-bold">{member.handle}<span className="ml-2 text-xs uppercase text-slate-400">{member.tier.name}</span></div>)}</div>
         {!data.roster.length && <p className="mt-4 text-sm text-slate-500">No active roster memberships.</p>}
       </section>
       <section className="rounded-xl border border-slate-200 bg-white p-5">
         <h3 className="text-xl font-black text-[#081e3a]">Transaction requests</h3>
-        <div className="mt-4 space-y-2">{data.transactions.map((transaction) => <div key={transaction.id} className="flex justify-between rounded-lg bg-slate-50 p-3 text-sm"><strong>{transaction.type.replaceAll("_", " ")}</strong><span>{transaction.status.replaceAll("_", " ")}</span></div>)}</div>
+        <div className="mt-4 space-y-2">{data.transactions.map((transaction) => <div key={transaction.id} className="flex justify-between rounded-lg bg-slate-50 p-3 text-sm"><strong>{transaction.tier.name} · {transaction.type.replaceAll("_", " ")}</strong><span>{transaction.status.replaceAll("_", " ")}</span></div>)}</div>
         {!data.transactions.length && <p className="mt-4 text-sm text-slate-500">No franchise transaction requests.</p>}
       </section>
-      <section className="rounded-xl border border-blue-200 bg-blue-50/40 p-5 lg:col-span-2">
+      {data.tiers.map((tier) => {
+        const tierRoster = data.roster.filter((member) => member.tier.slug === tier.slug);
+        const tierCandidates = data.candidates.filter((candidate) => candidate.tierId === tier.slug);
+        return <section key={tier.slug} className="rounded-xl border border-blue-200 bg-blue-50/40 p-5 lg:col-span-2">
         <h3 className="text-xl font-black text-[#081e3a]">Submit roster transaction</h3>
-        <p className="mt-2 text-sm text-slate-600">Propose one Master, one Challenger, and one Contender. The backend recalculates roster limits and re-checks every player before saving.</p>
+        <p className="mt-2 text-sm text-slate-600">Propose exactly three {tier.name} players. The backend enforces season and tier isolation before saving.</p>
         <form action={submitTransaction} className="mt-5 grid gap-3 md:grid-cols-3">
+          <input type="hidden" name="tierId" value={tier.slug} />
           {[0, 1, 2].map((slot) => (
             <select
               key={slot}
               name="proposedPlayerIds"
               required
-              defaultValue={data.roster[slot]?.playerId ?? ""}
+              defaultValue={tierRoster[slot]?.playerId ?? ""}
               className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
               aria-label={`Proposed roster player ${slot + 1}`}
             >
               <option value="">Select player</option>
-              {data.candidates.map((candidate) => (
+              {tierCandidates.map((candidate) => (
                 <option key={candidate.playerId} value={candidate.playerId} disabled={candidate.rosteredByOtherTeam || !candidate.eligibleForProposal}>
                   {candidate.handle} · {candidate.division} · {candidate.protectedRosterValue} PRV{candidate.rosteredByOtherTeam ? " · rostered elsewhere" : !candidate.eligibleForProposal ? ` · ${candidate.status.toLowerCase().replaceAll("_", " ")}` : ""}
                 </option>
@@ -627,18 +739,22 @@ export function FranchiseWorkspace({
           <textarea name="reason" required minLength={10} maxLength={2000} rows={3} placeholder="Explain the requested roster change" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm md:col-span-3" />
           <button className="rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white md:col-span-3">Submit transaction</button>
         </form>
-      </section>
+      </section>;
+      })}
     </div>
   );
 }
 
 export function StatisticsWorkspace({
   replays,
+  tierId,
 }: {
   replays: Array<{ id: string; status: string; player: string; submittedAt: string; parserVersion: string | null }>;
+  tierId: TierId;
 }) {
   return (
     <div className="mt-7 space-y-3">
+      <TierNavigation current={tierId} pathname="/operations/statistics" />
       {replays.map((replay) => <div key={replay.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm"><div><strong>{replay.player}</strong><p className="text-xs text-slate-500">{new Date(replay.submittedAt).toLocaleString()} · Parser {replay.parserVersion ?? "pending"}</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black">{replay.status.replaceAll("_", " ")}</span></div>)}
       {!replays.length && <Empty text="No replay submissions are stored." />}
     </div>
@@ -649,14 +765,44 @@ export function ProductionWorkspace({
   data,
 }: {
   data: {
+    tierId: TierId;
     events: Array<{ id: string; name: string; startsAt: string; endsAt: string }>;
-    matches: Array<{ id: string; status: string; scheduledAt: string; teamA: string; teamB: string }>;
+    matches: Array<{
+      id: string;
+      status: string;
+      scheduledAt: string;
+      teamA: string;
+      teamB: string;
+      teamAScore: number | null;
+      teamBScore: number | null;
+    }>;
   };
 }) {
+  const router = useRouter();
+  const [message, setMessage] = useState<string>();
+  async function verifyResult(formData: FormData) {
+    setMessage("Validating season and tier before publishing result…");
+    const response = await fetch("/api/admin/operations/matches", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: formData.get("id"),
+        teamAScore: Number(formData.get("teamAScore")),
+        teamBScore: Number(formData.get("teamBScore")),
+        officialTie: formData.get("officialTie") === "on",
+        reason: formData.get("reason"),
+      }),
+    });
+    const result = await readApiResult<object>(response);
+    setMessage(response.ok ? "Result verified in the selected tier." : result.error ?? "Result verification failed");
+    if (response.ok) router.refresh();
+  }
   return (
     <div className="mt-7 grid gap-5 lg:grid-cols-2">
+      <div className="lg:col-span-2"><TierNavigation current={data.tierId} pathname="/operations/production" /></div>
+      <div className="lg:col-span-2"><Feedback message={message} /></div>
       <section className="rounded-xl border border-slate-200 bg-white p-5"><h3 className="text-lg font-black">Events</h3><div className="mt-3 space-y-2">{data.events.map((event) => <div key={event.id} className="rounded-lg bg-slate-50 p-3 text-sm"><strong>{event.name}</strong><p className="text-xs text-slate-500">{new Date(event.startsAt).toLocaleDateString()}–{new Date(event.endsAt).toLocaleDateString()}</p></div>)}</div></section>
-      <section className="rounded-xl border border-slate-200 bg-white p-5"><h3 className="text-lg font-black">Match production queue</h3><div className="mt-3 space-y-2">{data.matches.map((match) => <div key={match.id} className="rounded-lg bg-slate-50 p-3 text-sm"><strong>{match.teamA} vs {match.teamB}</strong><p className="text-xs text-slate-500">{new Date(match.scheduledAt).toLocaleString()} · {match.status}</p></div>)}</div></section>
+      <section className="rounded-xl border border-slate-200 bg-white p-5"><h3 className="text-lg font-black">Match production queue</h3><div className="mt-3 space-y-3">{data.matches.map((match) => <div key={match.id} className="rounded-lg bg-slate-50 p-3 text-sm"><strong>{match.teamA} vs {match.teamB}</strong><p className="text-xs text-slate-500">{new Date(match.scheduledAt).toLocaleString()} · {match.status}</p>{match.status === "VERIFIED" ? <p className="mt-2 text-lg font-black">{match.teamAScore}–{match.teamBScore}</p> : <form action={verifyResult} className="mt-3 grid grid-cols-2 gap-2"><input type="hidden" name="id" value={match.id} /><input name="teamAScore" type="number" min={0} max={99} required placeholder={`${match.teamA} score`} className="rounded border border-slate-300 p-2" /><input name="teamBScore" type="number" min={0} max={99} required placeholder={`${match.teamB} score`} className="rounded border border-slate-300 p-2" /><input name="reason" minLength={3} required placeholder="Verification reason" className="col-span-2 rounded border border-slate-300 p-2" /><label className="col-span-2 flex items-center gap-2 text-xs font-bold"><input name="officialTie" type="checkbox" /> Official tie</label><button className="col-span-2 rounded bg-[#1683ff] px-3 py-2 font-black text-white">Verify result</button></form>}</div>)}</div></section>
     </div>
   );
 }

@@ -56,6 +56,7 @@ export type Permission =
   | "standings.correct"
   | "statistics.review"
   | "production.view"
+  | "matches.manage"
   | "moderation.manage"
   | "applications.manage"
   | "users.manage"
@@ -86,6 +87,7 @@ const ALL_PERMISSIONS: Permission[] = [
   "standings.correct",
   "statistics.review",
   "production.view",
+  "matches.manage",
   "moderation.manage",
   "applications.manage",
   "users.manage",
@@ -219,6 +221,7 @@ export function resolveDiscordAccess(inputRoleIds: readonly string[]): DiscordAc
   if (isProduction) {
     portals.add("PRODUCTION");
     permissions.add("production.view");
+    permissions.add("matches.manage");
   }
   if (isStatistics) {
     portals.add("STATISTICS");

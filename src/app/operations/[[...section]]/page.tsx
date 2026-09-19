@@ -36,6 +36,7 @@ import {
   loadTeamManagement,
   loadTransactionManagement,
 } from "@/services/operations-data";
+import { normalizeTierId } from "@/services/tiers";
 
 export const metadata: Metadata = { title: "Operations" };
 export const dynamic = "force-dynamic";
@@ -66,10 +67,12 @@ export default async function OperationsPage({
   searchParams,
 }: {
   params: Promise<{ section?: string[] }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; tier?: string }>;
 }) {
   const { section } = await params;
-  const rawPage = (await searchParams).page;
+  const query = await searchParams;
+  const rawPage = query.page;
+  const tierId = normalizeTierId(query.tier) ?? "challenger";
   const page = rawPage && /^\d+$/.test(rawPage) ? Math.max(1, Number(rawPage)) : 1;
   const sectionKey = section?.[0] && section[0] in sections
     ? section[0] as keyof typeof sections
@@ -123,8 +126,8 @@ export default async function OperationsPage({
   const settingsManagement = sectionKey === "settings" ? await loadSettingsManagement() : null;
   const auditManagement = sectionKey === "audit" ? await loadAuditManagement() : null;
   const franchiseWorkspace = sectionKey === "franchise" ? await loadFranchiseWorkspace(access.franchiseNumber) : null;
-  const statisticsWorkspace = sectionKey === "statistics" ? await loadStatisticsWorkspace() : null;
-  const productionWorkspace = sectionKey === "production" ? await loadProductionWorkspace() : null;
+  const statisticsWorkspace = sectionKey === "statistics" ? await loadStatisticsWorkspace(tierId) : null;
+  const productionWorkspace = sectionKey === "production" ? await loadProductionWorkspace(tierId) : null;
   const selectedDataStatus = [
     overview,
     transactionManagement,
@@ -204,7 +207,10 @@ export default async function OperationsPage({
             ) : franchiseWorkspace?.status === "READY" ? (
               <FranchiseWorkspace data={franchiseWorkspace.data} />
             ) : statisticsWorkspace?.status === "READY" ? (
-              <StatisticsWorkspace replays={statisticsWorkspace.data} />
+              <StatisticsWorkspace
+                replays={statisticsWorkspace.data.replays}
+                tierId={statisticsWorkspace.data.tierId}
+              />
             ) : productionWorkspace?.status === "READY" ? (
               <ProductionWorkspace data={productionWorkspace.data} />
             ) : userManagement?.status === "READY" ? (

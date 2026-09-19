@@ -1,12 +1,18 @@
 import { notFound } from "next/navigation";
 import { LeagueDataState } from "@/components/league-data-state";
+import { TierBadge } from "@/components/tier-navigation";
 import { loadPublicLeagueData } from "@/services/public-league-data";
+import { normalizeTierId } from "@/services/tiers";
 
 export const dynamic = "force-dynamic";
 
-export default async function FranchiseDetailPage({ params }: PageProps<"/teams/[slug]">) {
+export default async function FranchiseDetailPage({
+  params,
+  searchParams,
+}: PageProps<"/teams/[slug]"> & { searchParams: Promise<{ tier?: string }> }) {
   const { slug } = await params;
-  const data = await loadPublicLeagueData();
+  const tierId = normalizeTierId((await searchParams).tier) ?? "challenger";
+  const data = await loadPublicLeagueData({ tier: tierId });
   if (data.status !== "ready") {
     return (
       <section className="min-h-[70vh] bg-[#f4f7fa] px-5 py-16">
@@ -26,6 +32,7 @@ export default async function FranchiseDetailPage({ params }: PageProps<"/teams/
         <div className="mx-auto max-w-6xl">
           <p className="eyebrow">{data.season.name} franchise</p>
           <h1 className="mt-3 text-5xl font-black">{team.name}</h1>
+          <div className="mt-4"><TierBadge tierId={tierId} /></div>
           <p className="mt-4 text-lg">{team.wins}–{team.losses} · {team.points} Qualification Points</p>
         </div>
       </section>

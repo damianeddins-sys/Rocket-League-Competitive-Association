@@ -3,7 +3,11 @@ import Link from "next/link";
 export function LeagueDataState({
   state,
 }: {
-  state: "DATABASE_NOT_CONFIGURED" | "DATABASE_UNAVAILABLE" | "NO_ACTIVE_SEASON";
+  state:
+    | "DATABASE_NOT_CONFIGURED"
+    | "DATABASE_UNAVAILABLE"
+    | "NO_ACTIVE_SEASON"
+    | "NO_TIER_CONFIGURATION";
 }) {
   const copy = {
     DATABASE_NOT_CONFIGURED: {
@@ -17,6 +21,10 @@ export function LeagueDataState({
     NO_ACTIVE_SEASON: {
       title: "No active season",
       detail: "Season 1 has not been activated in the official database.",
+    },
+    NO_TIER_CONFIGURATION: {
+      title: "Tier is not configured",
+      detail: "This season does not have an active configuration for the selected competitive tier.",
     },
   }[state];
 

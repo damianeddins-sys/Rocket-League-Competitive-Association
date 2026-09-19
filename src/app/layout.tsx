@@ -10,8 +10,10 @@ import "./globals.css";
 const navigation = [
   ["Standings", "/standings"],
   ["Schedule", "/schedule"],
+  ["Results", "/results"],
   ["Teams", "/teams"],
   ["Players", "/players"],
+  ["Stats", "/statistics"],
   ["Events", "/events"],
   ["Applications", "/applications"],
   ["Rules", "/rules"],

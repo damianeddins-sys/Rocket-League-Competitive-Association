@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title">
+  <title id="title">RLCA Contender tier emblem</title>
+  <path fill="#05070C" d="M48 4 87 27 73 76 48 92 23 76 9 27 48 4Z"/>
+  <path fill="#8A2BE2" d="m48 13 30 18-11 39-19 12-19-12-11-39 30-18Z"/>
+  <path fill="#F5F7FA" d="m48 25 18 11-5 22-13 13-13-13-5-22 18-11Z"/>
+  <path fill="#D9E1EA" d="m48 34 9 6-3 14-6 8-6-8-3-14 9-6Z"/>
+  <circle cx="48" cy="45" r="5" fill="#8A2BE2"/>
+</svg>

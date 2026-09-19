@@ -3,8 +3,10 @@ import Link from "next/link";
 import { ArrowLeft, LockKeyhole, Trophy } from "lucide-react";
 import { notFound } from "next/navigation";
 import { LeagueDataState } from "@/components/league-data-state";
+import { TierBadge } from "@/components/tier-navigation";
 import { competitionEventBySlug } from "@/services/competition-events";
 import { loadPublicLeagueData } from "@/services/public-league-data";
+import { normalizeTierId } from "@/services/tiers";
 
 export const dynamic = "force-dynamic";
 
@@ -16,12 +18,16 @@ export async function generateMetadata({
   return { title: configured ? configured[1].name : "Event" };
 }
 
-export default async function EventDetailPage({ params }: PageProps<"/events/[slug]">) {
+export default async function EventDetailPage({
+  params,
+  searchParams,
+}: PageProps<"/events/[slug]"> & { searchParams: Promise<{ tier?: string }> }) {
   const { slug } = await params;
+  const tierId = normalizeTierId((await searchParams).tier) ?? "challenger";
   const configured = competitionEventBySlug(slug);
   if (!configured) notFound();
   const [eventType, presentation] = configured;
-  const data = await loadPublicLeagueData();
+  const data = await loadPublicLeagueData({ tier: tierId });
   const event = data.status === "ready"
     ? data.events.find((item) => item.type === eventType)
     : null;
@@ -37,13 +43,14 @@ export default async function EventDetailPage({ params }: PageProps<"/events/[sl
     <div className="min-h-screen bg-[#f4f7fa]">
       <section className="hero-grid bg-[#07172b] px-5 py-14 text-white">
         <div className="mx-auto max-w-7xl lg:px-3">
-          <Link href="/events" className="inline-flex items-center gap-2 text-sm font-bold text-blue-200 hover:text-white">
+          <Link href={`/events?tier=${tierId}`} className="inline-flex items-center gap-2 text-sm font-bold text-blue-200 hover:text-white">
             <ArrowLeft size={16} /> All events
           </Link>
           <div className="mt-10 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="eyebrow text-blue-300">{presentation.weeks} · {presentation.teams} teams</p>
               <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">{presentation.name}</h1>
+              <div className="mt-4"><TierBadge tierId={tierId} /></div>
               <p className="mt-4 text-lg text-slate-300">{presentation.format}</p>
             </div>
             <div className="rounded-xl border border-blue-400/25 bg-blue-500/10 px-5 py-4">
@@ -102,7 +109,7 @@ export default async function EventDetailPage({ params }: PageProps<"/events/[sl
                       <p className="eyebrow border-b border-slate-200 pb-3 text-slate-500">Round {round}</p>
                       <div className="mt-4 space-y-4">
                         {eventMatches.filter((match) => match.sundaySlot === round).map((match) => (
-                          <Link key={match.id} href={`/matches/${match.id}`} className="panel block p-4 hover:border-blue-300">
+                          <Link key={match.id} href={`/matches/${match.id}?tier=${tierId}`} className="panel block p-4 hover:border-blue-300">
                             {[match.teamA, match.teamB].map((team, index) => (
                               <div key={team.id} className="flex items-center gap-3 py-2">
                                 <span className="h-3 w-3 rounded-full" style={{ backgroundColor: team.color }} />

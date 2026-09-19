@@ -1,4 +1,4 @@
-import { asc, count, desc, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull } from "drizzle-orm";
 import { getDatabase } from "../db";
 import {
   applicationEmailDocuments,
@@ -17,12 +17,14 @@ import {
   rosterMemberships,
   seasons,
   teams,
+  teamSeasonEntries,
   events,
   matches,
   transactionRequests,
   users,
 } from "../db/schema";
 import { DISCORD_NOTIFICATION_EVENTS } from "./discord/notifications";
+import { normalizeTierId, TIERS } from "./tiers";
 
 export type OperationsData<T> =
   | { status: "READY"; data: T }
@@ -49,12 +51,20 @@ export function loadOperationsOverview() {
       [playerCount],
       [teamCount],
       [userCount],
+      divisionRows,
+      entryRows,
+      matchRows,
+      activeSeasonRows,
     ] = await Promise.all([
       db.select({ value: count() }).from(applications),
       db.select({ value: count() }).from(transactionRequests),
       db.select({ value: count() }).from(players),
       db.select({ value: count() }).from(teams),
       db.select({ value: count() }).from(users),
+      db.select().from(divisions),
+      db.select().from(teamSeasonEntries),
+      db.select().from(matches),
+      db.select({ id: seasons.id }).from(seasons).where(eq(seasons.active, true)).limit(1),
     ]);
     return {
       applications: applicationCount.value,
@@ -62,6 +72,31 @@ export function loadOperationsOverview() {
       players: playerCount.value,
       franchises: teamCount.value,
       members: userCount.value,
+      tiers: TIERS.map((tier) => {
+        const activeSeasonId = activeSeasonRows[0]?.id;
+        const divisionIds = new Set(
+          divisionRows
+            .filter((division) => division.slug === tier.id && division.seasonId === activeSeasonId)
+            .map((division) => division.id),
+        );
+        const tierMatches = matchRows.filter(
+          (match) => match.seasonId === activeSeasonId && divisionIds.has(match.divisionId),
+        );
+        return {
+          id: tier.id,
+          name: tier.name,
+          color: tier.color,
+          teams: entryRows.filter(
+            (entry) =>
+              entry.seasonId === activeSeasonId
+              && divisionIds.has(entry.divisionId)
+              && entry.active
+              && !entry.endedAt,
+          ).length,
+          matches: tierMatches.length,
+          completed: tierMatches.filter((match) => match.status === "VERIFIED").length,
+        };
+      }),
     };
   });
 }
@@ -70,17 +105,22 @@ export function loadTransactionManagement(page = 1) {
   return load(async () => {
     const db = getDatabase();
     const pageSize = 50;
-    const [requests, teamRows, userRows, [totalRow]] = await Promise.all([
+    const [requests, teamRows, userRows, divisionRows, [totalRow]] = await Promise.all([
       db.select().from(transactionRequests)
         .orderBy(desc(transactionRequests.createdAt))
         .limit(pageSize)
         .offset((page - 1) * pageSize),
       db.select({ id: teams.id, name: teams.name }).from(teams),
       db.select({ id: users.id, name: users.displayName }).from(users),
+      db.select({ id: divisions.id, name: divisions.displayName, slug: divisions.slug }).from(divisions),
       db.select({ value: count() }).from(transactionRequests),
     ]);
     const teamNames = new Map(teamRows.map((team) => [team.id, team.name]));
     const userNames = new Map(userRows.map((user) => [user.id, user.name]));
+    const tierNames = new Map(divisionRows.map((division) => [
+      division.id,
+      { name: division.name, slug: division.slug },
+    ]));
     return {
       items: requests.map((request) => ({
         ...request,
@@ -88,6 +128,7 @@ export function loadTransactionManagement(page = 1) {
         reviewedAt: request.reviewedAt?.toISOString() ?? null,
         teamName: teamNames.get(request.teamId) ?? "Unknown franchise",
         submittedByName: userNames.get(request.submittedBy) ?? "Unknown member",
+        tier: tierNames.get(request.divisionId) ?? { name: "Unknown tier", slug: "unknown" },
       })),
       page,
       pages: Math.max(1, Math.ceil(totalRow.value / pageSize)),
@@ -172,7 +213,17 @@ export function loadDocumentManagement() {
 export function loadSettingsManagement() {
   return load(async () => {
     const db = getDatabase();
-    const [seasonRows, channels, roles, notificationRoutes, notificationJobs, runtime] = await Promise.all([
+    const [
+      seasonRows,
+      channels,
+      roles,
+      notificationRoutes,
+      notificationJobs,
+      runtime,
+      tierRows,
+      teamRows,
+      teamEntryRows,
+    ] = await Promise.all([
       db.select().from(seasons).orderBy(desc(seasons.startsAt)),
       db.select().from(discordChannelConfigurations).orderBy(asc(discordChannelConfigurations.category), asc(discordChannelConfigurations.displayName)),
       db.select().from(discordRoleConfigurations).orderBy(asc(discordRoleConfigurations.category), asc(discordRoleConfigurations.displayName)),
@@ -182,6 +233,9 @@ export function loadSettingsManagement() {
         .from(discordNotificationJobs)
         .groupBy(discordNotificationJobs.status),
       db.select().from(discordBotRuntime).where(eq(discordBotRuntime.key, "gateway")).limit(1),
+      db.select().from(divisions).orderBy(asc(divisions.seasonId), asc(divisions.ordinal)),
+      db.select({ id: teams.id, name: teams.name }).from(teams).orderBy(asc(teams.franchiseNumber)),
+      db.select().from(teamSeasonEntries),
     ]);
     return {
       seasons: seasonRows.map((season) => ({
@@ -205,13 +259,21 @@ export function loadSettingsManagement() {
         displayName: role.displayName,
         active: role.active,
       })),
-      notificationRoutes: DISCORD_NOTIFICATION_EVENTS.map((eventType) => {
-        const configured = notificationRoutes.find((route) => route.eventType === eventType);
+      notificationRoutes: DISCORD_NOTIFICATION_EVENTS.flatMap((eventType) => {
+        const tierIds = eventType === "MATCH_RESULT_VERIFIED"
+          ? TIERS.map((tier) => tier.id)
+          : ["all"];
+        return tierIds.map((tierId) => {
+        const configured = notificationRoutes.find(
+          (route) => route.eventType === eventType && route.tierId === tierId,
+        );
         return {
           eventType,
+          tierId,
           channelKey: configured?.channelKey ?? "",
           enabled: configured?.enabled ?? false,
         };
+        });
       }),
       integration: {
         runtime: runtime[0] ? {
@@ -232,6 +294,35 @@ export function loadSettingsManagement() {
           .reduce((total, job) => total + job.value, 0),
         failed: notificationJobs.find((job) => job.status === "FAILED")?.value ?? 0,
       },
+      tiers: tierRows.map((tier) => ({
+        id: tier.id,
+        seasonId: tier.seasonId,
+        slug: tier.slug,
+        displayName: tier.displayName,
+        color: tier.color,
+        iconPath: tier.iconPath,
+        active: tier.active,
+      })),
+      teamTierAssignments: teamRows.flatMap((team) => seasonRows.flatMap((season) =>
+        tierRows
+          .filter((tier) => tier.seasonId === season.id)
+          .map((tier) => {
+            const entry = teamEntryRows.find(
+              (candidate) =>
+                candidate.teamId === team.id
+                && candidate.seasonId === season.id
+                && candidate.divisionId === tier.id,
+            );
+            return {
+              teamId: team.id,
+              teamName: team.name,
+              seasonId: season.id,
+              seasonName: season.name,
+              tierId: tier.slug,
+              tierName: tier.displayName,
+              active: Boolean(entry?.active && !entry.endedAt),
+            };
+          }))),
     };
   });
 }
@@ -268,12 +359,12 @@ export function loadStaffSummary() {
 
 export function loadFranchiseWorkspace(franchiseNumber: number | null) {
   return load(async () => {
-    if (!franchiseNumber) return { team: null, roster: [], transactions: [], candidates: [] };
+    if (!franchiseNumber) return { team: null, tiers: [], roster: [], transactions: [], candidates: [] };
     const db = getDatabase();
     const [team] = await db.select().from(teams).where(eq(teams.franchiseNumber, franchiseNumber)).limit(1);
-    if (!team) return { team: null, roster: [], transactions: [], candidates: [] };
+    if (!team) return { team: null, tiers: [], roster: [], transactions: [], candidates: [] };
     const [activeSeason] = await db.select({ id: seasons.id }).from(seasons).where(eq(seasons.active, true)).limit(1);
-    const [memberships, playerRows, requestRows, seasonPlayers, divisionRows] = await Promise.all([
+    const [memberships, playerRows, requestRows, seasonPlayers, divisionRows, teamEntries] = await Promise.all([
       activeSeason
         ? db.select().from(rosterMemberships).where(eq(rosterMemberships.seasonId, activeSeason.id))
         : Promise.resolve([]),
@@ -285,22 +376,39 @@ export function loadFranchiseWorkspace(franchiseNumber: number | null) {
       activeSeason
         ? db.select().from(divisions).where(eq(divisions.seasonId, activeSeason.id))
         : Promise.resolve([]),
+      activeSeason
+        ? db.select().from(teamSeasonEntries).where(and(
+          eq(teamSeasonEntries.seasonId, activeSeason.id),
+          eq(teamSeasonEntries.teamId, team.id),
+          eq(teamSeasonEntries.active, true),
+          isNull(teamSeasonEntries.endedAt),
+        ))
+        : Promise.resolve([]),
     ]);
     const handles = new Map(playerRows.map((player) => [player.id, player.handle]));
-    const divisionNames = new Map(divisionRows.map((division) => [division.id, division.displayName]));
+    const divisionNames = new Map(divisionRows.map((division) => [
+      division.id,
+      { name: division.displayName, slug: division.slug },
+    ]));
     const currentMemberships = memberships.filter((entry) => !entry.endsAt);
     return {
       team,
+      tiers: teamEntries.flatMap((entry) => {
+        const tier = divisionNames.get(entry.divisionId);
+        return tier ? [tier] : [];
+      }),
       roster: currentMemberships.filter((entry) => entry.teamId === team.id).map((entry) => ({
         id: entry.id,
         playerId: entry.playerId,
         handle: handles.get(entry.playerId) ?? "Unknown player",
+        tier: divisionNames.get(entry.divisionId) ?? { name: "Unknown", slug: "unknown" },
         startsAt: entry.startsAt.toISOString(),
       })),
       transactions: requestRows.map((entry) => ({
         id: entry.id,
         type: entry.type,
         status: entry.status,
+        tier: divisionNames.get(entry.divisionId) ?? { name: "Unknown", slug: "unknown" },
         createdAt: entry.createdAt.toISOString(),
       })),
       candidates: seasonPlayers
@@ -308,7 +416,8 @@ export function loadFranchiseWorkspace(franchiseNumber: number | null) {
         .map((entry) => ({
           playerId: entry.playerId,
           handle: handles.get(entry.playerId) ?? "Unknown player",
-          division: divisionNames.get(entry.divisionId!) ?? "Unplaced",
+          division: divisionNames.get(entry.divisionId!)?.name ?? "Unplaced",
+          tierId: divisionNames.get(entry.divisionId!)?.slug ?? "unknown",
           protectedRosterValue: entry.protectedRosterValue!,
           status: entry.status,
           rosteredByOtherTeam: currentMemberships.some(
@@ -323,34 +432,65 @@ export function loadFranchiseWorkspace(franchiseNumber: number | null) {
   });
 }
 
-export function loadStatisticsWorkspace() {
+export function loadStatisticsWorkspace(tierInput?: string) {
   return load(async () => {
     const db = getDatabase();
-    const [replayRows, playerRows] = await Promise.all([
+    const tierId = normalizeTierId(tierInput) ?? "challenger";
+    const [activeSeason] = await db.select({ id: seasons.id }).from(seasons).where(eq(seasons.active, true)).limit(1);
+    const [tier] = activeSeason
+      ? await db.select({ id: divisions.id }).from(divisions).where(and(
+        eq(divisions.seasonId, activeSeason.id),
+        eq(divisions.slug, tierId),
+      )).limit(1)
+      : [];
+    const [replayRows, playerRows, matchRows, tierPlayers] = await Promise.all([
       db.select().from(replays).orderBy(desc(replays.submittedAt)).limit(250),
       db.select({ id: players.id, handle: players.handle }).from(players),
+      tier ? db.select({ id: matches.id }).from(matches).where(eq(matches.divisionId, tier.id)) : Promise.resolve([]),
+      tier ? db.select({ playerId: playerSeasons.playerId }).from(playerSeasons).where(and(
+        eq(playerSeasons.seasonId, activeSeason!.id),
+        eq(playerSeasons.divisionId, tier.id),
+      )) : Promise.resolve([]),
     ]);
     const handles = new Map(playerRows.map((player) => [player.id, player.handle]));
-    return replayRows.map((replay) => ({
+    const matchIds = new Set(matchRows.map((match) => match.id));
+    const playerIds = new Set(tierPlayers.map((player) => player.playerId));
+    return {
+      tierId,
+      replays: replayRows.filter(
+        (replay) =>
+          (replay.matchId ? matchIds.has(replay.matchId) : false)
+          || (replay.playerId ? playerIds.has(replay.playerId) : false),
+      ).map((replay) => ({
       id: replay.id,
       status: replay.status,
       player: replay.playerId ? handles.get(replay.playerId) ?? "Unknown player" : "Unassigned",
       submittedAt: replay.submittedAt.toISOString(),
       parserVersion: replay.parserVersion,
-    }));
+      })),
+    };
   });
 }
 
-export function loadProductionWorkspace() {
+export function loadProductionWorkspace(tierInput?: string) {
   return load(async () => {
     const db = getDatabase();
+    const tierId = normalizeTierId(tierInput) ?? "challenger";
+    const [activeSeason] = await db.select({ id: seasons.id }).from(seasons).where(eq(seasons.active, true)).limit(1);
+    const [tier] = activeSeason
+      ? await db.select({ id: divisions.id }).from(divisions).where(and(
+        eq(divisions.seasonId, activeSeason.id),
+        eq(divisions.slug, tierId),
+      )).limit(1)
+      : [];
     const [eventRows, matchRows, teamRows] = await Promise.all([
-      db.select().from(events).orderBy(asc(events.startsAt)),
-      db.select().from(matches).orderBy(asc(matches.scheduledAt)).limit(250),
+      tier ? db.select().from(events).where(eq(events.divisionId, tier.id)).orderBy(asc(events.startsAt)) : Promise.resolve([]),
+      tier ? db.select().from(matches).where(eq(matches.divisionId, tier.id)).orderBy(asc(matches.scheduledAt)).limit(250) : Promise.resolve([]),
       db.select({ id: teams.id, name: teams.name }).from(teams),
     ]);
     const names = new Map(teamRows.map((team) => [team.id, team.name]));
     return {
+      tierId,
       events: eventRows.map((event) => ({
         id: event.id,
         name: event.name,
@@ -363,6 +503,8 @@ export function loadProductionWorkspace() {
         scheduledAt: match.scheduledAt.toISOString(),
         teamA: names.get(match.teamAId) ?? "Unknown",
         teamB: names.get(match.teamBId) ?? "Unknown",
+        teamAScore: match.teamAScore,
+        teamBScore: match.teamBScore,
       })),
     };
   });

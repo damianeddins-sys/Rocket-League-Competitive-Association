@@ -3,14 +3,15 @@ import type { RosterPlayer } from "./rosters";
 import { canTransitionTransactionRequest, validateTransaction } from "./transactions";
 
 const roster: RosterPlayer[] = [
-  { playerId: "master", division: "MASTER", protectedValue: 1600 },
-  { playerId: "challenger", division: "CHALLENGER", protectedValue: 1400 },
-  { playerId: "contender", division: "CONTENDER", protectedValue: 1200 },
+  { playerId: "premier-1", division: "PREMIER", protectedValue: 1400 },
+  { playerId: "premier-2", division: "PREMIER", protectedValue: 1400 },
+  { playerId: "premier-3", division: "PREMIER", protectedValue: 1400 },
 ];
 
 const base = {
   type: "FREE_AGENT_SIGNING" as const,
   activeEvent: null,
+  tier: "PREMIER" as const,
   currentRoster: roster,
   proposedRoster: roster,
   capRange: { floor: 4000, cap: 4400 },

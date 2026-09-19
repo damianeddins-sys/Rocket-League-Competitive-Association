@@ -106,6 +106,20 @@
       "when": 1789783771405,
       "tag": "0014_easy_reptil",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1789784929748,
+      "tag": "0015_faulty_shinobi_shaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1789785018084,
+      "tag": "0016_wandering_hellcat",
+      "breakpoints": true
     }
   ]
 }

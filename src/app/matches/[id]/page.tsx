@@ -1,12 +1,18 @@
 import { notFound } from "next/navigation";
 import { LeagueDataState } from "@/components/league-data-state";
+import { TierBadge } from "@/components/tier-navigation";
 import { loadPublicLeagueData } from "@/services/public-league-data";
+import { normalizeTierId } from "@/services/tiers";
 
 export const dynamic = "force-dynamic";
 
-export default async function MatchDetailPage({ params }: PageProps<"/matches/[id]">) {
+export default async function MatchDetailPage({
+  params,
+  searchParams,
+}: PageProps<"/matches/[id]"> & { searchParams: Promise<{ tier?: string }> }) {
   const { id } = await params;
-  const data = await loadPublicLeagueData();
+  const tierId = normalizeTierId((await searchParams).tier) ?? "challenger";
+  const data = await loadPublicLeagueData({ tier: tierId });
   if (data.status !== "ready") {
     return (
       <section className="min-h-[70vh] bg-[#f4f7fa] px-5 py-16">
@@ -24,6 +30,7 @@ export default async function MatchDetailPage({ params }: PageProps<"/matches/[i
           <p className="eyebrow text-blue-300">
             {data.season.name} · Week {match.week} · BO{match.bestOf}
           </p>
+          <div className="mt-4 flex justify-center"><TierBadge tierId={tierId} /></div>
           <div className="mt-8 grid grid-cols-[1fr_auto_1fr] items-center gap-5">
             <div>
               <p className="text-4xl font-black">{match.teamA.shortName}</p>

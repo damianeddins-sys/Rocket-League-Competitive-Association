@@ -46,7 +46,16 @@ describe("Discord bot health", () => {
     vi.stubGlobal("fetch", vi.fn(async (url: string | URL) => {
       if (String(url).endsWith("/commands")) {
         return new Response(JSON.stringify(
-          REQUIRED_DISCORD_COMMANDS.map((name) => ({ name })),
+          REQUIRED_DISCORD_COMMANDS.map((name) => ({
+            name,
+            ...(["standings", "schedule", "teams", "events"].includes(name) ? {
+              options: [{
+                name: "tier",
+                required: true,
+                choices: ["challenger", "contender", "premier", "master"].map((value) => ({ value })),
+              }],
+            } : {}),
+          })),
         ), { status: 200 });
       }
       return new Response(JSON.stringify({ id: "bot" }), { status: 200 });

@@ -3,6 +3,7 @@ import {
   loadPublicLeagueData,
   type PublicLeagueData,
 } from "../public-league-data";
+import { normalizeTierId } from "../tiers";
 
 const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 const MAX_REQUEST_AGE_SECONDS = 5 * 60;
@@ -41,7 +42,10 @@ export function verifyDiscordInteraction(input: {
 
 type DiscordInteraction = {
   type: number;
-  data?: { name?: string };
+  data?: {
+    name?: string;
+    options?: Array<{ name?: string; value?: string | number | boolean }>;
+  };
 };
 
 const message = (content: string, ephemeral = false) => ({
@@ -52,7 +56,7 @@ const message = (content: string, ephemeral = false) => ({
   },
 });
 
-type LeagueDataLoader = () => Promise<PublicLeagueData>;
+type LeagueDataLoader = (options?: { tier?: string }) => Promise<PublicLeagueData>;
 
 export async function respondToDiscordInteraction(
   interaction: DiscordInteraction,
@@ -62,11 +66,14 @@ export async function respondToDiscordInteraction(
   if (interaction.type !== 2) {
     return message("This Discord interaction type is not supported.", true);
   }
+  const requestedTier = interaction.data?.options?.find((option) => option.name === "tier")?.value;
+  const tierId = normalizeTierId(typeof requestedTier === "string" ? requestedTier : null)
+    ?? "challenger";
 
   switch (interaction.data?.name) {
     case "status":
       {
-        const league = await loadLeagueData();
+        const league = await loadLeagueData({ tier: tierId });
         return message(
           league.status === "ready"
             ? `✅ RLCA command service and official league database are available.\nWebsite: ${process.env.NEXT_PUBLIC_APP_URL ?? "https://rlca.gg"}`
@@ -76,13 +83,13 @@ export async function respondToDiscordInteraction(
       }
     case "standings":
       {
-        const league = await loadLeagueData();
+        const league = await loadLeagueData({ tier: tierId });
         if (league.status !== "ready") {
           return message("Official RLCA standings are currently unavailable.", true);
         }
       return message(
         [
-          `**${league.season.name} RLCA Standings**`,
+          `**${league.season.name} ${league.tier.name} Standings**`,
           ...league.standings.map(
             (team, index) => `${index + 1}. ${team.name} — ${team.points} pts`,
           ),
@@ -91,7 +98,7 @@ export async function respondToDiscordInteraction(
       }
     case "schedule":
       {
-        const league = await loadLeagueData();
+        const league = await loadLeagueData({ tier: tierId });
         if (league.status !== "ready") {
           return message("The official RLCA schedule is currently unavailable.", true);
         }
@@ -100,7 +107,7 @@ export async function respondToDiscordInteraction(
           .slice(0, 8);
       return message(
         [
-          "**Upcoming RLCA Series**",
+          `**Upcoming ${league.tier.name} Series**`,
           ...(upcoming.length
             ? upcoming.map(
               (match) =>
@@ -112,23 +119,23 @@ export async function respondToDiscordInteraction(
       }
     case "teams":
       {
-        const league = await loadLeagueData();
+        const league = await loadLeagueData({ tier: tierId });
         if (league.status !== "ready") {
           return message("Official RLCA franchise data is currently unavailable.", true);
         }
         return message([
-          `**${league.season.name} Franchises**`,
+          `**${league.season.name} ${league.tier.name} Franchises**`,
           ...league.standings.map((team) => `${team.shortName} — ${team.name}`),
         ].join("\n"));
       }
     case "events":
       {
-        const league = await loadLeagueData();
+        const league = await loadLeagueData({ tier: tierId });
         if (league.status !== "ready") {
           return message("Official RLCA event data is currently unavailable.", true);
         }
         return message([
-          `**${league.season.name} Events**`,
+          `**${league.season.name} ${league.tier.name} Events**`,
           ...(league.events.length
             ? league.events.map((event) => `${event.name} — ${event.state}`)
             : ["No events are configured."]),

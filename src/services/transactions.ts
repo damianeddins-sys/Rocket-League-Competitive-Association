@@ -2,6 +2,7 @@ import type { PlayerStatus } from "./player-lifecycle";
 import { evaluatePlayerStatusTransition } from "./player-lifecycle";
 import type { RosterPlayer } from "./rosters";
 import { playerEligibility, transactionWindow, validateRoster } from "./rosters";
+import type { Division } from "./mmr";
 
 export const transactionRequestStatuses = [
   "PENDING",
@@ -42,6 +43,7 @@ export type TransactionCheck = {
 export type TransactionValidationInput = {
   type: "SIGNING" | "RELEASE" | "TRADE" | "WAIVER_CLAIM" | "FREE_AGENT_SIGNING";
   activeEvent: string | null;
+  tier: Division;
   currentRoster: RosterPlayer[];
   proposedRoster: RosterPlayer[];
   capRange: { floor: number; cap: number };
@@ -73,8 +75,8 @@ export function validateTransaction(input: TransactionValidationInput): Transact
   const warnings: string[] = [];
   const checks: TransactionCheck[] = [];
   const window = transactionWindow(input.activeEvent);
-  const before = validateRoster(input.currentRoster, input.capRange);
-  const after = validateRoster(input.proposedRoster, input.capRange);
+  const before = validateRoster(input.currentRoster, input.capRange, input.tier);
+  const after = validateRoster(input.proposedRoster, input.capRange, input.tier);
   const eligibility = playerEligibility(input.player.participatedSeriesIds);
 
   const record = (code: string, passed: boolean, message: string) => {

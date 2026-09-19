@@ -5,10 +5,13 @@ import {
   verifyDiscordInteraction,
 } from "./interactions";
 import type { PublicLeagueData } from "../public-league-data";
+import { tierDefinition, TIERS } from "../tiers";
 
 const leagueData: PublicLeagueData = {
   status: "ready",
   season: { id: "season-1", name: "Season 1", slug: "season-1" },
+  tier: tierDefinition("challenger"),
+  availableTiers: TIERS,
   currentWeek: { number: 1, phase: "REGULAR_SPLIT_1" },
   weeks: [{
     number: 1,
@@ -24,16 +27,22 @@ const leagueData: PublicLeagueData = {
     shortName: "NVA",
     color: "#1677ff",
     logoUrl: null,
+    tierId: "challenger",
     wins: 0,
     losses: 0,
     ties: 0,
+    seriesPlayed: 0,
+    gamesPlayed: 0,
     gamesWon: 0,
     gamesLost: 0,
     gameDifferential: 0,
     points: 0,
+    winPercentage: 0,
+    currentStreak: "—",
     status: "ACTIVE",
   }],
   matches: [],
+  players: [],
   events: [],
   updatedAt: "2026-01-01T00:00:00.000Z",
 };

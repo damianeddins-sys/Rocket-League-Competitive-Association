@@ -22,6 +22,19 @@ const descriptions: Record<(typeof REQUIRED_DISCORD_COMMANDS)[number], string> =
   events: "Show the current RLCA event circuit",
   help: "Show available RLCA commands",
 };
+const tierCommands = new Set(["standings", "schedule", "teams", "events"]);
+const tierOptions = [{
+  type: 3,
+  name: "tier",
+  description: "Competitive tier",
+  required: true,
+  choices: [
+    { name: "Challenger", value: "challenger" },
+    { name: "Contender", value: "contender" },
+    { name: "Premier", value: "premier" },
+    { name: "Master", value: "master" },
+  ],
+}];
 
 export async function POST(request: Request) {
   const origin = request.headers.get("origin");
@@ -52,6 +65,7 @@ export async function POST(request: Request) {
       body: JSON.stringify(REQUIRED_DISCORD_COMMANDS.map((name) => ({
         name,
         description: descriptions[name],
+        ...(tierCommands.has(name) ? { options: tierOptions } : {}),
       }))),
       cache: "no-store",
     },

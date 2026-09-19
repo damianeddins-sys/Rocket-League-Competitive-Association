@@ -13,18 +13,21 @@ import {
   rosterMemberships,
   seasons,
   teams,
+  teamSeasonEntries,
   transactionRequests,
 } from "@/db/schema";
 import { buildAuditLogRecord } from "@/services/audit";
 import { checkPortalAccess } from "@/services/auth/portal-access";
 import { getSession } from "@/services/auth/session";
-import { calculateCapRange, validateRoster, type RosterPlayer } from "@/services/rosters";
+import { calculateTierCapRange, validateRoster, type RosterPlayer } from "@/services/rosters";
 import { transactionWindow } from "@/services/rosters";
 import { notificationJob } from "@/services/discord/notifications";
+import { normalizeTierId, TIER_IDS, tierCode } from "@/services/tiers";
 
 export const runtime = "nodejs";
 
 const submissionSchema = z.object({
+  tierId: z.enum(TIER_IDS),
   proposedPlayerIds: z.array(z.string().uuid()).length(3)
     .refine((ids) => new Set(ids).size === 3, "Proposed roster must contain three unique players"),
   reason: z.string().trim().min(10).max(2000),
@@ -71,11 +74,39 @@ export async function POST(request: Request) {
   if (!season || !team) {
     return NextResponse.json({ error: "Active season or assigned franchise is unavailable" }, { status: 409 });
   }
+  const requestedTier = normalizeTierId(parsed.data.tierId)!;
+  const [division] = await db
+    .select()
+    .from(divisions)
+    .where(and(
+      eq(divisions.seasonId, season.id),
+      eq(divisions.slug, requestedTier),
+      eq(divisions.active, true),
+    ))
+    .limit(1);
+  if (!division) {
+    return NextResponse.json({ error: "The selected tier is not configured for this season" }, { status: 409 });
+  }
+  const [teamEntry] = await db
+    .select({ id: teamSeasonEntries.id })
+    .from(teamSeasonEntries)
+    .where(and(
+      eq(teamSeasonEntries.seasonId, season.id),
+      eq(teamSeasonEntries.teamId, team.id),
+      eq(teamSeasonEntries.divisionId, division.id),
+      eq(teamSeasonEntries.active, true),
+      isNull(teamSeasonEntries.endedAt),
+    ))
+    .limit(1);
+  if (!teamEntry) {
+    return NextResponse.json({ error: "This franchise is not entered in the selected tier" }, { status: 409 });
+  }
   const [conflict] = await db.select({ id: transactionRequests.id })
     .from(transactionRequests)
     .where(and(
       eq(transactionRequests.seasonId, season.id),
       eq(transactionRequests.teamId, team.id),
+      eq(transactionRequests.divisionId, division.id),
       inArray(transactionRequests.status, [...openStatuses]),
     ))
     .limit(1);
@@ -85,7 +116,9 @@ export async function POST(request: Request) {
 
   const now = new Date();
   const eventRows = await db.select().from(events).where(eq(events.seasonId, season.id));
-  const activeEvent = eventRows.find((event) => event.startsAt <= now && event.endsAt >= now);
+  const activeEvent = eventRows.find(
+    (event) => event.divisionId === division.id && event.startsAt <= now && event.endsAt >= now,
+  );
   const window = transactionWindow(activeEvent?.type ?? null);
   if (!window.open) {
     return NextResponse.json({ error: `${window.reason}. An audited exception is required.` }, { status: 409 });
@@ -93,10 +126,14 @@ export async function POST(request: Request) {
 
   const [divisionRows, seasonPlayers, playerRows, currentMemberships] = await Promise.all([
     db.select().from(divisions).where(eq(divisions.seasonId, season.id)),
-    db.select().from(playerSeasons).where(eq(playerSeasons.seasonId, season.id)),
+    db.select().from(playerSeasons).where(and(
+      eq(playerSeasons.seasonId, season.id),
+      eq(playerSeasons.divisionId, division.id),
+    )),
     db.select({ id: players.id, handle: players.handle }).from(players),
     db.select().from(rosterMemberships).where(and(
       eq(rosterMemberships.seasonId, season.id),
+      eq(rosterMemberships.divisionId, division.id),
       isNull(rosterMemberships.endsAt),
     )),
   ]);
@@ -129,18 +166,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "A proposed player is already rostered by another franchise" }, { status: 409 });
   }
 
-  const pool = { MASTER: [] as RosterPlayer[], CHALLENGER: [] as RosterPlayer[], CONTENDER: [] as RosterPlayer[] };
-  for (const entry of seasonPlayers) {
-    const rosterPlayer = toRosterPlayer(entry.playerId);
-    if (rosterPlayer) pool[rosterPlayer.division].push(rosterPlayer);
-  }
+  const tierPlayers = seasonPlayers
+    .map((entry) => toRosterPlayer(entry.playerId))
+    .filter((entry): entry is RosterPlayer => Boolean(entry));
   let capRange: { floor: number; cap: number };
   try {
-    capRange = calculateCapRange(pool);
+    capRange = calculateTierCapRange(tierPlayers);
   } catch {
     return NextResponse.json({ error: "The active player pool is incomplete, so roster limits cannot be calculated" }, { status: 409 });
   }
-  const validated = validateRoster(proposedRoster as RosterPlayer[], capRange);
+  const validated = validateRoster(
+    proposedRoster as RosterPlayer[],
+    capRange,
+    tierCode(requestedTier),
+  );
   if (!validated.legal) {
     return NextResponse.json({ error: validated.reasons.join("; ") }, { status: 409 });
   }
@@ -166,6 +205,7 @@ export async function POST(request: Request) {
     [record] = await db.transaction(async (tx) => {
       const [created] = await tx.insert(transactionRequests).values({
       seasonId: season.id,
+      divisionId: division.id,
       teamId: team.id,
       type: "ROSTER_CHANGE",
       status: "PENDING",
@@ -173,6 +213,7 @@ export async function POST(request: Request) {
       idempotencyKey: `website:${session.user.id}:${requestId}`,
       requestData: {
         reason: parsed.data.reason,
+        tierId: requestedTier,
         proposedPlayerIds: parsed.data.proposedPlayerIds,
       },
       beforeState: {
@@ -198,11 +239,13 @@ export async function POST(request: Request) {
       }));
       await tx.insert(discordNotificationJobs).values(notificationJob({
         eventType: "TRANSACTION_SUBMITTED",
+        tierId: requestedTier,
         payload: {
           title: "Roster Transaction Submitted",
           color: 0x1683ff,
           fields: [
             { name: "Franchise", value: team.name, inline: true },
+            { name: "Tier", value: division.displayName, inline: true },
             { name: "Status", value: created.status, inline: true },
             { name: "Submitted", value: new Date().toISOString() },
           ],
@@ -218,7 +261,7 @@ export async function POST(request: Request) {
     const databaseError = error as { code?: unknown; constraint_name?: unknown };
     if (
       databaseError.code === "23505"
-      && databaseError.constraint_name === "transaction_one_open_team_season"
+      && databaseError.constraint_name === "transaction_one_open_team_season_tier"
     ) {
       return NextResponse.json({ error: "This franchise already has an open transaction request" }, { status: 409 });
     }

@@ -9,12 +9,25 @@ if (!applicationId || !guildId || !botToken) {
   process.exit(1);
 }
 
+const tierOption = {
+  type: 3,
+  name: "tier",
+  description: "Competitive tier",
+  required: true,
+  choices: [
+    { name: "Challenger", value: "challenger" },
+    { name: "Contender", value: "contender" },
+    { name: "Premier", value: "premier" },
+    { name: "Master", value: "master" },
+  ],
+};
+
 const commands = [
   { name: "status", description: "Check whether RLCA systems are available" },
-  { name: "standings", description: "Show current RLCA standings" },
-  { name: "schedule", description: "Show upcoming RLCA series" },
-  { name: "teams", description: "Show official RLCA franchises" },
-  { name: "events", description: "Show the current RLCA event circuit" },
+  { name: "standings", description: "Show current RLCA standings", options: [tierOption] },
+  { name: "schedule", description: "Show upcoming RLCA series", options: [tierOption] },
+  { name: "teams", description: "Show official RLCA franchises", options: [tierOption] },
+  { name: "events", description: "Show the current RLCA event circuit", options: [tierOption] },
   { name: "help", description: "Show available RLCA commands" },
 ];
 

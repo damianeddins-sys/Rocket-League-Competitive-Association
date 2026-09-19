@@ -11,12 +11,15 @@ import {
   discordNotificationJobs,
   discordNotificationRoutes,
   events,
+  matches,
   playerSeasons,
   playerStatusHistory,
   players,
+  qualificationPointEvents,
   rosterMemberships,
   seasons,
   teams,
+  teamSeasonEntries,
   transactionRequests,
   waiverWindows,
 } from "@/db/schema";
@@ -29,12 +32,14 @@ import {
   evaluatePlayerStatusTransition,
   WAIVER_PERIOD_MS,
 } from "@/services/player-lifecycle";
-import { calculateCapRange, transactionWindow, validateRoster, type RosterPlayer } from "@/services/rosters";
+import { calculateTierCapRange, transactionWindow, validateRoster, type RosterPlayer } from "@/services/rosters";
 import { canTransitionTransactionRequest } from "@/services/transactions";
 import {
   DISCORD_NOTIFICATION_EVENTS,
   notificationJob,
 } from "@/services/discord/notifications";
+import { normalizeTierId, TIER_IDS } from "@/services/tiers";
+import { regularSeasonPoints } from "@/services/points";
 
 export const runtime = "nodejs";
 
@@ -55,7 +60,7 @@ const transactionSchema = z.object({
 const storedRosterProposalSchema = z.object({
   roster: z.array(z.object({
     playerId: z.string().uuid(),
-    division: z.enum(["MASTER", "CHALLENGER", "CONTENDER"]),
+    division: z.enum(["CHALLENGER", "CONTENDER", "PREMIER", "MASTER"]),
     protectedValue: z.number(),
     handle: z.string().optional(),
   })).length(3),
@@ -119,9 +124,43 @@ const createChannelSchema = channelSchema.omit({ id: true }).extend({
 
 const notificationRouteSchema = z.object({
   eventType: z.enum(DISCORD_NOTIFICATION_EVENTS),
+  tierId: z.union([z.literal("all"), z.enum(TIER_IDS)]).default("all"),
   channelKey: z.string().trim().regex(/^[A-Z][A-Z0-9_]{1,63}$/),
   enabled: z.boolean(),
   reason: z.string().trim().min(3).max(2000),
+});
+
+const tierSchema = z.object({
+  id: z.string().uuid(),
+  displayName: z.string().trim().min(2).max(64),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  iconPath: z.string().trim().startsWith("/branding/tiers/").max(255),
+  active: z.boolean(),
+  reason: z.string().trim().min(3).max(2000),
+});
+
+const teamTierSchema = z.object({
+  seasonId: z.string().uuid(),
+  teamId: z.string().uuid(),
+  tierId: z.enum(TIER_IDS),
+  active: z.boolean(),
+  reason: z.string().trim().min(3).max(2000),
+});
+
+const matchResultSchema = z.object({
+  id: z.string().uuid(),
+  teamAScore: z.number().int().min(0).max(99),
+  teamBScore: z.number().int().min(0).max(99),
+  officialTie: z.boolean().default(false),
+  reason: z.string().trim().min(3).max(2000),
+}).superRefine((value, context) => {
+  if (value.officialTie !== (value.teamAScore === value.teamBScore)) {
+    context.addIssue({
+      code: "custom",
+      message: "A tied score must be marked as an official tie",
+      path: ["officialTie"],
+    });
+  }
 });
 
 const permissions: Record<string, Permission> = {
@@ -131,6 +170,9 @@ const permissions: Record<string, Permission> = {
   seasons: "league.manage",
   channels: "league.manage",
   "notification-routes": "league.full",
+  tiers: "league.manage",
+  "team-tiers": "league.manage",
+  matches: "matches.manage",
 };
 const portals: Record<string, "LEAGUE_OPERATIONS" | "SIGN_UP_MANAGER"> = {
   transactions: "LEAGUE_OPERATIONS",
@@ -139,6 +181,9 @@ const portals: Record<string, "LEAGUE_OPERATIONS" | "SIGN_UP_MANAGER"> = {
   seasons: "LEAGUE_OPERATIONS",
   channels: "LEAGUE_OPERATIONS",
   "notification-routes": "LEAGUE_OPERATIONS",
+  tiers: "LEAGUE_OPERATIONS",
+  "team-tiers": "LEAGUE_OPERATIONS",
+  matches: "PRODUCTION",
 };
 
 async function contextFor(request: Request, resource: string) {
@@ -179,6 +224,11 @@ export async function PATCH(
       .from(teams)
       .where(eq(teams.id, current.teamId))
       .limit(1);
+    const [transactionTier] = await db
+      .select({ name: divisions.displayName, slug: divisions.slug })
+      .from(divisions)
+      .where(eq(divisions.id, current.divisionId))
+      .limit(1);
     if (current.status === parsed.data.status) {
       return NextResponse.json({ error: "Transaction already has this status" }, { status: 409 });
     }
@@ -201,15 +251,24 @@ export async function PATCH(
 
           const now = new Date();
           const eventRows = await tx.select().from(events).where(eq(events.seasonId, current.seasonId));
-          const activeEvent = eventRows.find((event) => event.startsAt <= now && event.endsAt >= now);
+          const activeEvent = eventRows.find(
+            (event) =>
+              event.divisionId === current.divisionId
+              && event.startsAt <= now
+              && event.endsAt >= now,
+          );
           const window = transactionWindow(activeEvent?.type ?? null);
           if (!window.open) throw new Error(`${window.reason}. An audited exception is required.`);
 
           const [divisionRows, seasonPlayers, activeMemberships] = await Promise.all([
             tx.select().from(divisions).where(eq(divisions.seasonId, current.seasonId)),
-            tx.select().from(playerSeasons).where(eq(playerSeasons.seasonId, current.seasonId)),
+            tx.select().from(playerSeasons).where(and(
+              eq(playerSeasons.seasonId, current.seasonId),
+              eq(playerSeasons.divisionId, current.divisionId),
+            )),
             tx.select().from(rosterMemberships).where(and(
               eq(rosterMemberships.seasonId, current.seasonId),
+              eq(rosterMemberships.divisionId, current.divisionId),
               isNull(rosterMemberships.endsAt),
             )),
           ]);
@@ -229,14 +288,15 @@ export async function PATCH(
           if (authoritativeProposal.some((entry) => !entry)) {
             throw new Error("A proposed player no longer has an official division and roster value");
           }
-          const pool = { MASTER: [] as RosterPlayer[], CHALLENGER: [] as RosterPlayer[], CONTENDER: [] as RosterPlayer[] };
-          for (const seasonPlayer of seasonPlayers) {
-            const rosterPlayer = toRosterPlayer(seasonPlayer.playerId);
-            if (rosterPlayer) pool[rosterPlayer.division].push(rosterPlayer);
-          }
+          const tierPlayers = seasonPlayers
+            .map((seasonPlayer) => toRosterPlayer(seasonPlayer.playerId))
+            .filter((entry): entry is RosterPlayer => Boolean(entry));
+          const requiredDivision = divisionCodes.get(current.divisionId);
+          if (!requiredDivision) throw new Error("Transaction tier configuration is missing");
           const validation = validateRoster(
             authoritativeProposal as RosterPlayer[],
-            calculateCapRange(pool),
+            calculateTierCapRange(tierPlayers),
+            requiredDivision,
           );
           if (!validation.legal) throw new Error(validation.reasons.join("; "));
           const crossTeam = activeMemberships.find(
@@ -351,11 +411,15 @@ export async function PATCH(
         }));
         await tx.insert(discordNotificationJobs).values(notificationJob({
           eventType: "TRANSACTION_DECIDED",
+          ...(normalizeTierId(transactionTier?.slug) ? {
+            tierId: normalizeTierId(transactionTier?.slug)!,
+          } : {}),
           payload: {
             title: "Roster Transaction Decision",
             color: parsed.data.status === "APPROVED" ? 0x22c55e : 0xf59e0b,
             fields: [
               { name: "Franchise", value: transactionTeam?.name ?? "Unknown franchise", inline: true },
+              { name: "Tier", value: transactionTier?.name ?? "Unknown tier", inline: true },
               { name: "Decision", value: parsed.data.status.replaceAll("_", " "), inline: true },
               { name: "Recorded", value: new Date().toISOString() },
             ],
@@ -557,18 +621,25 @@ export async function PATCH(
       const [previous] = await tx
         .select()
         .from(discordNotificationRoutes)
-        .where(eq(discordNotificationRoutes.eventType, parsed.data.eventType))
+        .where(and(
+          eq(discordNotificationRoutes.eventType, parsed.data.eventType),
+          eq(discordNotificationRoutes.tierId, parsed.data.tierId),
+        ))
         .limit(1);
       const [saved] = await tx
         .insert(discordNotificationRoutes)
         .values({
           eventType: parsed.data.eventType,
+          tierId: parsed.data.tierId,
           channelKey: parsed.data.channelKey,
           enabled: parsed.data.enabled,
           updatedBy: context.user.id,
         })
         .onConflictDoUpdate({
-          target: discordNotificationRoutes.eventType,
+          target: [
+            discordNotificationRoutes.eventType,
+            discordNotificationRoutes.tierId,
+          ],
           set: {
             channelKey: parsed.data.channelKey,
             enabled: parsed.data.enabled,
@@ -590,7 +661,219 @@ export async function PATCH(
         requestId,
       }));
     });
-    return NextResponse.json({ eventType: parsed.data.eventType, saved: true });
+    return NextResponse.json({
+      eventType: parsed.data.eventType,
+      tierId: parsed.data.tierId,
+      saved: true,
+    });
+  }
+
+  if (resource === "tiers") {
+    const parsed = tierSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Tier configuration is invalid" }, { status: 400 });
+    }
+    const [current] = await db
+      .select()
+      .from(divisions)
+      .where(eq(divisions.id, parsed.data.id))
+      .limit(1);
+    if (!current) return NextResponse.json({ error: "Tier configuration not found" }, { status: 404 });
+    await db.transaction(async (tx) => {
+      await tx.update(divisions).set({
+        displayName: parsed.data.displayName,
+        color: parsed.data.color,
+        iconPath: parsed.data.iconPath,
+        active: parsed.data.active,
+      }).where(eq(divisions.id, current.id));
+      await tx.insert(auditLogs).values(buildAuditLogRecord({
+        actorId: context.user.id,
+        actorDiscordRoleIds: context.access.roleIds,
+        actorFranchiseNumber: context.access.franchiseNumber,
+        action: "TIER_CONFIGURATION_UPDATED",
+        entityType: "DIVISION",
+        entityId: current.id,
+        previousState: toAuditJson(current),
+        nextState: toAuditJson(parsed.data),
+        reason: parsed.data.reason,
+        requestId,
+      }));
+    });
+    return NextResponse.json({ id: current.id, saved: true });
+  }
+
+  if (resource === "matches") {
+    const parsed = matchResultSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Match result is invalid" }, { status: 400 });
+    }
+    const [current] = await db.select().from(matches).where(eq(matches.id, parsed.data.id)).limit(1);
+    if (!current) return NextResponse.json({ error: "Match not found" }, { status: 404 });
+    if (current.status === "VERIFIED") {
+      return NextResponse.json({
+        error: "Verified results are immutable. Record an audited correction instead.",
+      }, { status: 409 });
+    }
+    if (current.status === "VOID") {
+      return NextResponse.json({ error: "A void match cannot receive a result" }, { status: 409 });
+    }
+    const [[event], [division], [teamA], [teamB]] = await Promise.all([
+      db.select({ type: events.type }).from(events).where(eq(events.id, current.eventId)).limit(1),
+      db.select({ slug: divisions.slug, name: divisions.displayName, color: divisions.color }).from(divisions).where(eq(divisions.id, current.divisionId)).limit(1),
+      db.select({ name: teams.name }).from(teams).where(eq(teams.id, current.teamAId)).limit(1),
+      db.select({ name: teams.name }).from(teams).where(eq(teams.id, current.teamBId)).limit(1),
+    ]);
+    const tierId = normalizeTierId(division?.slug);
+    if (!event || !tierId) {
+      return NextResponse.json({ error: "Match season/tier configuration is incomplete" }, { status: 409 });
+    }
+    await db.transaction(async (tx) => {
+      await tx.update(matches).set({
+        teamAScore: parsed.data.teamAScore,
+        teamBScore: parsed.data.teamBScore,
+        officialTie: parsed.data.officialTie,
+        status: "VERIFIED",
+        verifiedAt: new Date(),
+      }).where(eq(matches.id, current.id));
+      if (event.type === "REGULAR_SEASON") {
+        const outcomeA = parsed.data.officialTie
+          ? "OFFICIAL_TIE"
+          : parsed.data.teamAScore > parsed.data.teamBScore ? "WIN" : "LOSS";
+        const outcomeB = parsed.data.officialTie
+          ? "OFFICIAL_TIE"
+          : outcomeA === "WIN" ? "LOSS" : "WIN";
+        await tx.insert(qualificationPointEvents).values([
+          {
+            seasonId: current.seasonId,
+            divisionId: current.divisionId,
+            teamId: current.teamAId,
+            eventId: current.eventId,
+            matchId: current.id,
+            type: "REGULAR_SEASON_RESULT",
+            points: String(regularSeasonPoints(outcomeA)),
+            reason: parsed.data.reason,
+            idempotencyKey: `match-result:${current.id}:${current.teamAId}`,
+            createdBy: context.user.id,
+          },
+          {
+            seasonId: current.seasonId,
+            divisionId: current.divisionId,
+            teamId: current.teamBId,
+            eventId: current.eventId,
+            matchId: current.id,
+            type: "REGULAR_SEASON_RESULT",
+            points: String(regularSeasonPoints(outcomeB)),
+            reason: parsed.data.reason,
+            idempotencyKey: `match-result:${current.id}:${current.teamBId}`,
+            createdBy: context.user.id,
+          },
+        ]);
+      }
+      await tx.insert(auditLogs).values(buildAuditLogRecord({
+        actorId: context.user.id,
+        actorDiscordRoleIds: context.access.roleIds,
+        actorFranchiseNumber: context.access.franchiseNumber,
+        action: "MATCH_RESULT_VERIFIED",
+        entityType: "MATCH",
+        entityId: current.id,
+        previousState: toAuditJson(current),
+        nextState: {
+          tierId,
+          teamAScore: parsed.data.teamAScore,
+          teamBScore: parsed.data.teamBScore,
+          officialTie: parsed.data.officialTie,
+          status: "VERIFIED",
+        },
+        reason: parsed.data.reason,
+        requestId,
+      }));
+      await tx.insert(discordNotificationJobs).values(notificationJob({
+        eventType: "MATCH_RESULT_VERIFIED",
+        tierId,
+        payload: {
+          title: `${division.name} Match Result`,
+          color: Number.parseInt(division.color.slice(1), 16),
+          fields: [
+            { name: teamA?.name ?? "Team A", value: String(parsed.data.teamAScore), inline: true },
+            { name: teamB?.name ?? "Team B", value: String(parsed.data.teamBScore), inline: true },
+            { name: "Tier", value: division.name, inline: true },
+          ],
+          url: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/matches/${current.id}?tier=${tierId}`,
+        },
+        sourceEntityType: "MATCH",
+        sourceEntityId: current.id,
+        idempotencyKey: `match-result:${current.id}`,
+      }));
+    });
+    return NextResponse.json({ id: current.id, status: "VERIFIED", tierId });
+  }
+
+  if (resource === "team-tiers") {
+    const parsed = teamTierSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Team tier assignment is invalid" }, { status: 400 });
+    }
+    const [[team], [division]] = await Promise.all([
+      db.select({ id: teams.id }).from(teams).where(eq(teams.id, parsed.data.teamId)).limit(1),
+      db.select().from(divisions).where(and(
+        eq(divisions.seasonId, parsed.data.seasonId),
+        eq(divisions.slug, parsed.data.tierId),
+      )).limit(1),
+    ]);
+    if (!team || !division) {
+      return NextResponse.json({ error: "Team, season, or tier was not found" }, { status: 404 });
+    }
+    await db.transaction(async (tx) => {
+      const [previous] = await tx
+        .select()
+        .from(teamSeasonEntries)
+        .where(and(
+          eq(teamSeasonEntries.seasonId, parsed.data.seasonId),
+          eq(teamSeasonEntries.teamId, parsed.data.teamId),
+          eq(teamSeasonEntries.divisionId, division.id),
+        ))
+        .limit(1);
+      const [saved] = await tx
+        .insert(teamSeasonEntries)
+        .values({
+          seasonId: parsed.data.seasonId,
+          teamId: parsed.data.teamId,
+          divisionId: division.id,
+          active: parsed.data.active,
+          endedAt: parsed.data.active ? null : new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [
+            teamSeasonEntries.seasonId,
+            teamSeasonEntries.teamId,
+            teamSeasonEntries.divisionId,
+          ],
+          set: {
+            active: parsed.data.active,
+            endedAt: parsed.data.active ? null : new Date(),
+            assignedAt: parsed.data.active ? new Date() : previous?.assignedAt ?? new Date(),
+          },
+        })
+        .returning({ id: teamSeasonEntries.id });
+      await tx.insert(auditLogs).values(buildAuditLogRecord({
+        actorId: context.user.id,
+        actorDiscordRoleIds: context.access.roleIds,
+        actorFranchiseNumber: context.access.franchiseNumber,
+        action: parsed.data.active ? "TEAM_TIER_ASSIGNED" : "TEAM_TIER_REMOVED",
+        entityType: "TEAM_SEASON_ENTRY",
+        entityId: saved.id,
+        previousState: previous ? toAuditJson(previous) : undefined,
+        nextState: {
+          seasonId: parsed.data.seasonId,
+          teamId: parsed.data.teamId,
+          tierId: parsed.data.tierId,
+          active: parsed.data.active,
+        },
+        reason: parsed.data.reason,
+        requestId,
+      }));
+    });
+    return NextResponse.json({ saved: true });
   }
 
   return NextResponse.json({ error: "Unknown operations resource" }, { status: 404 });

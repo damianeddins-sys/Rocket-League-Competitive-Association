@@ -26,7 +26,7 @@ import {
   resolveChampionshipLockIds,
   type Standing,
 } from "./points";
-import { calculateCapRange, canCompleteRoster, playerEligibility, transactionWindow, validateRoster } from "./rosters";
+import { calculateTierCapRange, playerEligibility, transactionWindow, validateRoster } from "./rosters";
 import { generateRegularSeasonSchedule } from "./scheduling";
 
 describe("qualification points", () => {
@@ -148,16 +148,16 @@ describe("MMR placement", () => {
   });
 
   it("assigns Combine ratings by unrounded performance rank", () => {
-    const ratings = assignCombineRatings(Array.from({ length: 24 }, (_, index) => ({
+    const ratings = assignCombineRatings(Array.from({ length: 32 }, (_, index) => ({
       playerId: `p${String(index).padStart(2, "0")}`,
       performance: index / 100,
     })));
     expect(ratings[0]).toMatchObject({ rank: 1, combineIndex: 0, combineRating: 1000 });
-    expect(ratings[23]).toMatchObject({ rank: 24, combineIndex: 100, combineRating: 1800 });
+    expect(ratings[31]).toMatchObject({ rank: 32, combineIndex: 100, combineRating: 1800 });
   });
 
   it("assigns exactly eight players per division on a 1000–1800 scale", () => {
-    const result = assignPlacement(Array.from({ length: 24 }, (_, index) => ({
+    const result = assignPlacement(Array.from({ length: 32 }, (_, index) => ({
       playerId: `p${index}`,
       rankedEvidence: 1000 + index * 20,
       medianMmr: 1000 + index * 20,
@@ -165,10 +165,11 @@ describe("MMR placement", () => {
       combineRating: 1000 + index * 20,
     })));
     expect(result[0].startingRlcaMmr).toBe(1000);
-    expect(result[23].startingRlcaMmr).toBe(1800);
+    expect(result[31].startingRlcaMmr).toBe(1800);
     expect(result.filter((player) => player.division === "MASTER")).toHaveLength(8);
     expect(result.filter((player) => player.division === "CHALLENGER")).toHaveLength(8);
     expect(result.filter((player) => player.division === "CONTENDER")).toHaveLength(8);
+    expect(result.filter((player) => player.division === "PREMIER")).toHaveLength(8);
   });
 
   it("never lets Protected Roster Value fall", () => {
@@ -228,13 +229,13 @@ describe("rosters and transactions", () => {
     MASTER: Array.from({ length: 8 }, (_, index) => ({ playerId: `m${index}`, division: "MASTER" as const, protectedValue: 1600 - index * 10 })),
     CHALLENGER: Array.from({ length: 8 }, (_, index) => ({ playerId: `c${index}`, division: "CHALLENGER" as const, protectedValue: 1400 - index * 10 })),
     CONTENDER: Array.from({ length: 8 }, (_, index) => ({ playerId: `l${index}`, division: "CONTENDER" as const, protectedValue: 1200 - index * 10 })),
+    PREMIER: Array.from({ length: 8 }, (_, index) => ({ playerId: `p${index}`, division: "PREMIER" as const, protectedValue: 1500 - index * 10 })),
   };
 
   it("calculates and enforces the dynamic cap and floor", () => {
-    const range = calculateCapRange(pools);
-    const roster = [pools.MASTER[3], pools.CHALLENGER[3], pools.CONTENDER[3]];
-    expect(validateRoster(roster, range).legal).toBe(true);
-    expect(canCompleteRoster([pools.MASTER[3]], [...pools.CHALLENGER, ...pools.CONTENDER], range)).toBe(true);
+    const range = calculateTierCapRange(pools.PREMIER);
+    const roster = [pools.PREMIER[2], pools.PREMIER[3], pools.PREMIER[4]];
+    expect(validateRoster(roster, range, "PREMIER").legal).toBe(true);
   });
 
   it("reports eligibility without erasing exception history", () => {

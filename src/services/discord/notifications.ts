@@ -5,6 +5,7 @@ import {
   discordNotificationJobs,
   discordNotificationRoutes,
 } from "../../db/schema";
+import { TIER_IDS, type TierId } from "../tiers";
 
 export const DISCORD_NOTIFICATION_EVENTS = [
   "APPLICATION_SUBMITTED_PLAYER",
@@ -13,6 +14,7 @@ export const DISCORD_NOTIFICATION_EVENTS = [
   "APPLICATION_DECIDED",
   "TRANSACTION_SUBMITTED",
   "TRANSACTION_DECIDED",
+  "MATCH_RESULT_VERIFIED",
   "STAFF_PERMISSION_CHANGED",
   "ADMINISTRATIVE_ACTION",
   "BOT_STARTED",
@@ -31,13 +33,19 @@ export type DiscordNotificationPayload = {
 };
 
 export const DEFAULT_DISCORD_NOTIFICATION_ROUTES = [
-  { eventType: "APPLICATION_SUBMITTED_PLAYER", channelKey: "PLAYER_SIGNUPS" },
-  { eventType: "APPLICATION_SUBMITTED_GM_AGM", channelKey: "GM_AGM_APPLICATIONS" },
-  { eventType: "APPLICATION_SUBMITTED_STAFF", channelKey: "STAFF_SIGNUPS" },
-  { eventType: "TRANSACTION_SUBMITTED", channelKey: "PENDING_TRANSACTIONS" },
-  { eventType: "TRANSACTION_DECIDED", channelKey: "TRANSACTIONS" },
+  { eventType: "APPLICATION_SUBMITTED_PLAYER", tierId: "all", channelKey: "PLAYER_SIGNUPS" },
+  { eventType: "APPLICATION_SUBMITTED_GM_AGM", tierId: "all", channelKey: "GM_AGM_APPLICATIONS" },
+  { eventType: "APPLICATION_SUBMITTED_STAFF", tierId: "all", channelKey: "STAFF_SIGNUPS" },
+  { eventType: "TRANSACTION_SUBMITTED", tierId: "all", channelKey: "PENDING_TRANSACTIONS" },
+  { eventType: "TRANSACTION_DECIDED", tierId: "all", channelKey: "TRANSACTIONS" },
+  ...TIER_IDS.map((tierId) => ({
+    eventType: "MATCH_RESULT_VERIFIED" as const,
+    tierId,
+    channelKey: `REPORT_${tierId.toUpperCase()}`,
+  })),
 ] as const satisfies ReadonlyArray<{
   eventType: DiscordNotificationEvent;
+  tierId: TierId | "all";
   channelKey: string;
 }>;
 
@@ -63,6 +71,7 @@ export function safeDiscordPayload(payload: DiscordNotificationPayload): Discord
 
 export function notificationJob(input: {
   eventType: DiscordNotificationEvent;
+  tierId?: TierId;
   payload: DiscordNotificationPayload;
   sourceEntityType: string;
   sourceEntityId: string;
@@ -129,12 +138,16 @@ export async function claimDiscordNotifications(
         .from(discordChannelConfigurations)
         .where(inArray(discordChannelConfigurations.key, channelKeys))
       : [];
-    const routeByEvent = new Map(routes.map((route) => [route.eventType, route]));
+    const routeByEvent = new Map(routes.map((route) => [
+      `${route.eventType}:${route.tierId}`,
+      route,
+    ]));
     const channelByKey = new Map(channels.map((channel) => [channel.key, channel]));
     const claimed: ClaimedDiscordNotification[] = [];
 
     for (const job of jobs) {
-      const route = routeByEvent.get(job.eventType);
+      const route = routeByEvent.get(`${job.eventType}:${job.tierId ?? "all"}`)
+        ?? routeByEvent.get(`${job.eventType}:all`);
       const channel = route ? channelByKey.get(route.channelKey) : undefined;
       if (!route?.enabled || !channel?.active) {
         await tx

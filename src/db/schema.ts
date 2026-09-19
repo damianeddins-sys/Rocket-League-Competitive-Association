@@ -18,7 +18,12 @@ import {
 const id = () => uuid("id").defaultRandom().primaryKey();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).defaultNow().notNull();
 
-export const divisionCode = pgEnum("division_code", ["MASTER", "CHALLENGER", "CONTENDER"]);
+export const divisionCode = pgEnum("division_code", [
+  "CHALLENGER",
+  "CONTENDER",
+  "PREMIER",
+  "MASTER",
+]);
 export const eventType = pgEnum("event_type", [
   "REGULAR_SEASON",
   "MAJOR_1",
@@ -215,18 +220,22 @@ export const discordRoleSyncJobs = pgTable(
 
 export const discordNotificationRoutes = pgTable("discord_notification_routes", {
   id: id(),
-  eventType: text("event_type").notNull().unique(),
+  eventType: text("event_type").notNull(),
+  tierId: text("tier_id").default("all").notNull(),
   channelKey: text("channel_key").notNull(),
   enabled: boolean("enabled").default(true).notNull(),
   updatedBy: uuid("updated_by").references(() => users.id),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+  uniqueIndex("discord_notification_event_tier").on(table.eventType, table.tierId),
+]);
 
 export const discordNotificationJobs = pgTable(
   "discord_notification_jobs",
   {
     id: id(),
     eventType: text("event_type").notNull(),
+    tierId: text("tier_id"),
     payload: jsonb("payload").$type<{
       title: string;
       description?: string;
@@ -327,10 +336,17 @@ export const divisions = pgTable(
     id: id(),
     seasonId: uuid("season_id").notNull().references(() => seasons.id),
     code: divisionCode("code").notNull(),
+    slug: text("slug").notNull(),
     displayName: text("display_name").notNull(),
+    color: text("color").notNull(),
+    iconPath: text("icon_path").notNull(),
     ordinal: integer("ordinal").notNull(),
+    active: boolean("active").default(true).notNull(),
   },
-  (table) => [uniqueIndex("division_season_code").on(table.seasonId, table.code)],
+  (table) => [
+    uniqueIndex("division_season_code").on(table.seasonId, table.code),
+    uniqueIndex("division_season_slug").on(table.seasonId, table.slug),
+  ],
 );
 
 export const teams = pgTable("teams", {
@@ -344,6 +360,24 @@ export const teams = pgTable("teams", {
   primaryColor: text("primary_color").notNull(),
   active: boolean("active").default(true).notNull(),
 });
+
+export const teamSeasonEntries = pgTable(
+  "team_season_entries",
+  {
+    id: id(),
+    seasonId: uuid("season_id").notNull().references(() => seasons.id),
+    teamId: uuid("team_id").notNull().references(() => teams.id),
+    divisionId: uuid("division_id").notNull().references(() => divisions.id),
+    active: boolean("active").default(true).notNull(),
+    assignedAt: timestamp("assigned_at", { withTimezone: true }).defaultNow().notNull(),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("team_entry_season_tier").on(table.seasonId, table.teamId, table.divisionId),
+    index("team_entry_tier").on(table.seasonId, table.divisionId, table.active),
+  ],
+);
 
 export const players = pgTable("players", {
   id: id(),
@@ -639,6 +673,7 @@ export const ratingEvents = pgTable(
 export const scheduleVersions = pgTable("schedule_versions", {
   id: id(),
   seasonId: uuid("season_id").notNull().references(() => seasons.id),
+  divisionId: uuid("division_id").notNull().references(() => divisions.id),
   version: integer("version").notNull(),
   publishedAt: timestamp("published_at", { withTimezone: true }),
   supersedesId: uuid("supersedes_id"),
@@ -651,14 +686,18 @@ export const events = pgTable(
   {
     id: id(),
     seasonId: uuid("season_id").notNull().references(() => seasons.id),
+    divisionId: uuid("division_id").notNull().references(() => divisions.id),
     type: eventType("type").notNull(),
     name: text("name").notNull(),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
     bracketLockedAt: timestamp("bracket_locked_at", { withTimezone: true }),
     seedSnapshot: jsonb("seed_snapshot").$type<Array<{ seed: number; teamId: string }>>(),
+    allowCrossTier: boolean("allow_cross_tier").default(false).notNull(),
   },
-  (table) => [uniqueIndex("event_season_type").on(table.seasonId, table.type)],
+  (table) => [
+    uniqueIndex("event_season_tier_type").on(table.seasonId, table.divisionId, table.type),
+  ],
 );
 
 export const matches = pgTable(
@@ -666,6 +705,7 @@ export const matches = pgTable(
   {
     id: id(),
     seasonId: uuid("season_id").notNull().references(() => seasons.id),
+    divisionId: uuid("division_id").notNull().references(() => divisions.id),
     eventId: uuid("event_id").notNull().references(() => events.id),
     scheduleVersionId: uuid("schedule_version_id").references(() => scheduleVersions.id),
     teamAId: uuid("team_a_id").notNull().references(() => teams.id),
@@ -719,6 +759,7 @@ export const qualificationPointEvents = pgTable(
   {
     id: id(),
     seasonId: uuid("season_id").notNull().references(() => seasons.id),
+    divisionId: uuid("division_id").notNull().references(() => divisions.id),
     teamId: uuid("team_id").notNull().references(() => teams.id),
     eventId: uuid("event_id").references(() => events.id),
     matchId: uuid("match_id").references(() => matches.id),
@@ -759,6 +800,7 @@ export const transactionRequests = pgTable(
   {
     id: id(),
     seasonId: uuid("season_id").notNull().references(() => seasons.id),
+    divisionId: uuid("division_id").notNull().references(() => divisions.id),
     teamId: uuid("team_id").notNull().references(() => teams.id),
     type: text("type").notNull(),
     status: transactionStatus("status").default("PENDING").notNull(),
@@ -773,8 +815,8 @@ export const transactionRequests = pgTable(
     createdAt: createdAt(),
   },
   (table) => [
-    uniqueIndex("transaction_one_open_team_season")
-      .on(table.teamId, table.seasonId)
+    uniqueIndex("transaction_one_open_team_season_tier")
+      .on(table.teamId, table.seasonId, table.divisionId)
       .where(sql`${table.status} in ('PENDING', 'MORE_INFO_REQUIRED', 'ON_HOLD', 'EXCEPTION_REQUIRED')`),
   ],
 );

@@ -9,12 +9,14 @@ import {
   seasons,
   seasonWeeks,
   teams,
+  teamSeasonEntries,
 } from "./schema";
 import { buildSeasonOneEvents, buildSeasonOneWeeks } from "../services/season-calendar";
 import { DISCORD_CHANNELS } from "../services/discord/channels";
 import { SEASON_ONE_FRANCHISES } from "../services/franchises";
 import { DISCORD_ROLE_IDS } from "../services/auth/discord-roles";
 import { DEFAULT_DISCORD_NOTIFICATION_ROUTES } from "../services/discord/notifications";
+import { TIERS } from "../services/tiers";
 
 export async function seedSeasonOne(startsAt: Date) {
   const weeks = buildSeasonOneWeeks(startsAt);
@@ -74,15 +76,38 @@ export async function seedSeasonOne(startsAt: Date) {
     }
     await tx
       .insert(divisions)
-      .values([
-        { seasonId: existingSeason.id, code: "CONTENDER", displayName: "Contender", ordinal: 1 },
-        { seasonId: existingSeason.id, code: "CHALLENGER", displayName: "Challenger", ordinal: 2 },
-        { seasonId: existingSeason.id, code: "MASTER", displayName: "Master", ordinal: 3 },
-      ])
+      .values(TIERS.map((tier) => ({
+        seasonId: existingSeason.id,
+        code: tier.code,
+        slug: tier.id,
+        displayName: tier.name,
+        color: tier.color,
+        iconPath: tier.iconPath,
+        ordinal: tier.ordinal,
+      })))
+      .onConflictDoNothing();
+    const divisionRows = await tx
+      .select({ id: divisions.id, slug: divisions.slug })
+      .from(divisions)
+      .where(eq(divisions.seasonId, existingSeason.id));
+    const teamRows = await tx
+      .select({ id: teams.id })
+      .from(teams);
+    await tx
+      .insert(teamSeasonEntries)
+      .values(teamRows.flatMap((team) => divisionRows.map((division) => ({
+        seasonId: existingSeason.id,
+        teamId: team.id,
+        divisionId: division.id,
+      }))))
       .onConflictDoNothing();
     await tx
       .insert(events)
-      .values(seasonEvents.map((event) => ({ seasonId: existingSeason.id, ...event })))
+      .values(divisionRows.flatMap((division) => seasonEvents.map((event) => ({
+        seasonId: existingSeason.id,
+        divisionId: division.id,
+        ...event,
+      }))))
       .onConflictDoNothing();
 
     const channelValues = Object.entries(DISCORD_CHANNELS).map(([key, channel]) => ({
@@ -120,14 +145,20 @@ export async function seedSeasonOne(startsAt: Date) {
       await tx
         .insert(discordNotificationRoutes)
         .values(route)
-        .onConflictDoNothing({ target: discordNotificationRoutes.eventType });
+        .onConflictDoNothing({
+          target: [
+            discordNotificationRoutes.eventType,
+            discordNotificationRoutes.tierId,
+          ],
+        });
     }
 
     return {
       seasonId: existingSeason.id,
       weeks: weeks.length,
-      events: seasonEvents.length,
+      events: seasonEvents.length * divisionRows.length,
       franchises: SEASON_ONE_FRANCHISES.length,
+      tiers: divisionRows.length,
       channels: channelValues.length,
       roles: roleValues.length,
       notificationRoutes: DEFAULT_DISCORD_NOTIFICATION_ROUTES.length,

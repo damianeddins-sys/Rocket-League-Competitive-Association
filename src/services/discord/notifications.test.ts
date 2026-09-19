@@ -44,11 +44,18 @@ describe("Discord notification safety", () => {
   it("routes website events through configured channel keys", () => {
     expect(DEFAULT_DISCORD_NOTIFICATION_ROUTES).toContainEqual({
       eventType: "APPLICATION_SUBMITTED_PLAYER",
+      tierId: "all",
       channelKey: "PLAYER_SIGNUPS",
     });
     expect(DEFAULT_DISCORD_NOTIFICATION_ROUTES).toContainEqual({
       eventType: "TRANSACTION_SUBMITTED",
+      tierId: "all",
       channelKey: "PENDING_TRANSACTIONS",
+    });
+    expect(DEFAULT_DISCORD_NOTIFICATION_ROUTES).toContainEqual({
+      eventType: "MATCH_RESULT_VERIFIED",
+      tierId: "premier",
+      channelKey: "REPORT_PREMIER",
     });
   });
 });

@@ -2,13 +2,21 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LockKeyhole } from "lucide-react";
 import { LeagueDataState } from "@/components/league-data-state";
+import { TierBadge, TierNavigation } from "@/components/tier-navigation";
 import { loadPublicLeagueData } from "@/services/public-league-data";
+import { normalizeTierId } from "@/services/tiers";
 
 export const metadata: Metadata = { title: "Standings" };
 export const dynamic = "force-dynamic";
 
-export default async function StandingsPage() {
-  const data = await loadPublicLeagueData();
+export default async function StandingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tier?: string; season?: string }>;
+}) {
+  const query = await searchParams;
+  const tierId = normalizeTierId(query.tier) ?? "challenger";
+  const data = await loadPublicLeagueData({ tier: tierId, season: query.season });
   const seasonName = data.status === "ready" ? data.season.name : "Season 1";
   const championshipLocked = data.status === "ready"
     && data.standings.slice(0, 2).every((team) => team.status.startsWith("LOCKED"));
@@ -32,7 +40,8 @@ export default async function StandingsPage() {
           <LeagueDataState state={data.reason} />
         ) : (
           <>
-            <div className="mb-6 grid gap-4 sm:grid-cols-2">
+            <TierNavigation current={tierId} pathname="/standings" searchParams={{ season: query.season }} />
+            <div className="mb-6 mt-6 grid gap-4 sm:grid-cols-2">
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-5">
                 <p className="eyebrow text-emerald-700">Championship lock</p>
                 <p className="mt-2 font-bold text-emerald-950">
@@ -53,11 +62,15 @@ export default async function StandingsPage() {
                 </p>
               </div>
             </div>
-            <div className="panel overflow-x-auto">
-              <table className="w-full min-w-[850px] border-collapse text-left">
-                <thead className="bg-[#0b1f3a] text-xs uppercase tracking-wider text-slate-300">
+            <div className="panel overflow-x-auto" style={{ borderTop: `4px solid ${data.tier.color}` }}>
+              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                <TierBadge tierId={tierId} />
+                <span className="text-xs font-bold text-slate-500">Season and tier isolated</span>
+              </div>
+              <table className="w-full min-w-[1050px] border-collapse text-left">
+                <thead className="bg-[#05070C] text-xs uppercase tracking-wider text-slate-300">
                   <tr>
-                    {["Seed", "Franchise", "Series", "Games", "Diff", "Total pts", "Status"].map(
+                    {["Seed", "Franchise", "Series", "Played", "Games", "Diff", "Win %", "Streak", "Total pts", "Status"].map(
                       (label) => <th key={label} className="px-5 py-4">{label}</th>,
                     )}
                   </tr>
@@ -67,7 +80,7 @@ export default async function StandingsPage() {
                     <tr key={team.id} className="border-b border-slate-100 last:border-0">
                       <td className="px-5 py-4 text-xl font-black text-slate-400">{index + 1}</td>
                       <td className="px-5 py-4">
-                        <Link href={`/teams/${team.slug}`} className="flex items-center gap-3 font-bold">
+                        <Link href={`/teams/${team.slug}?tier=${tierId}`} className="flex items-center gap-3 font-bold">
                           <span
                             className="flex h-9 w-9 items-center justify-center rounded-md text-[10px] text-white"
                             style={{ backgroundColor: team.color }}
@@ -80,12 +93,15 @@ export default async function StandingsPage() {
                       <td className="px-5 py-4 font-mono">
                         {team.wins}–{team.losses}{team.ties ? `–${team.ties}` : ""}
                       </td>
+                      <td className="px-5 py-4 font-mono">{team.seriesPlayed}</td>
                       <td className="px-5 py-4 font-mono">
                         {team.gamesWon}–{team.gamesLost}
                       </td>
                       <td className="px-5 py-4 font-mono font-bold">
                         {team.gameDifferential > 0 ? "+" : ""}{team.gameDifferential}
                       </td>
+                      <td className="px-5 py-4 font-mono">{team.winPercentage.toFixed(1)}%</td>
+                      <td className="px-5 py-4 font-mono font-bold">{team.currentStreak}</td>
                       <td className="px-5 py-4 font-mono text-lg font-black">{team.points}</td>
                       <td className="px-5 py-4 text-xs font-black">
                         {team.status.startsWith("LOCKED") && (

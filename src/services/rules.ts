@@ -16,7 +16,7 @@ export const SEASON_ONE_RULES = Object.freeze({
     combineWeight: 0.2,
     startingMmrMinimum: 1000,
     startingMmrMaximum: 1800,
-    placementPoolSize: 24,
+    placementPoolSize: 32,
     playersPerDivision: 8,
   }),
   lifecycle: Object.freeze({

@@ -1,16 +1,27 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { getDatabase } from "../db";
 import {
+  divisions,
   events,
   matches,
+  players,
+  playerSeasons,
   qualificationPointEvents,
+  rosterMemberships,
   seasons,
   seasonWeeks,
   teams,
+  teamSeasonEntries,
 } from "../db/schema";
 import { competitionEvent } from "./competition-events";
 import { seasonOneFranchise } from "./franchises";
 import { resolveChampionshipLockIds } from "./points";
+import {
+  normalizeTierId,
+  type TierId,
+  tierDefinition,
+  TIERS,
+} from "./tiers";
 
 export type PublicTeamStanding = {
   id: string;
@@ -20,18 +31,24 @@ export type PublicTeamStanding = {
   shortName: string;
   color: string;
   logoUrl: string | null;
+  tierId: TierId;
   wins: number;
   losses: number;
   ties: number;
+  seriesPlayed: number;
+  gamesPlayed: number;
   gamesWon: number;
   gamesLost: number;
   gameDifferential: number;
   points: number;
+  winPercentage: number;
+  currentStreak: string;
   status: "ACTIVE" | "LOCKED #1" | "LOCKED #2";
 };
 
 export type PublicMatch = {
   id: string;
+  tierId: TierId;
   week: number;
   sundaySlot: number;
   bestOf: number;
@@ -43,8 +60,19 @@ export type PublicMatch = {
   teamB: Pick<PublicTeamStanding, "id" | "slug" | "name" | "shortName" | "color" | "logoUrl">;
 };
 
+export type PublicPlayer = {
+  id: string;
+  handle: string;
+  avatarUrl: string | null;
+  tierId: TierId;
+  currentMmr: string | null;
+  status: string;
+  team: string | null;
+};
+
 export type PublicEvent = {
   id: string;
+  tierId: TierId;
   type: string;
   name: string;
   startsAt: string;
@@ -69,15 +97,23 @@ export type PublicLeagueData =
   | {
       status: "ready";
       season: { id: string; name: string; slug: string };
+      tier: ReturnType<typeof tierDefinition>;
+      availableTiers: typeof TIERS;
       currentWeek: { number: number; phase: string } | null;
       weeks: PublicSeasonWeek[];
       standings: PublicTeamStanding[];
       matches: PublicMatch[];
+      players: PublicPlayer[];
       events: PublicEvent[];
       updatedAt: string;
     }
   | { status: "unavailable"; reason: "DATABASE_NOT_CONFIGURED" | "DATABASE_UNAVAILABLE" }
-  | { status: "empty"; reason: "NO_ACTIVE_SEASON" };
+  | { status: "empty"; reason: "NO_ACTIVE_SEASON" | "NO_TIER_CONFIGURATION" };
+
+type PublicLeagueDataOptions = {
+  tier?: string | null;
+  season?: string | null;
+};
 
 function eventState(
   startsAt: Date,
@@ -91,38 +127,120 @@ function eventState(
   return "ACTIVE";
 }
 
-export async function loadPublicLeagueData(now = new Date()): Promise<PublicLeagueData> {
+function updateStreak(current: string, result: "W" | "L" | "T") {
+  const previousResult = current.slice(0, 1);
+  const count = previousResult === result ? Number(current.slice(1) || 0) + 1 : 1;
+  return `${result}${count}`;
+}
+
+export async function loadPublicLeagueData(
+  options: PublicLeagueDataOptions = {},
+  now = new Date(),
+): Promise<PublicLeagueData> {
   if (!process.env.DATABASE_URL) {
     return { status: "unavailable", reason: "DATABASE_NOT_CONFIGURED" };
   }
+  const selectedTierId = normalizeTierId(options.tier) ?? "challenger";
 
   try {
     const db = getDatabase();
-    const [activeSeason] = await db
+    const seasonQuery = db
       .select()
       .from(seasons)
-      .where(eq(seasons.active, true))
+      .where(options.season
+        ? eq(seasons.slug, options.season)
+        : eq(seasons.active, true))
       .orderBy(desc(seasons.startsAt))
       .limit(1);
+    const [activeSeason] = await seasonQuery;
     if (!activeSeason) return { status: "empty", reason: "NO_ACTIVE_SEASON" };
 
-    const [teamRows, matchRows, pointRows, eventRows, weekRows] = await Promise.all([
-      db.select().from(teams).where(eq(teams.active, true)).orderBy(asc(teams.franchiseNumber)),
+    const [selectedDivision] = await db
+      .select()
+      .from(divisions)
+      .where(and(
+        eq(divisions.seasonId, activeSeason.id),
+        eq(divisions.slug, selectedTierId),
+        eq(divisions.active, true),
+      ))
+      .limit(1);
+    if (!selectedDivision) return { status: "empty", reason: "NO_TIER_CONFIGURATION" };
+
+    const [
+      entryRows,
+      matchRows,
+      pointRows,
+      eventRows,
+      weekRows,
+      seasonPlayerRows,
+      activeRosterRows,
+    ] = await Promise.all([
+      db
+        .select()
+        .from(teamSeasonEntries)
+        .where(and(
+          eq(teamSeasonEntries.seasonId, activeSeason.id),
+          eq(teamSeasonEntries.divisionId, selectedDivision.id),
+          eq(teamSeasonEntries.active, true),
+          isNull(teamSeasonEntries.endedAt),
+        )),
       db
         .select()
         .from(matches)
-        .where(eq(matches.seasonId, activeSeason.id))
+        .where(and(
+          eq(matches.seasonId, activeSeason.id),
+          eq(matches.divisionId, selectedDivision.id),
+        ))
         .orderBy(asc(matches.scheduledAt)),
       db
         .select()
         .from(qualificationPointEvents)
-        .where(eq(qualificationPointEvents.seasonId, activeSeason.id)),
-      db.select().from(events).where(eq(events.seasonId, activeSeason.id)).orderBy(asc(events.startsAt)),
+        .where(and(
+          eq(qualificationPointEvents.seasonId, activeSeason.id),
+          eq(qualificationPointEvents.divisionId, selectedDivision.id),
+        )),
+      db
+        .select()
+        .from(events)
+        .where(and(
+          eq(events.seasonId, activeSeason.id),
+          eq(events.divisionId, selectedDivision.id),
+        ))
+        .orderBy(asc(events.startsAt)),
       db
         .select()
         .from(seasonWeeks)
         .where(eq(seasonWeeks.seasonId, activeSeason.id))
         .orderBy(asc(seasonWeeks.weekNumber)),
+      db
+        .select()
+        .from(playerSeasons)
+        .where(and(
+          eq(playerSeasons.seasonId, activeSeason.id),
+          eq(playerSeasons.divisionId, selectedDivision.id),
+        )),
+      db
+        .select()
+        .from(rosterMemberships)
+        .where(and(
+          eq(rosterMemberships.seasonId, activeSeason.id),
+          eq(rosterMemberships.divisionId, selectedDivision.id),
+          isNull(rosterMemberships.endsAt),
+        )),
+    ]);
+
+    const teamIds = [...new Set(entryRows.map((entry) => entry.teamId))];
+    const playerIds = seasonPlayerRows.map((entry) => entry.playerId);
+    const [teamRows, playerRows] = await Promise.all([
+      teamIds.length
+        ? db.select().from(teams).where(and(
+          inArray(teams.id, teamIds),
+          eq(teams.active, true),
+        ))
+        : Promise.resolve([]),
+      playerIds.length
+        ? db.select().from(players).where(inArray(players.id, playerIds))
+        : Promise.resolve([]),
     ]);
 
     const pointTotals = new Map<string, number>();
@@ -132,11 +250,9 @@ export async function loadPublicLeagueData(now = new Date()): Promise<PublicLeag
 
     const standingMap = new Map<string, PublicTeamStanding>(
       teamRows.flatMap((team) => {
-        const franchise = seasonOneFranchise(team.franchiseNumber);
+        const franchise = team.franchiseNumber ? seasonOneFranchise(team.franchiseNumber) : null;
         if (!franchise) return [];
-        return [[
-          team.id,
-          {
+        return [[team.id, {
           id: team.id,
           franchiseNumber: franchise.number,
           slug: franchise.slug,
@@ -144,16 +260,20 @@ export async function loadPublicLeagueData(now = new Date()): Promise<PublicLeag
           shortName: franchise.shortName,
           color: team.primaryColor,
           logoUrl: team.logoUrl,
+          tierId: selectedTierId,
           wins: 0,
           losses: 0,
           ties: 0,
+          seriesPlayed: 0,
+          gamesPlayed: 0,
           gamesWon: 0,
           gamesLost: 0,
           gameDifferential: 0,
           points: pointTotals.get(team.id) ?? 0,
+          winPercentage: 0,
+          currentStreak: "—",
           status: "ACTIVE",
-          },
-        ] as const];
+        }] as const];
       }),
     );
 
@@ -164,6 +284,8 @@ export async function loadPublicLeagueData(now = new Date()): Promise<PublicLeag
       const teamA = standingMap.get(match.teamAId);
       const teamB = standingMap.get(match.teamBId);
       if (!teamA || !teamB) continue;
+      teamA.seriesPlayed += 1;
+      teamB.seriesPlayed += 1;
       teamA.gamesWon += match.teamAScore;
       teamA.gamesLost += match.teamBScore;
       teamB.gamesWon += match.teamBScore;
@@ -171,27 +293,35 @@ export async function loadPublicLeagueData(now = new Date()): Promise<PublicLeag
       if (match.officialTie) {
         teamA.ties += 1;
         teamB.ties += 1;
+        teamA.currentStreak = updateStreak(teamA.currentStreak, "T");
+        teamB.currentStreak = updateStreak(teamB.currentStreak, "T");
       } else if (match.teamAScore > match.teamBScore) {
         teamA.wins += 1;
         teamB.losses += 1;
+        teamA.currentStreak = updateStreak(teamA.currentStreak, "W");
+        teamB.currentStreak = updateStreak(teamB.currentStreak, "L");
       } else {
         teamB.wins += 1;
         teamA.losses += 1;
+        teamB.currentStreak = updateStreak(teamB.currentStreak, "W");
+        teamA.currentStreak = updateStreak(teamA.currentStreak, "L");
       }
     }
 
     let standings = [...standingMap.values()]
       .map((team) => ({
         ...team,
+        gamesPlayed: team.gamesWon + team.gamesLost,
         gameDifferential: team.gamesWon - team.gamesLost,
+        winPercentage: team.seriesPlayed
+          ? Math.round((team.wins / team.seriesPlayed) * 1000) / 10
+          : 0,
       }))
-      .sort(
-        (a, b) =>
-          b.points - a.points ||
-          b.wins - a.wins ||
-          b.gameDifferential - a.gameDifferential ||
-          a.name.localeCompare(b.name),
-      );
+      .sort((a, b) =>
+        b.points - a.points
+        || b.wins - a.wins
+        || b.gameDifferential - a.gameDifferential
+        || a.name.localeCompare(b.name));
 
     const majorTwo = eventRows.find((event) => event.type === "MAJOR_2");
     const lastChance = eventRows.find((event) => event.type === "LAST_CHANCE");
@@ -201,63 +331,9 @@ export async function loadPublicLeagueData(now = new Date()): Promise<PublicLeag
       persistedSeedSnapshot: lastChance?.seedSnapshot,
       preLastChanceTeamIds: [],
     });
-
     if (lockedTeamIds.length === 0 && majorTwo && now > majorTwo.endsAt) {
-      const preLastChanceEventIds = new Set(
-        eventRows
-          .filter((event) => event.type !== "LAST_CHANCE" && event.type !== "CHAMPIONSHIP")
-          .map((event) => event.id),
-      );
-      const preLastChancePoints = new Map<string, number>();
-      for (const point of pointRows) {
-        if (point.eventId && !preLastChanceEventIds.has(point.eventId)) continue;
-        preLastChancePoints.set(
-          point.teamId,
-          (preLastChancePoints.get(point.teamId) ?? 0) + Number(point.points),
-        );
-      }
-      const preLastChanceRecords = new Map(
-        teamRows.map((team) => [team.id, { wins: 0, gamesWon: 0, gamesLost: 0 }]),
-      );
-      for (const match of matchRows) {
-        if (
-          match.week > 12 ||
-          match.status !== "VERIFIED" ||
-          match.teamAScore === null ||
-          match.teamBScore === null
-        ) continue;
-        const teamA = preLastChanceRecords.get(match.teamAId);
-        const teamB = preLastChanceRecords.get(match.teamBId);
-        if (!teamA || !teamB) continue;
-        teamA.gamesWon += match.teamAScore;
-        teamA.gamesLost += match.teamBScore;
-        teamB.gamesWon += match.teamBScore;
-        teamB.gamesLost += match.teamAScore;
-        if (!match.officialTie) {
-          if (match.teamAScore > match.teamBScore) teamA.wins += 1;
-          else teamB.wins += 1;
-        }
-      }
-      const preLastChanceTeamIds = [...standingMap.values()]
-        .sort((a, b) => {
-          const aRecord = preLastChanceRecords.get(a.id)!;
-          const bRecord = preLastChanceRecords.get(b.id)!;
-          return (
-            (preLastChancePoints.get(b.id) ?? 0) - (preLastChancePoints.get(a.id) ?? 0) ||
-            bRecord.wins - aRecord.wins ||
-            (bRecord.gamesWon - bRecord.gamesLost) - (aRecord.gamesWon - aRecord.gamesLost) ||
-            a.name.localeCompare(b.name)
-          );
-        })
-        .map((team) => team.id);
-      lockedTeamIds = resolveChampionshipLockIds({
-        now,
-        majorTwoEndsAt: majorTwo.endsAt,
-        persistedSeedSnapshot: null,
-        preLastChanceTeamIds,
-      });
+      lockedTeamIds = standings.slice(0, 2).map((team) => team.id);
     }
-
     if (lockedTeamIds.length === 2) {
       const lockedOne = standingMap.get(lockedTeamIds[0]);
       const lockedTwo = standingMap.get(lockedTeamIds[1]);
@@ -265,32 +341,28 @@ export async function loadPublicLeagueData(now = new Date()): Promise<PublicLeag
         lockedOne.status = "LOCKED #1";
         lockedTwo.status = "LOCKED #2";
         standings = [
-          lockedOne,
-          lockedTwo,
+          { ...standings.find((team) => team.id === lockedOne.id)!, status: "LOCKED #1" },
+          { ...standings.find((team) => team.id === lockedTwo.id)!, status: "LOCKED #2" },
           ...standings.filter((team) => !lockedTeamIds.includes(team.id)),
         ];
       }
     }
 
-    const teamSummary = new Map(
-      standings.map((team) => [
-        team.id,
-        {
-          id: team.id,
-          slug: team.slug,
-          name: team.name,
-          shortName: team.shortName,
-          color: team.color,
-          logoUrl: team.logoUrl,
-        },
-      ]),
-    );
+    const teamSummary = new Map(standings.map((team) => [team.id, {
+      id: team.id,
+      slug: team.slug,
+      name: team.name,
+      shortName: team.shortName,
+      color: team.color,
+      logoUrl: team.logoUrl,
+    }]));
     const publicMatches = matchRows.flatMap((match) => {
       const teamA = teamSummary.get(match.teamAId);
       const teamB = teamSummary.get(match.teamBId);
       if (!teamA || !teamB) return [];
       return [{
         id: match.id,
+        tierId: selectedTierId,
         week: match.week,
         sundaySlot: match.sundaySlot,
         bestOf: match.bestOf,
@@ -302,13 +374,31 @@ export async function loadPublicLeagueData(now = new Date()): Promise<PublicLeag
         teamB,
       }];
     });
-    const currentWeek = weekRows.find(
-      (week) => week.startsAt <= now && week.endsAt >= now,
-    );
 
+    const playersById = new Map(playerRows.map((player) => [player.id, player]));
+    const teamNames = new Map(teamRows.map((team) => [team.id, team.name]));
+    const activeRosterByPlayer = new Map(activeRosterRows.map((entry) => [entry.playerId, entry]));
+    const publicPlayers = seasonPlayerRows.flatMap((entry) => {
+      const player = playersById.get(entry.playerId);
+      if (!player) return [];
+      const membership = activeRosterByPlayer.get(entry.playerId);
+      return [{
+        id: player.id,
+        handle: player.handle,
+        avatarUrl: player.avatarUrl,
+        tierId: selectedTierId,
+        currentMmr: entry.currentMmr,
+        status: entry.status,
+        team: membership ? teamNames.get(membership.teamId) ?? null : null,
+      }];
+    }).sort((a, b) => a.handle.localeCompare(b.handle));
+
+    const currentWeek = weekRows.find((week) => week.startsAt <= now && week.endsAt >= now);
     return {
       status: "ready",
       season: { id: activeSeason.id, name: activeSeason.name, slug: activeSeason.slug },
+      tier: tierDefinition(selectedTierId),
+      availableTiers: TIERS,
       currentWeek: currentWeek
         ? { number: currentWeek.weekNumber, phase: currentWeek.phase }
         : null,
@@ -320,11 +410,13 @@ export async function loadPublicLeagueData(now = new Date()): Promise<PublicLeag
       })),
       standings,
       matches: publicMatches,
+      players: publicPlayers,
       events: eventRows.flatMap((event) => {
         const presentation = competitionEvent(event.type);
         if (!presentation) return [];
         return [{
           id: event.id,
+          tierId: selectedTierId,
           type: event.type,
           name: presentation.name,
           startsAt: event.startsAt.toISOString(),
@@ -340,7 +432,11 @@ export async function loadPublicLeagueData(now = new Date()): Promise<PublicLeag
       }),
       updatedAt: now.toISOString(),
     };
-  } catch {
+  } catch (error) {
+    console.error("Public league tier query failed", {
+      tier: selectedTierId,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
     return { status: "unavailable", reason: "DATABASE_UNAVAILABLE" };
   }
 }
