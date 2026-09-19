@@ -262,6 +262,7 @@ export const discordNotificationJobs = pgTable(
     }>().notNull(),
     sourceEntityType: text("source_entity_type").notNull(),
     sourceEntityId: text("source_entity_id").notNull(),
+    recipientDiscordUserId: text("recipient_discord_user_id"),
     idempotencyKey: text("idempotency_key").notNull().unique(),
     status: text("status").default("PENDING").notNull(),
     attempts: integer("attempts").default(0).notNull(),

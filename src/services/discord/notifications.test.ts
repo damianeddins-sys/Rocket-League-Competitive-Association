@@ -41,6 +41,22 @@ describe("Discord notification safety", () => {
     expect(job.eventType).toBe("APPLICATION_SUBMITTED_PLAYER");
   });
 
+  it("supports private applicant notifications without exposing secrets", () => {
+    const job = notificationJob({
+      eventType: "APPLICATION_APPLICANT_UPDATED",
+      recipientDiscordUserId: "123456789012345678",
+      payload: {
+        title: "Your RLCA Application Was Updated",
+        description: "Your application is now APPROVED.",
+      },
+      sourceEntityType: "APPLICATION",
+      sourceEntityId: "application-id",
+      idempotencyKey: "application-updated:application-id",
+    });
+    expect(job.recipientDiscordUserId).toBe("123456789012345678");
+    expect(JSON.stringify(job)).not.toMatch(/token|password|secret/i);
+  });
+
   it("routes website events through configured channel keys", () => {
     expect(DEFAULT_DISCORD_NOTIFICATION_ROUTES).toContainEqual({
       eventType: "APPLICATION_SUBMITTED_PLAYER",

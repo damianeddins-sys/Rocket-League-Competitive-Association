@@ -48,17 +48,14 @@ const leagueData: PublicLeagueData = {
 };
 
 describe("Discord interactions", () => {
-  it("does not report all systems online when official data is unavailable", async () => {
+  it("does not report all systems online when required services are unavailable", async () => {
     await expect(respondToDiscordInteraction({
       type: 2,
       data: { name: "status" },
-    }, async () => ({
-      status: "unavailable",
-      reason: "DATABASE_NOT_CONFIGURED",
-    }))).resolves.toMatchObject({
+    })).resolves.toMatchObject({
       type: 4,
       data: {
-        content: expect.stringContaining("official league data is unavailable"),
+        content: expect.stringContaining("RLCA SYSTEM STATUS: OFFLINE"),
         flags: 64,
       },
     });
@@ -118,10 +115,18 @@ describe("Discord interactions", () => {
     await expect(respondToDiscordInteraction({ type: 1 })).resolves.toEqual({ type: 1 });
     await expect(respondToDiscordInteraction({
       type: 2,
-      data: { name: "standings" },
+      data: {
+        name: "standings",
+        options: [{ name: "tier", value: "challenger" }],
+      },
     }, async () => leagueData)).resolves.toMatchObject({
       type: 4,
-      data: { content: expect.stringContaining("Challenger Standings") },
+      data: {
+        embeds: [{
+          title: expect.stringContaining("CHALLENGER STANDINGS"),
+          description: expect.stringContaining("Nova"),
+        }],
+      },
     });
     await expect(respondToDiscordInteraction({
       type: 2,
@@ -138,7 +143,69 @@ describe("Discord interactions", () => {
       reason: "DATABASE_NOT_CONFIGURED",
     }))).resolves.toMatchObject({
       type: 4,
-      data: { flags: 64, content: expect.stringContaining("unavailable") },
+      data: {
+        embeds: [{
+          description: expect.stringContaining("temporarily unavailable"),
+        }],
+      },
+    });
+  });
+
+  it("shows a clean normal-member panel without staff controls", async () => {
+    const response = await respondToDiscordInteraction({
+      type: 2,
+      data: {
+        name: "panel",
+        options: [{ name: "view", value: "member" }],
+      },
+    });
+    expect(response).toMatchObject({
+      type: 4,
+      data: {
+        embeds: [{ title: expect.stringContaining("RLCA LEAGUE") }],
+      },
+    });
+    expect(JSON.stringify(response)).not.toMatch(/Audit Logs|Settings|Manage Staff/);
+  });
+
+  it("opens application forms as private Discord modals", async () => {
+    const response = await respondToDiscordInteraction({
+      type: 3,
+      message: { flags: 64 },
+      data: { custom_id: "rlca:apply:PLAYER" },
+    });
+    expect(response).toMatchObject({
+      type: 9,
+      data: {
+        custom_id: "rlca:application-submit:PLAYER",
+        title: expect.stringContaining("PLAYER APPLICATION"),
+        components: expect.arrayContaining([
+          expect.objectContaining({
+            components: [expect.objectContaining({ custom_id: "rocket_league_username" })],
+          }),
+        ]),
+      },
+    });
+  });
+
+  it("opens tier-specific public navigation privately from a public panel", async () => {
+    const response = await respondToDiscordInteraction({
+      type: 3,
+      message: { flags: 0 },
+      data: { custom_id: "rlca:standings:master:0" },
+    }, async () => ({
+      ...leagueData,
+      tier: tierDefinition("master"),
+      standings: leagueData.status === "ready"
+        ? leagueData.standings.map((team) => ({ ...team, tierId: "master" as const }))
+        : [],
+    }));
+    expect(response).toMatchObject({
+      type: 4,
+      data: {
+        flags: 64,
+        embeds: [{ title: expect.stringContaining("MASTER STANDINGS") }],
+      },
     });
   });
 });

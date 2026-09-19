@@ -82,11 +82,16 @@ async function reportDeliveryFailure(jobId, error) {
 
 async function deliver(notification) {
   try {
-    const channel = await client.channels.fetch(notification.channelId);
-    if (!channel?.isTextBased() || !("send" in channel)) {
-      throw new Error(`Configured channel ${notification.channelId} is not a writable text channel`);
+    let destination;
+    if (notification.recipientDiscordUserId) {
+      destination = await client.users.fetch(notification.recipientDiscordUserId);
+    } else if (notification.channelId) {
+      destination = await client.channels.fetch(notification.channelId);
     }
-    const sent = await channel.send({
+    if (!destination || !("send" in destination)) {
+      throw new Error("Configured Discord notification destination is not writable");
+    }
+    const sent = await destination.send({
       embeds: [{
         ...notification.payload,
         timestamp: new Date().toISOString(),

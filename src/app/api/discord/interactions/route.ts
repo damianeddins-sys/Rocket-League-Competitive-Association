@@ -20,6 +20,10 @@ export async function POST(request: Request) {
   if (!publicKey) {
     return NextResponse.json({ error: "Discord interactions are not configured" }, { status: 503 });
   }
+  const contentLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > 64_000) {
+    return NextResponse.json({ error: "Discord interaction payload is too large" }, { status: 413 });
+  }
 
   const signature = request.headers.get("x-signature-ed25519") ?? "";
   const timestamp = request.headers.get("x-signature-timestamp") ?? "";

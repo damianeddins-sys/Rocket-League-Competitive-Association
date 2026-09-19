@@ -14,6 +14,7 @@ export const DISCORD_NOTIFICATION_EVENTS = [
   "APPLICATION_SUBMITTED_STAFF",
   "APPLICATION_SUBMITTED_FRANCHISE",
   "APPLICATION_DECIDED",
+  "APPLICATION_APPLICANT_UPDATED",
   "TRANSACTION_SUBMITTED",
   "TRANSACTION_DECIDED",
   "MATCH_RESULT_VERIFIED",
@@ -79,6 +80,7 @@ export function notificationJob(input: {
   payload: DiscordNotificationPayload;
   sourceEntityType: string;
   sourceEntityId: string;
+  recipientDiscordUserId?: string;
   idempotencyKey: string;
 }) {
   return {
@@ -89,7 +91,8 @@ export function notificationJob(input: {
 
 export type ClaimedDiscordNotification = {
   jobId: string;
-  channelId: string;
+  channelId?: string;
+  recipientDiscordUserId?: string;
   payload: DiscordNotificationPayload;
 };
 
@@ -150,6 +153,30 @@ export async function claimDiscordNotifications(
     const claimed: ClaimedDiscordNotification[] = [];
 
     for (const job of jobs) {
+      if (job.recipientDiscordUserId) {
+        await tx
+          .update(discordNotificationJobs)
+          .set({
+            status: "PROCESSING",
+            attempts: job.attempts + 1,
+            lockedAt: now,
+            lockedBy: workerId,
+            lastError: null,
+          })
+          .where(and(
+            eq(discordNotificationJobs.id, job.id),
+            or(
+              eq(discordNotificationJobs.status, "PENDING"),
+              eq(discordNotificationJobs.status, "RETRY"),
+            ),
+          ));
+        claimed.push({
+          jobId: job.id,
+          recipientDiscordUserId: job.recipientDiscordUserId,
+          payload: job.payload,
+        });
+        continue;
+      }
       const route = routeByEvent.get(`${job.eventType}:${job.tierId ?? "all"}`)
         ?? routeByEvent.get(`${job.eventType}:all`);
       const channel = route ? channelByKey.get(route.channelKey) : undefined;

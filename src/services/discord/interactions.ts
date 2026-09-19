@@ -50,7 +50,11 @@ import {
   tierPickerPage,
   type DiscordPage,
 } from "./ui";
-import type { ApplicationStatus, ApplicationType } from "../applications";
+import {
+  applicationTypes,
+  type ApplicationStatus,
+  type ApplicationType,
+} from "../applications";
 
 const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 const MAX_REQUEST_AGE_SECONDS = 5 * 60;
@@ -333,6 +337,7 @@ export async function respondToDiscordInteraction(
       if (action === "retry") return componentPage(interaction, memberHomePage());
       if (action === "applications") return componentPage(interaction, applicationsPage());
       if (action === "apply") {
+        if (!applicationTypes.includes(parts[2] as ApplicationType)) throw new Error("INVALID_APPLICATION_TYPE");
         return applicationModal(parts[2] as ApplicationType);
       }
       if (action === "my-applications") {
@@ -460,6 +465,9 @@ export async function respondToDiscordInteraction(
     if (!actor) return message("Discord member identity is required.", true);
     try {
       if (parts[1] === "application-submit") {
+        if (!applicationTypes.includes(parts[2] as ApplicationType)) {
+          throw new Error("INVALID_APPLICATION_TYPE");
+        }
         const result = await submitDiscordApplication(
           actor,
           parts[2] as ApplicationType,
@@ -483,6 +491,9 @@ export async function respondToDiscordInteraction(
       const reason = error instanceof Error ? error.message : "UNKNOWN";
       if (reason === "OPEN_APPLICATION_EXISTS") {
         return message("You already have an open application of that type. Open My Applications to view it.", true);
+      }
+      if (reason === "RATE_LIMITED") {
+        return message("You have reached the application submission limit. Try again later or contact RLCA support.", true);
       }
       if (reason === "FORBIDDEN") {
         return message("You are not authorized to complete this staff action.", true);

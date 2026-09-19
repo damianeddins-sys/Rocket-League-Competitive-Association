@@ -24,6 +24,7 @@ import {
   type DatabaseRoleCode,
 } from "../auth/database-roles";
 import { resolveDiscordAccess } from "../auth/discord-roles";
+import { consumeAuthRateLimit } from "../auth/rate-limit";
 import {
   canReviewApplicationTransition,
   type ApplicationStatus,
@@ -131,6 +132,12 @@ export async function submitDiscordApplication(
 ) {
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_UNAVAILABLE");
   const { userId } = await actorContext(actor);
+  const rateLimit = await consumeAuthRateLimit({
+    key: `discord-application-submit:${actor.discordUserId}`,
+    limit: 5,
+    windowMs: 24 * 60 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) throw new Error("RATE_LIMITED");
   const db = getDatabase();
   const [duplicate] = await db
     .select({ id: applications.id, status: applications.status })
@@ -536,6 +543,28 @@ export async function reviewDiscordApplication(
       sourceEntityType: "APPLICATION",
       sourceEntityId: applicationId,
       idempotencyKey: `discord-application-review:${applicationId}:${requestId}`,
+    })).onConflictDoNothing();
+    await tx.insert(discordNotificationJobs).values(notificationJob({
+      eventType: "APPLICATION_APPLICANT_UPDATED",
+      recipientDiscordUserId: current.discordUserId,
+      payload: {
+        title: "Your RLCA Application Was Updated",
+        description: nextStatus === "MORE_INFO_REQUIRED"
+          ? `Staff requested changes: ${reason}`
+          : `Your application is now ${nextStatus.replaceAll("_", " ")}.`,
+        color: nextStatus === "APPROVED"
+          ? 0x22c55e
+          : nextStatus === "DENIED"
+            ? 0xef4444
+            : 0x168bff,
+        fields: [
+          { name: "Application", value: publicApplicationId(applicationId), inline: true },
+          { name: "Status", value: nextStatus.replaceAll("_", " "), inline: true },
+        ],
+      },
+      sourceEntityType: "APPLICATION",
+      sourceEntityId: applicationId,
+      idempotencyKey: `discord-applicant-update:${applicationId}:${requestId}`,
     })).onConflictDoNothing();
   });
   return loadApplicationDetail(actor, applicationId);
