@@ -140,15 +140,26 @@ export function loadTransactionManagement(page = 1) {
 export function loadPlayerManagement() {
   return load(async () => {
     const db = getDatabase();
-    const [playerRows, seasonRows, activeSeason, divisionRows, membershipRows, teamRows] = await Promise.all([
+    const [season] = await db
+      .select({ id: seasons.id, name: seasons.name })
+      .from(seasons)
+      .where(eq(seasons.active, true))
+      .limit(1);
+    const [playerRows, seasonRows, divisionRows, membershipRows, teamRows] = await Promise.all([
       db.select().from(players).orderBy(asc(players.handle)).limit(1000),
-      db.select().from(playerSeasons),
-      db.select({ id: seasons.id, name: seasons.name }).from(seasons).where(eq(seasons.active, true)).limit(1),
-      db.select({ id: divisions.id, name: divisions.displayName }).from(divisions),
-      db.select().from(rosterMemberships),
+      season
+        ? db.select().from(playerSeasons).where(eq(playerSeasons.seasonId, season.id))
+        : Promise.resolve([]),
+      season
+        ? db.select({ id: divisions.id, name: divisions.displayName })
+          .from(divisions)
+          .where(eq(divisions.seasonId, season.id))
+        : Promise.resolve([]),
+      season
+        ? db.select().from(rosterMemberships).where(eq(rosterMemberships.seasonId, season.id))
+        : Promise.resolve([]),
       db.select({ id: teams.id, name: teams.name }).from(teams),
     ]);
-    const season = activeSeason[0] ?? null;
     const divisionNames = new Map(divisionRows.map((division) => [division.id, division.name]));
     const teamNames = new Map(teamRows.map((team) => [team.id, team.name]));
     return {

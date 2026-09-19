@@ -2,6 +2,8 @@ import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
   boolean,
+  check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -171,17 +173,26 @@ export const discordRoleConfigurations = pgTable("discord_role_configurations", 
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const discordChannelConfigurations = pgTable("discord_channel_configurations", {
-  id: id(),
-  key: text("key").notNull().unique(),
-  channelId: text("channel_id").notNull().unique(),
-  displayName: text("display_name").notNull(),
-  category: text("category").notNull(),
-  division: text("division"),
-  persistentMessageId: text("persistent_message_id"),
-  active: boolean("active").default(true).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const discordChannelConfigurations = pgTable(
+  "discord_channel_configurations",
+  {
+    id: id(),
+    key: text("key").notNull().unique(),
+    channelId: text("channel_id").notNull().unique(),
+    displayName: text("display_name").notNull(),
+    category: text("category").notNull(),
+    division: text("division"),
+    persistentMessageId: text("persistent_message_id"),
+    active: boolean("active").default(true).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      "discord_channel_valid_tier",
+      sql`${table.division} is null or ${table.division} in ('CONTENDER', 'CHALLENGER', 'MASTER', 'PREMIER')`,
+    ),
+  ],
+);
 
 export const discordRoleSnapshots = pgTable(
   "discord_role_snapshots",
@@ -346,6 +357,7 @@ export const divisions = pgTable(
   (table) => [
     uniqueIndex("division_season_code").on(table.seasonId, table.code),
     uniqueIndex("division_season_slug").on(table.seasonId, table.slug),
+    uniqueIndex("division_id_season").on(table.id, table.seasonId),
   ],
 );
 
@@ -376,6 +388,11 @@ export const teamSeasonEntries = pgTable(
   (table) => [
     uniqueIndex("team_entry_season_tier").on(table.seasonId, table.teamId, table.divisionId),
     index("team_entry_tier").on(table.seasonId, table.divisionId, table.active),
+    foreignKey({
+      columns: [table.divisionId, table.seasonId],
+      foreignColumns: [divisions.id, divisions.seasonId],
+      name: "team_entry_division_same_season",
+    }),
   ],
 );
 
@@ -401,7 +418,15 @@ export const playerSeasons = pgTable(
     currentPlacementCycleId: uuid("current_placement_cycle_id"),
     createdAt: createdAt(),
   },
-  (table) => [uniqueIndex("player_season_unique").on(table.playerId, table.seasonId)],
+  (table) => [
+    uniqueIndex("player_season_unique").on(table.playerId, table.seasonId),
+    index("player_season_tier").on(table.seasonId, table.divisionId),
+    foreignKey({
+      columns: [table.divisionId, table.seasonId],
+      foreignColumns: [divisions.id, divisions.seasonId],
+      name: "player_season_division_same_season",
+    }),
+  ],
 );
 
 export const playerApplications = pgTable(
@@ -559,6 +584,11 @@ export const rosterMemberships = pgTable(
     uniqueIndex("roster_active_player_season")
       .on(table.playerId, table.seasonId)
       .where(sql`${table.endsAt} is null`),
+    foreignKey({
+      columns: [table.divisionId, table.seasonId],
+      foreignColumns: [divisions.id, divisions.seasonId],
+      name: "roster_division_same_season",
+    }),
   ],
 );
 
@@ -670,16 +700,26 @@ export const ratingEvents = pgTable(
   (table) => [index("rating_player_season").on(table.playerId, table.seasonId, table.createdAt)],
 );
 
-export const scheduleVersions = pgTable("schedule_versions", {
-  id: id(),
-  seasonId: uuid("season_id").notNull().references(() => seasons.id),
-  divisionId: uuid("division_id").notNull().references(() => divisions.id),
-  version: integer("version").notNull(),
-  publishedAt: timestamp("published_at", { withTimezone: true }),
-  supersedesId: uuid("supersedes_id"),
-  scheduleHash: text("schedule_hash").notNull(),
-  createdAt: createdAt(),
-});
+export const scheduleVersions = pgTable(
+  "schedule_versions",
+  {
+    id: id(),
+    seasonId: uuid("season_id").notNull().references(() => seasons.id),
+    divisionId: uuid("division_id").notNull().references(() => divisions.id),
+    version: integer("version").notNull(),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    supersedesId: uuid("supersedes_id"),
+    scheduleHash: text("schedule_hash").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.divisionId, table.seasonId],
+      foreignColumns: [divisions.id, divisions.seasonId],
+      name: "schedule_division_same_season",
+    }),
+  ],
+);
 
 export const events = pgTable(
   "events",
@@ -697,6 +737,11 @@ export const events = pgTable(
   },
   (table) => [
     uniqueIndex("event_season_tier_type").on(table.seasonId, table.divisionId, table.type),
+    foreignKey({
+      columns: [table.divisionId, table.seasonId],
+      foreignColumns: [divisions.id, divisions.seasonId],
+      name: "event_division_same_season",
+    }),
   ],
 );
 
@@ -728,6 +773,11 @@ export const matches = pgTable(
       table.teamBId,
       table.scheduledAt,
     ),
+    foreignKey({
+      columns: [table.divisionId, table.seasonId],
+      foreignColumns: [divisions.id, divisions.seasonId],
+      name: "match_division_same_season",
+    }),
   ],
 );
 
@@ -771,7 +821,14 @@ export const qualificationPointEvents = pgTable(
     createdBy: uuid("created_by").references(() => users.id),
     createdAt: createdAt(),
   },
-  (table) => [index("points_team_season").on(table.teamId, table.seasonId)],
+  (table) => [
+    index("points_team_season").on(table.teamId, table.seasonId),
+    foreignKey({
+      columns: [table.divisionId, table.seasonId],
+      foreignColumns: [divisions.id, divisions.seasonId],
+      name: "points_division_same_season",
+    }),
+  ],
 );
 
 export const brackets = pgTable("brackets", {
@@ -818,6 +875,11 @@ export const transactionRequests = pgTable(
     uniqueIndex("transaction_one_open_team_season_tier")
       .on(table.teamId, table.seasonId, table.divisionId)
       .where(sql`${table.status} in ('PENDING', 'MORE_INFO_REQUIRED', 'ON_HOLD', 'EXCEPTION_REQUIRED')`),
+    foreignKey({
+      columns: [table.divisionId, table.seasonId],
+      foreignColumns: [divisions.id, divisions.seasonId],
+      name: "transaction_division_same_season",
+    }),
   ],
 );
 
