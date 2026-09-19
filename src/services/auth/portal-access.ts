@@ -7,6 +7,7 @@ export type PortalAccessResult =
       allowed: true;
       userId: string;
       franchiseNumber: number | null;
+      roleIds: string[];
       portals: Portal[];
       permissions: Permission[];
     }
@@ -15,6 +16,7 @@ export type PortalAccessResult =
 export async function checkPortalAccess(
   portal: Portal,
   franchiseNumber?: number,
+  permission?: Permission,
 ): Promise<PortalAccessResult> {
   const session = await getSession();
   if (!session) {
@@ -23,12 +25,13 @@ export async function checkPortalAccess(
 
   try {
     const liveAccess = await fetchLiveDiscordAccess(session.user.discordId);
-    const decision = authorizeAccess(liveAccess, { portal, franchiseNumber });
+    const decision = authorizeAccess(liveAccess, { portal, franchiseNumber, permission });
     if (!decision.allowed) return decision;
     return {
       allowed: true,
       userId: session.user.id,
       franchiseNumber: liveAccess.franchiseNumber,
+      roleIds: liveAccess.roleIds,
       portals: liveAccess.portals,
       permissions: liveAccess.permissions,
     };

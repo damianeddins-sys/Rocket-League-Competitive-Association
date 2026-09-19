@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Activity, Bot, Database, FileClock, Settings, ShieldAlert, UserRoundCheck, Users } from "lucide-react";
+import { ApplicationManager } from "@/components/application-manager";
+import { ContentManager } from "@/components/content-manager";
+import { UserPermissionManager } from "@/components/user-permission-manager";
 import { checkPortalAccess } from "@/services/auth/portal-access";
-import type { Portal } from "@/services/auth/discord-roles";
+import type { Permission, Portal } from "@/services/auth/discord-roles";
+import { loadApplicationQueue } from "@/services/application-admin";
+import { loadSiteContent, type ContentCategory } from "@/services/site-content";
+import { loadUserManagement } from "@/services/user-management";
 import { getDiscordBotHealth } from "@/services/discord/bot-health";
 
 export const metadata: Metadata = { title: "Operations" };
@@ -11,13 +17,18 @@ export const dynamic = "force-dynamic";
 const sections = {
   overview: { label: "Operations Dashboard", portal: "LEAGUE_OPERATIONS" as Portal, icon: Activity },
   league: { label: "League Operations", portal: "LEAGUE_OPERATIONS" as Portal, icon: Settings },
-  signup: { label: "Sign-Up Manager", portal: "SIGN_UP_MANAGER" as Portal, icon: UserRoundCheck },
+  signup: { label: "Sign-Up Manager", portal: "SIGN_UP_MANAGER" as Portal, permission: "applications.manage" as Permission, icon: UserRoundCheck },
   franchise: { label: "Franchise Manager", portal: "FRANCHISE_MANAGER" as Portal, icon: Users },
   statistics: { label: "Statistics & Replays", portal: "STATISTICS" as Portal, icon: Database },
   production: { label: "Production", portal: "PRODUCTION" as Portal, icon: Activity },
   audit: { label: "Audit Log", portal: "LEAGUE_OPERATIONS" as Portal, icon: FileClock },
   "bot-health": { label: "Bot Health", portal: "LEAGUE_OPERATIONS" as Portal, icon: Bot },
   "system-health": { label: "System Health", portal: "LEAGUE_OPERATIONS" as Portal, icon: ShieldAlert },
+  users: { label: "Users & Permissions", portal: "LEAGUE_OPERATIONS" as Portal, permission: "users.manage" as Permission, icon: Users },
+  content: { label: "Content", portal: "LEAGUE_OPERATIONS" as Portal, permission: "content.manage" as Permission, icon: FileClock },
+  media: { label: "Photos & Media", portal: "LEAGUE_OPERATIONS" as Portal, permission: "media.manage" as Permission, icon: Database },
+  rules: { label: "Rules", portal: "LEAGUE_OPERATIONS" as Portal, permission: "rules.manage" as Permission, icon: FileClock },
+  "league-info": { label: "League Information", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: Settings },
 } as const;
 
 export default async function OperationsPage({
@@ -30,7 +41,11 @@ export default async function OperationsPage({
     ? section[0] as keyof typeof sections
     : "overview";
   const current = sections[sectionKey];
-  const access = await checkPortalAccess(current.portal);
+  const access = await checkPortalAccess(
+    current.portal,
+    undefined,
+    "permission" in current ? current.permission : undefined,
+  );
 
   if (!access.allowed) {
     return (
@@ -51,6 +66,21 @@ export default async function OperationsPage({
   const botHealth = sectionKey === "bot-health" || sectionKey === "system-health"
     ? await getDiscordBotHealth()
     : null;
+  const applicationQueue = sectionKey === "signup"
+    ? await loadApplicationQueue()
+    : null;
+  const contentCategory: ContentCategory | null =
+    sectionKey === "rules" ? "RULES"
+      : sectionKey === "league-info" ? "LEAGUE_INFO"
+        : sectionKey === "content" ? "CONTENT"
+          : sectionKey === "media" ? "MEDIA"
+            : null;
+  const contentItems = contentCategory
+    ? await loadSiteContent(contentCategory, true)
+    : null;
+  const userManagement = sectionKey === "users"
+    ? await loadUserManagement()
+    : null;
 
   return (
     <div className="min-h-screen bg-[#f3f6fa]">
@@ -64,7 +94,10 @@ export default async function OperationsPage({
       <main className="mx-auto grid max-w-7xl gap-7 px-5 py-10 lg:grid-cols-[16rem_1fr] lg:px-8">
         <nav className="panel h-fit p-3" aria-label="Operations sections">
           {Object.entries(sections)
-            .filter(([, item]) => access.portals.includes(item.portal))
+            .filter(([, item]) =>
+              access.portals.includes(item.portal)
+              && (!("permission" in item) || access.permissions.includes(item.permission)),
+            )
             .map(([key, item]) => {
             const Icon = item.icon;
             return (
@@ -87,7 +120,13 @@ export default async function OperationsPage({
               </div>
               <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700">AUTHORIZED</span>
             </div>
-            {botHealth ? (
+            {userManagement?.status === "READY" ? (
+              <UserPermissionManager users={userManagement.users} />
+            ) : contentCategory && process.env.DATABASE_URL && contentItems ? (
+              <ContentManager category={contentCategory} items={contentItems} />
+            ) : applicationQueue?.status === "READY" ? (
+              <ApplicationManager applications={applicationQueue.applications} />
+            ) : botHealth ? (
               <div className="mt-7">
                 <div className={`rounded-lg border p-5 ${botHealth.status === "HEALTHY" ? "border-emerald-200 bg-emerald-50" : botHealth.status === "DEGRADED" ? "border-amber-200 bg-amber-50" : "border-red-200 bg-red-50"}`}>
                   <p className="eyebrow">Discord HTTP Interactions</p>
@@ -108,7 +147,9 @@ export default async function OperationsPage({
             ) : (
               <div className="mt-7 rounded-lg border border-slate-200 bg-slate-50 p-5">
                 <p className="font-bold text-[#081e3a]">
-                  {process.env.DATABASE_URL
+                  {applicationQueue
+                    ? "The application database is not available."
+                    : process.env.DATABASE_URL
                     ? "Official data connection is configured."
                     : "Official database connection is required before operational records can be displayed."}
                 </p>

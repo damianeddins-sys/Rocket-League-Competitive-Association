@@ -64,6 +64,20 @@
       "when": 1789774670918,
       "tag": "0008_hesitant_ultimates",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789780412939,
+      "tag": "0009_pink_nick_fury",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789780619646,
+      "tag": "0010_cloudy_namorita",
+      "breakpoints": true
     }
   ]
 }

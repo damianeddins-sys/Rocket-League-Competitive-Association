@@ -54,6 +54,15 @@ export const replayStatus = pgEnum("replay_status", [
   "REQUIRES_REVIEW",
 ]);
 export const decisionStatus = pgEnum("decision_status", ["PENDING", "APPROVED", "DENIED"]);
+export const applicationType = pgEnum("application_type", ["PLAYER", "GM_AGM", "STAFF"]);
+export const applicationStatus = pgEnum("application_status", [
+  "SUBMITTED",
+  "UNDER_REVIEW",
+  "MORE_INFO_REQUIRED",
+  "APPROVED",
+  "DENIED",
+  "WITHDRAWN",
+]);
 export const seasonStatus = pgEnum("season_status", ["DRAFT", "ACTIVE", "ARCHIVED"]);
 export const seasonWeekPhase = pgEnum("season_week_phase", [
   "REGULAR_SPLIT_1",
@@ -319,6 +328,83 @@ export const playerApplications = pgTable(
     notes: text("notes"),
   },
   (table) => [uniqueIndex("player_application_season").on(table.playerSeasonId)],
+);
+
+export const applications = pgTable(
+  "applications",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    seasonId: uuid("season_id").references(() => seasons.id),
+    type: applicationType("type").notNull(),
+    status: applicationStatus("status").default("SUBMITTED").notNull(),
+    discordUserId: text("discord_user_id").notNull(),
+    fullName: text("full_name").notNull(),
+    email: text("email").notNull(),
+    epicAccountId: text("epic_account_id"),
+    trackerUrl: text("tracker_url"),
+    preferredDepartment: text("preferred_department"),
+    experience: text("experience"),
+    availability: text("availability").notNull(),
+    notes: text("notes"),
+    agreementsAccepted: boolean("agreements_accepted").notNull(),
+    submittedAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewedBy: uuid("reviewed_by").references(() => users.id),
+  },
+  (table) => [
+    index("application_user_type").on(table.userId, table.type, table.status),
+    index("application_review_queue").on(table.status, table.submittedAt),
+  ],
+);
+
+export const applicationStatusHistory = pgTable(
+  "application_status_history",
+  {
+    id: id(),
+    applicationId: uuid("application_id").notNull().references(() => applications.id),
+    fromStatus: applicationStatus("from_status"),
+    toStatus: applicationStatus("to_status").notNull(),
+    reason: text("reason"),
+    actorId: uuid("actor_id").notNull().references(() => users.id),
+    createdAt: createdAt(),
+  },
+  (table) => [index("application_status_timeline").on(table.applicationId, table.createdAt)],
+);
+
+export const applicationEmailDocuments = pgTable(
+  "application_email_documents",
+  {
+    id: id(),
+    applicationId: uuid("application_id").references(() => applications.id),
+    recipientEmail: text("recipient_email").notNull(),
+    fileName: text("file_name").notNull(),
+    contentType: text("content_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    providerMessageId: text("provider_message_id"),
+    sentBy: uuid("sent_by").notNull().references(() => users.id),
+    sentAt: createdAt(),
+  },
+  (table) => [index("application_email_document_application").on(table.applicationId, table.sentAt)],
+);
+
+export const siteContent = pgTable(
+  "site_content",
+  {
+    id: id(),
+    key: text("key").notNull().unique(),
+    category: text("category").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    mediaUrl: text("media_url"),
+    published: boolean("published").default(false).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    updatedBy: uuid("updated_by").notNull().references(() => users.id),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("site_content_category_order").on(table.category, table.published, table.sortOrder)],
 );
 
 export const placementCycles = pgTable(

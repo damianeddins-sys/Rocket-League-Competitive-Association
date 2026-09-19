@@ -1,0 +1,59 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { ApplicationForm } from "@/components/application-form";
+import { getSession } from "@/services/auth/session";
+import type { ApplicationType } from "@/services/applications";
+
+export const metadata: Metadata = { title: "Apply" };
+
+const applicationNames: Record<ApplicationType, string> = {
+  PLAYER: "Player Application",
+  GM_AGM: "GM / AGM Application",
+  STAFF: "League Staff Application",
+};
+
+export default async function ApplyPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string }>;
+}) {
+  const rawType = (await searchParams).type?.toUpperCase().replace("-", "_");
+  const type = rawType && rawType in applicationNames
+    ? rawType as ApplicationType
+    : null;
+  if (!type) redirect("/applications");
+  const session = await getSession();
+
+  return (
+    <div className="min-h-screen bg-[#f3f6fa]">
+      <section className="bg-[#061426] px-5 py-14 text-white">
+        <div className="mx-auto max-w-4xl">
+          <Link href="/applications" className="text-sm font-bold text-blue-200">← All applications</Link>
+          <p className="eyebrow mt-8 text-blue-300">Official RLCA intake</p>
+          <h1 className="mt-3 text-4xl font-black tracking-tight">{applicationNames[type]}</h1>
+          <p className="mt-4 max-w-2xl text-slate-300">
+            Submit once. Your application is stored in the official database with a complete review history.
+          </p>
+        </div>
+      </section>
+      <main className="mx-auto max-w-4xl px-5 py-12">
+        {!session?.user ? (
+          <div className="panel p-8 text-center">
+            <h2 className="text-2xl font-black text-[#081e3a]">Connect Discord to continue</h2>
+            <p className="mt-3 text-slate-600">Discord identity verification prevents impersonation and duplicate applications.</p>
+            <Link href={`/login?returnTo=${encodeURIComponent(`/applications/apply?type=${type.toLowerCase().replace("_", "-")}`)}`} className="mt-6 inline-flex rounded-lg bg-[#5865f2] px-5 py-3 font-black text-white">
+              Sign in with Discord
+            </Link>
+          </div>
+        ) : (
+          <ApplicationForm
+            type={type}
+            defaultName={session.user.name}
+            defaultEmail={session.user.email?.endsWith("@pending.rlca.invalid") ? "" : session.user.email ?? ""}
+          />
+        )}
+      </main>
+    </div>
+  );
+}

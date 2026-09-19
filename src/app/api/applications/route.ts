@@ -1,0 +1,122 @@
+import { randomUUID } from "node:crypto";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { getDatabase } from "@/db";
+import {
+  applications,
+  applicationStatusHistory,
+  auditLogs,
+  seasons,
+} from "@/db/schema";
+import { buildAuditLogRecord } from "@/services/audit";
+import { consumeAuthRateLimit } from "@/services/auth/rate-limit";
+import { getSession } from "@/services/auth/session";
+import { applicationSubmissionSchema } from "@/services/applications";
+
+export const runtime = "nodejs";
+
+const openStatuses = ["SUBMITTED", "UNDER_REVIEW", "MORE_INFO_REQUIRED"] as const;
+
+export async function POST(request: Request) {
+  const origin = request.headers.get("origin");
+  if (origin && origin !== new URL(request.url).origin) {
+    return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
+  }
+  const contentLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > 32_000) {
+    return NextResponse.json({ error: "Application request is too large" }, { status: 413 });
+  }
+  const session = await getSession();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Sign in with Discord before applying" }, { status: 401 });
+  }
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: "Applications are temporarily unavailable because the database is not configured" }, { status: 503 });
+  }
+  if (!z.string().uuid().safeParse(session.user.id).success) {
+    return NextResponse.json({ error: "Please sign in again before applying" }, { status: 401 });
+  }
+
+  const parsed = applicationSubmissionSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({
+      error: parsed.error.issues[0]?.message ?? "Application details are invalid",
+    }, { status: 400 });
+  }
+  const limit = await consumeAuthRateLimit({
+    key: `application-submit:${session.user.id}`,
+    limit: 5,
+    windowMs: 24 * 60 * 60 * 1000,
+  });
+  if (!limit.allowed) {
+    return NextResponse.json({ error: "Application submission limit reached. Try again later." }, { status: 429 });
+  }
+
+  const db = getDatabase();
+  const [duplicate, activeSeason] = await Promise.all([
+    db
+      .select({ id: applications.id })
+      .from(applications)
+      .where(and(
+        eq(applications.userId, session.user.id),
+        eq(applications.type, parsed.data.type),
+        inArray(applications.status, [...openStatuses]),
+      ))
+      .limit(1),
+    db
+      .select({ id: seasons.id })
+      .from(seasons)
+      .where(eq(seasons.active, true))
+      .orderBy(desc(seasons.startsAt))
+      .limit(1),
+  ]);
+  if (duplicate[0]) {
+    return NextResponse.json({
+      error: "You already have an open application of this type",
+      applicationId: duplicate[0].id,
+    }, { status: 409 });
+  }
+
+  const requestId = randomUUID();
+  const created = await db.transaction(async (tx) => {
+    const [application] = await tx
+      .insert(applications)
+      .values({
+        userId: session.user.id,
+        seasonId: activeSeason[0]?.id ?? null,
+        type: parsed.data.type,
+        discordUserId: session.user.discordId,
+        fullName: parsed.data.fullName,
+        email: parsed.data.email,
+        epicAccountId: parsed.data.epicAccountId || null,
+        trackerUrl: parsed.data.trackerUrl || null,
+        preferredDepartment: parsed.data.preferredDepartment || null,
+        experience: parsed.data.experience || null,
+        availability: parsed.data.availability,
+        notes: parsed.data.notes || null,
+        agreementsAccepted: true,
+      })
+      .returning({ id: applications.id, status: applications.status });
+    await tx.insert(applicationStatusHistory).values({
+      applicationId: application.id,
+      fromStatus: null,
+      toStatus: "SUBMITTED",
+      reason: "Application submitted through the RLCA website",
+      actorId: session.user.id,
+    });
+    await tx.insert(auditLogs).values(buildAuditLogRecord({
+      actorId: session.user.id,
+      actorDiscordRoleIds: session.user.access.roleIds,
+      actorFranchiseNumber: session.user.access.franchiseNumber,
+      action: "APPLICATION_SUBMITTED",
+      entityType: "APPLICATION",
+      entityId: application.id,
+      nextState: { type: parsed.data.type, status: "SUBMITTED" },
+      requestId,
+    }));
+    return application;
+  });
+
+  return NextResponse.json(created, { status: 201 });
+}

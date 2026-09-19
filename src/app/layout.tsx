@@ -13,7 +13,7 @@ const navigation = [
   ["Players", "/players"],
   ["Events", "/events"],
   ["Applications", "/applications"],
-  ["League", "/league"],
+  ["Rules", "/rules"],
 ] as const;
 
 const playerNavigation = [
@@ -190,7 +190,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               </p>
             </div>
             <div className="flex gap-8 sm:justify-end">
-              <Link href="/league">Rules & format</Link>
+              <Link href="/rules">Rules</Link>
               <Link href="/standings">Standings</Link>
               <Link href="/events">Events</Link>
             </div>

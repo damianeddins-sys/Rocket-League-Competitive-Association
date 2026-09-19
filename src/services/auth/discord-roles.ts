@@ -57,6 +57,12 @@ export type Permission =
   | "statistics.review"
   | "production.view"
   | "moderation.manage"
+  | "applications.manage"
+  | "users.manage"
+  | "content.manage"
+  | "rules.manage"
+  | "media.manage"
+  | "league.manage"
   | "league.full";
 
 const ALL_PORTALS: Portal[] = [
@@ -81,6 +87,12 @@ const ALL_PERMISSIONS: Permission[] = [
   "statistics.review",
   "production.view",
   "moderation.manage",
+  "applications.manage",
+  "users.manage",
+  "content.manage",
+  "rules.manage",
+  "media.manage",
+  "league.manage",
   "league.full",
 ];
 
@@ -183,6 +195,7 @@ export function resolveDiscordAccess(inputRoleIds: readonly string[]): DiscordAc
   if (isSignup) {
     portals.add("SIGN_UP_MANAGER");
     permissions.add("player.manage");
+    permissions.add("applications.manage");
   }
   if (isGm && franchiseMatches.length === 1) {
     portals.add("FRANCHISE_MANAGER");
@@ -201,6 +214,7 @@ export function resolveDiscordAccess(inputRoleIds: readonly string[]): DiscordAc
     permissions.add("transaction.approve");
     permissions.add("event.manage");
     permissions.add("standings.correct");
+    permissions.add("league.manage");
   }
   if (isProduction) {
     portals.add("PRODUCTION");

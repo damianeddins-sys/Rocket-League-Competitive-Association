@@ -25,7 +25,7 @@ export function LeagueDataState({
       <p className="eyebrow text-[#1677ff]">Official data status</p>
       <h2 className="mt-3 text-2xl font-black text-[#0b1f3a]">{copy.title}</h2>
       <p className="mt-3 leading-7 text-slate-600">{copy.detail}</p>
-      <Link href="/league" className="mt-6 inline-flex rounded-md bg-[#0b1f3a] px-5 py-3 font-bold text-white">
+      <Link href="/rules" className="mt-6 inline-flex rounded-md bg-[#0b1f3a] px-5 py-3 font-bold text-white">
         View league format
       </Link>
     </div>

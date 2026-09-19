@@ -89,10 +89,26 @@ describe("authoritative Discord role resolver", () => {
   it("gives the League Owner audited authority across every portal", () => {
     const owner = resolveDiscordAccess([DISCORD_ROLE_IDS.RLCA_LEAGUE_OWNER]);
     expect(owner.permissions).toContain("league.full");
+    expect(owner.permissions).toEqual(expect.arrayContaining([
+      "applications.manage",
+      "users.manage",
+      "content.manage",
+      "rules.manage",
+      "media.manage",
+      "league.manage",
+    ]));
     expect(authorizeAccess(owner, {
       permission: "transaction.approve",
       franchiseNumber: 8,
     })).toEqual({ allowed: true });
+  });
+
+  it("keeps sensitive owner controls away from limited operations staff", () => {
+    const operations = resolveDiscordAccess([DISCORD_ROLE_IDS.LEAGUE_OPERATIONS_TEAM]);
+    expect(operations.permissions).toContain("league.manage");
+    expect(operations.permissions).not.toContain("users.manage");
+    expect(operations.permissions).not.toContain("content.manage");
+    expect(operations.permissions).not.toContain("media.manage");
   });
 
   it("keeps Owner authorization independent from inactive player status", () => {
