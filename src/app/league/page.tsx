@@ -1,42 +1,72 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { CalendarDays, ShieldCheck, Swords, Trophy } from "lucide-react";
+import { loadPublicLeagueData } from "@/services/public-league-data";
+import { TIERS } from "@/services/tiers";
 
-export const metadata: Metadata = { title: "League Format" };
+export const metadata: Metadata = { title: "League" };
+export const dynamic = "force-dynamic";
 
-const sections = [
-  ["The roster", "Each of eight franchises carries exactly three players: one Master, one Challenger, and one Contender. Two players start each game; the third may substitute only between games."],
-  ["The regular season", "Two four-week splits produce 16 BO5 series per team. Every Sunday has two official series, and no team can be scheduled for a third."],
-  ["Qualification Points", "A regular-season win awards 5 points. An official staff-recorded tie awards 2.5 to each team. Major placement points join the same season-long total."],
-  ["The Majors", "All eight teams enter Major 1 and Major 2. Each uses a seeded single-elimination bracket and awards 240 points to the champion."],
-  ["Last Chance", "After Major 2, the top two lock Championship seeds #1 and #2. The remaining six play for half-value Major points and four remaining Championship places."],
-  ["The Championship", "Six teams remain. Seeds #1 and #2 receive byes; opening rounds are BO5 and the semifinals and Final are BO7."],
-];
+export default async function LeaguePage() {
+  const snapshots = await Promise.all(TIERS.map((tier) => loadPublicLeagueData({ tier: tier.id })));
+  const ready = snapshots.filter((snapshot) => snapshot.status === "ready");
+  const primary = ready[0];
+  const teams = ready.reduce((total, snapshot) => total + (snapshot.status === "ready" ? snapshot.standings.length : 0), 0);
+  const players = ready.reduce((total, snapshot) => total + (snapshot.status === "ready" ? snapshot.players.length : 0), 0);
+  const matches = ready.reduce((total, snapshot) => total + (snapshot.status === "ready" ? snapshot.matches.length : 0), 0);
 
-export default function LeaguePage() {
   return (
-    <>
-      <section className="bg-[#0b1f3a] px-5 py-16 text-white">
-        <div className="mx-auto max-w-5xl">
-          <p className="eyebrow text-blue-300">RLCA 2v2 Rule Book</p>
-          <h1 className="mt-3 text-4xl font-black sm:text-5xl">A competitive system built to be explainable.</h1>
-          <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-300">From player placement to the final bracket, RLCA uses deterministic rules, preserved history, and one official source of truth.</p>
+    <div className="min-h-screen bg-[#f4f7fb]">
+      <section className="esports-surface px-5 py-20 text-white">
+        <div className="mx-auto max-w-7xl">
+          <p className="eyebrow text-blue-300">Rocket League Competitive Association</p>
+          <h1 className="display-title mt-4 max-w-4xl text-5xl sm:text-7xl">One league. Four competitive tiers. One official record.</h1>
+          <p className="mt-7 max-w-3xl text-lg leading-8 text-slate-300">
+            RLCA connects verified players, franchise teams, weekly series, Majors, standings,
+            and league operations through the same database-backed competition system.
+          </p>
+          <div className="mt-9 flex flex-wrap gap-3">
+            <Link href="/tiers" className="rounded-lg bg-[#168bff] px-5 py-3 font-black">Explore tiers</Link>
+            <Link href="/matches" className="rounded-lg border border-white/20 px-5 py-3 font-black">View matches</Link>
+          </div>
         </div>
       </section>
-      <section className="mx-auto max-w-5xl px-5 py-16">
-        <div className="grid gap-5 md:grid-cols-2">
-          {sections.map(([title, text], index) => (
-            <article key={title} className="panel p-7">
-              <span className="font-mono text-sm font-black text-[#1677ff]">0{index + 1}</span>
-              <h2 className="mt-4 text-2xl font-black text-[#0b1f3a]">{title}</h2>
-              <p className="mt-3 leading-7 text-slate-600">{text}</p>
-            </article>
+
+      <section className="mx-auto max-w-7xl px-5 py-14 lg:px-8">
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[[teams, "Active tier entries"], [players, "Published players"], [matches, "Scheduled and completed matches"]].map(([value, label]) => (
+            <div key={String(label)} className="panel p-6">
+              <p className="stat-number text-4xl text-[#061426]">{value}</p>
+              <p className="mt-2 text-sm font-bold text-slate-500">{label}</p>
+            </div>
           ))}
         </div>
-        <div className="mt-10 rounded-xl bg-[#f4f7fa] p-8">
-          <p className="eyebrow text-[#1677ff]">Player eligibility</p>
-          <h2 className="mt-2 text-2xl font-black">Two official regular-season series required</h2>
-          <p className="mt-3 leading-7 text-slate-600">A player must enter at least one game in two official regular-season series before playing in a Major, Last Chance, or Championship. Documented staff exceptions preserve the original record and appear in the audit log.</p>
+
+        <div className="mt-14 grid gap-6 lg:grid-cols-2">
+          {[
+            [ShieldCheck, "Verified competition", "Applications, eligibility, rosters, and permissions are enforced by the backend rather than frontend labels."],
+            [Swords, "Weekly series", "Regular weeks organize scrims and two official match blocks while every result stays tied to its season and tier."],
+            [Trophy, "Major event journey", "Major 1, Major 2, Last Chance, and the Championship create a clear season-long competitive story."],
+            [CalendarDays, "Current season", primary?.status === "ready" ? `${primary.season.name} is the active public competition record.` : "The next active season will appear when configured in the official database."],
+          ].map(([Icon, title, description]) => {
+            const FeatureIcon = Icon as typeof ShieldCheck;
+            return (
+              <article key={String(title)} className="panel p-7">
+                <FeatureIcon className="text-[#168bff]" />
+                <h2 className="mt-5 text-2xl font-black text-[#061426]">{String(title)}</h2>
+                <p className="mt-3 leading-7 text-slate-600">{String(description)}</p>
+              </article>
+            );
+          })}
         </div>
       </section>
-    </>
+
+      <section className="bg-[#061426] px-5 py-16 text-white">
+        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-8 sm:flex-row sm:items-center">
+          <div><p className="eyebrow text-blue-300">Competition starts here</p><h2 className="mt-2 text-3xl font-black">Find your tier and follow the season.</h2></div>
+          <div className="flex gap-3"><Link href="/standings" className="rounded-lg bg-white px-5 py-3 font-black text-[#061426]">Standings</Link><Link href="/apply" className="rounded-lg bg-[#168bff] px-5 py-3 font-black">Apply</Link></div>
+        </div>
+      </section>
+    </div>
   );
 }

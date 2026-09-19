@@ -1,0 +1,2 @@
+DROP INDEX "transaction_one_open_team_season";--> statement-breakpoint
+CREATE UNIQUE INDEX "transaction_one_open_team_season_tier" ON "transaction_requests" USING btree ("team_id","season_id","division_id") WHERE "transaction_requests"."status" in ('PENDING', 'MORE_INFO_REQUIRED', 'ON_HOLD', 'EXCEPTION_REQUIRED');
