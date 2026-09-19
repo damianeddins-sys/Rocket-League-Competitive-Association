@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "transaction_one_open_team_season" ON "transaction_requests" USING btree ("team_id","season_id") WHERE "transaction_requests"."status" in ('PENDING', 'MORE_INFO_REQUIRED', 'ON_HOLD', 'EXCEPTION_REQUIRED');

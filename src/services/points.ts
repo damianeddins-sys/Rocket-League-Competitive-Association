@@ -1,5 +1,7 @@
-export const MAJOR_POINTS = [240, 180, 140, 100, 60, 40, 20, 10] as const;
-export const LAST_CHANCE_POINTS = [120, 90, 70, 50, 30, 20] as const;
+import { SEASON_ONE_RULES } from "./rules";
+
+export const MAJOR_POINTS = SEASON_ONE_RULES.points.major;
+export const LAST_CHANCE_POINTS = SEASON_ONE_RULES.points.lastChance;
 
 export type PointEvent = {
   teamId: string;
@@ -17,9 +19,9 @@ export type TeamRecord = {
 };
 
 export function regularSeasonPoints(result: "WIN" | "LOSS" | "OFFICIAL_TIE") {
-  if (result === "WIN") return 5;
-  if (result === "OFFICIAL_TIE") return 2.5;
-  return 0;
+  if (result === "WIN") return SEASON_ONE_RULES.points.regularSeasonWin;
+  if (result === "OFFICIAL_TIE") return SEASON_ONE_RULES.points.officialTie;
+  return SEASON_ONE_RULES.points.regularSeasonLoss;
 }
 
 export function assertUniquePointEvents(events: PointEvent[]) {
@@ -75,6 +77,22 @@ export function calculateStandings(records: TeamRecord[], events: PointEvent[]):
 
 export type LockedSeed = { teamId: string; seed: 1 | 2 };
 
+export function resolveChampionshipLockIds(input: {
+  now: Date;
+  majorTwoEndsAt: Date | null;
+  persistedSeedSnapshot?: Array<{ seed: number; teamId: string }> | null;
+  preLastChanceTeamIds: string[];
+}) {
+  const persisted = input.persistedSeedSnapshot
+    ?.filter((seed) => seed.seed === 1 || seed.seed === 2)
+    .sort((a, b) => a.seed - b.seed);
+  if (persisted?.length === 2) return [persisted[0].teamId, persisted[1].teamId];
+  if (input.majorTwoEndsAt && input.now > input.majorTwoEndsAt) {
+    return input.preLastChanceTeamIds.slice(0, 2);
+  }
+  return [];
+}
+
 export function lockTopTwo(preLastChance: Standing[]): {
   locked: [LockedSeed, LockedSeed];
   lastChanceTeamIds: string[];
@@ -98,7 +116,13 @@ export function championshipField(
   const eligible = new Set(lastChanceTeamIds);
   const remaining = finalStandings
     .filter((team) => eligible.has(team.teamId))
-    .sort((a, b) => a.rank - b.rank)
+    .sort(
+      (a, b) =>
+        b.qualificationPoints - a.qualificationPoints ||
+        b.seriesWins - a.seriesWins ||
+        b.gameDifferential - a.gameDifferential ||
+        a.teamId.localeCompare(b.teamId),
+    )
     .slice(0, 4)
     .map((team, index) => ({ teamId: team.teamId, seed: index + 3 }));
 
