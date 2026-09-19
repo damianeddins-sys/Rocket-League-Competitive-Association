@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Activity, Bot, Database, FileClock, Image, Settings, ShieldAlert, UserRoundCheck, Users } from "lucide-react";
+import { Activity, Bot, Database, FileClock, HardDrive, Image, Settings, ShieldAlert, UserRoundCheck, Users } from "lucide-react";
 import { ApplicationManager } from "@/components/application-manager";
 import { ContentManager } from "@/components/content-manager";
 import { MediaUploader } from "@/components/media-uploader";
@@ -26,6 +26,7 @@ import { loadSiteContentManagement, type ContentCategory } from "@/services/site
 import { loadUserManagement } from "@/services/user-management";
 import { getDiscordBotHealth } from "@/services/discord/bot-health";
 import { getSystemHealth } from "@/services/system-health";
+import { loadStorageHealth } from "@/services/storage-health";
 import {
   loadAuditManagement,
   loadDocumentManagement,
@@ -63,6 +64,7 @@ const sections = {
   settings: { label: "Settings", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: Settings },
   permissions: { label: "Permissions & RBAC", portal: "LEAGUE_OPERATIONS" as Portal, permission: "users.manage" as Permission, icon: ShieldAlert },
   health: { label: "System Health", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.full" as Permission, icon: Activity },
+  storage: { label: "Storage Health", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.full" as Permission, icon: HardDrive },
   bot: { label: "Discord Bot", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.full" as Permission, icon: Bot },
   audit: { label: "Audit Log", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.full" as Permission, icon: Database },
   franchise: { label: "Franchise Manager", portal: "FRANCHISE_MANAGER" as Portal, permission: "franchise.view" as Permission, icon: Users },
@@ -115,6 +117,9 @@ export default async function OperationsPage({
     ? await getSystemHealth(
       `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/staff/system-health`,
     )
+    : null;
+  const storageHealth = sectionKey === "storage"
+    ? await loadStorageHealth()
     : null;
   const applicationQueue = sectionKey === "applications"
     ? await loadApplicationQueue(page)
@@ -197,7 +202,66 @@ export default async function OperationsPage({
               </div>
               <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700">AUTHORIZED</span>
             </div>
-            {systemHealth ? (
+            {storageHealth ? (
+              <div className="mt-7 space-y-6">
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-5">
+                  <p className="eyebrow text-blue-700">Protected storage monitoring</p>
+                  <p className="mt-2 text-sm leading-6 text-blue-950">
+                    Cleanup is report-only. Official league records, applications, audit history, media, replays, backups, and archives are never automatically deleted.
+                  </p>
+                </div>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {Object.entries(storageHealth.categories).map(([name, category]) => (
+                    <article key={name} className="rounded-lg border border-slate-200 bg-white p-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="font-black capitalize text-[#081e3a]">{name.replaceAll(/([A-Z])/g, " $1")}</h3>
+                        <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${category.level === "NORMAL" ? "bg-emerald-50 text-emerald-700" : category.level === "WARNING" || category.level === "HIGH_USAGE" ? "bg-amber-50 text-amber-700" : category.level === "CRITICAL" || category.level === "EMERGENCY" || category.level === "OFFLINE" ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600"}`}>
+                          {category.level}
+                        </span>
+                      </div>
+                      <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
+                        <div><dt className="text-xs font-bold uppercase text-slate-400">Current</dt><dd className="mt-1 font-bold">{category.currentBytes === null ? "Unknown" : `${Math.round(category.currentBytes / 1024 / 1024 * 10) / 10} MB`}</dd></div>
+                        <div><dt className="text-xs font-bold uppercase text-slate-400">Capacity</dt><dd className="mt-1 font-bold">{category.capacityBytes === null ? "Unknown" : `${Math.round(category.capacityBytes / 1024 / 1024 * 10) / 10} MB`}</dd></div>
+                        <div><dt className="text-xs font-bold uppercase text-slate-400">Usage</dt><dd className="mt-1 font-bold">{category.percentage === null ? "Unknown" : `${category.percentage}%`}</dd></div>
+                      </dl>
+                      <p className="mt-4 text-sm leading-6 text-slate-600">{category.detail}</p>
+                      <p className="mt-2 text-xs font-bold uppercase text-slate-400">Trend: {category.trend}</p>
+                    </article>
+                  ))}
+                </div>
+                <section className="rounded-lg border border-slate-200 bg-white p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="font-black text-[#081e3a]">Cleanup report</h3>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
+                      REPORT ONLY
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm text-slate-600">
+                    {storageHealth.cleanupPlan.candidates.length} verified disposable candidate(s). No delete action is available from this page.
+                  </p>
+                  {storageHealth.cleanupPlan.candidates.length > 0 && (
+                    <div className="mt-4 overflow-x-auto">
+                      <table className="w-full min-w-[620px] text-left text-sm">
+                        <thead className="text-xs uppercase text-slate-400"><tr><th className="pb-2">Object</th><th>Size</th><th>Reason</th></tr></thead>
+                        <tbody>{storageHealth.cleanupPlan.candidates.map((candidate) => (
+                          <tr key={candidate.pathname} className="border-t border-slate-100">
+                            <td className="py-3 font-mono text-xs">{candidate.pathname}</td>
+                            <td>{Math.round(candidate.size / 1024)} KB</td>
+                            <td>{candidate.reason}</td>
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    </div>
+                  )}
+                  <details className="mt-5 rounded-lg bg-slate-50 p-4">
+                    <summary className="cursor-pointer font-bold">Protected categories</summary>
+                    <ul className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+                      {storageHealth.cleanupPlan.protectedCategories.map((category) => <li key={category}>• {category}</li>)}
+                    </ul>
+                  </details>
+                </section>
+              </div>
+            ) : systemHealth ? (
               <div className="mt-7">
                 <div className={`rounded-lg border p-5 ${systemHealth.status === "PASS" ? "border-emerald-200 bg-emerald-50" : systemHealth.status === "FAIL" ? "border-red-200 bg-red-50" : "border-slate-200 bg-slate-50"}`}>
                   <p className="eyebrow">Production service health</p>

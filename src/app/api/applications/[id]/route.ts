@@ -17,6 +17,7 @@ import {
 } from "@/db/schema";
 import { buildAuditLogRecord } from "@/services/audit";
 import { checkPortalAccess } from "@/services/auth/portal-access";
+import { consumeAuthRateLimit } from "@/services/auth/rate-limit";
 import { getSession } from "@/services/auth/session";
 import {
   applicationReference,
@@ -45,6 +46,14 @@ export async function PATCH(
   }
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: "Application database is not configured" }, { status: 503 });
+  }
+  const rateLimit = await consumeAuthRateLimit({
+    key: `application-review:${session.user.id}`,
+    limit: 120,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: "Application review limit reached" }, { status: 429 });
   }
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) {

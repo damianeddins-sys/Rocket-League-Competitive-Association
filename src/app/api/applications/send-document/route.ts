@@ -8,17 +8,11 @@ import { buildAuditLogRecord } from "@/services/audit";
 import { checkPortalAccess } from "@/services/auth/portal-access";
 import { consumeAuthRateLimit } from "@/services/auth/rate-limit";
 import { getSession } from "@/services/auth/session";
+import { ALLOWED_DOCUMENT_TYPES, validateBinaryFile } from "@/services/file-validation";
 
 export const runtime = "nodejs";
 
 const MAX_DOCUMENT_BYTES = 2_000_000;
-const allowedDocumentTypes = new Set([
-  "application/pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "image/png",
-  "image/jpeg",
-]);
-
 export async function POST(request: Request) {
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) {
@@ -62,7 +56,7 @@ export async function POST(request: Request) {
   const applicationId = typeof applicationIdValue === "string" && applicationIdValue
     ? z.string().uuid().safeParse(applicationIdValue)
     : null;
-  if (!(file instanceof File) || !allowedDocumentTypes.has(file.type)) {
+  if (!(file instanceof File) || !ALLOWED_DOCUMENT_TYPES.has(file.type)) {
     return NextResponse.json({ error: "Attach a PDF, DOCX, PNG, or JPEG document" }, { status: 400 });
   }
   if (file.size === 0 || file.size > MAX_DOCUMENT_BYTES) {
@@ -70,6 +64,17 @@ export async function POST(request: Request) {
   }
   if (!subject.success || !message.success || (applicationId && !applicationId.success)) {
     return NextResponse.json({ error: "Email details are invalid" }, { status: 400 });
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const fileValidation = await validateBinaryFile(
+    bytes,
+    file.type,
+    ALLOWED_DOCUMENT_TYPES,
+  );
+  if (!fileValidation.valid) {
+    return NextResponse.json({
+      error: "Document contents do not match an allowed file type",
+    }, { status: 400 });
   }
 
   const db = getDatabase();
@@ -82,7 +87,7 @@ export async function POST(request: Request) {
     if (!application) return NextResponse.json({ error: "Application not found" }, { status: 404 });
   }
   const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || "document";
-  const content = Buffer.from(await file.arrayBuffer()).toString("base64");
+  const content = Buffer.from(bytes).toString("base64");
   const emailResponse = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {

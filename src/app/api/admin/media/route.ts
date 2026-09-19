@@ -7,12 +7,14 @@ import { getDatabase } from "@/db";
 import { auditLogs, siteContent } from "@/db/schema";
 import { buildAuditLogRecord } from "@/services/audit";
 import { checkPortalAccess } from "@/services/auth/portal-access";
+import { consumeAuthRateLimit } from "@/services/auth/rate-limit";
 import { getSession } from "@/services/auth/session";
+import { ALLOWED_MEDIA_TYPES, validateBinaryFile } from "@/services/file-validation";
 
 export const runtime = "nodejs";
 
 const MAX_IMAGE_BYTES = 5_000_000;
-const imageTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+const imageTypes = new Set(ALLOWED_MEDIA_TYPES.keys());
 
 function isManagedBlob(url: string | null) {
   return Boolean(url && /\.blob\.vercel-storage\.com\//.test(url));
@@ -30,6 +32,14 @@ export async function POST(request: Request) {
   }
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: "Media database is not configured" }, { status: 503 });
+  }
+  const rateLimit = await consumeAuthRateLimit({
+    key: `media-upload:${session.user.id}`,
+    limit: 30,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: "Media upload limit reached" }, { status: 429 });
   }
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   if (!token) return NextResponse.json({ error: "Media storage is not configured" }, { status: 503 });
@@ -56,17 +66,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Attach a PNG, JPEG, WebP, or GIF image up to 5 MB" }, { status: 400 });
   }
   if (!fields.success) return NextResponse.json({ error: "Media details are invalid" }, { status: 400 });
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const fileValidation = await validateBinaryFile(bytes, file.type, imageTypes);
+  if (!fileValidation.valid) {
+    return NextResponse.json({ error: "Image contents do not match an allowed file type" }, { status: 400 });
+  }
 
   const db = getDatabase();
   const [previous] = await db.select().from(siteContent).where(eq(siteContent.key, fields.data.key)).limit(1);
   if (previous && previous.category !== "MEDIA") {
     return NextResponse.json({ error: "Media key is already used by non-media website content" }, { status: 409 });
   }
-  const extension = file.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8) || "img";
-  const blob = await put(`website-media/${fields.data.key}.${extension}`, file, {
+  const extension = ALLOWED_MEDIA_TYPES.get(fileValidation.detectedType);
+  if (!extension) return NextResponse.json({ error: "Image type is not supported" }, { status: 400 });
+  const blob = await put(`website-media/${fields.data.key}.${extension}`, bytes, {
     access: "public",
     addRandomSuffix: true,
     token,
+    contentType: fileValidation.detectedType,
   });
   try {
     const saved = await db.transaction(async (tx) => {

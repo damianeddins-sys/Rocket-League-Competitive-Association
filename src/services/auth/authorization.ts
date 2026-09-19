@@ -6,7 +6,6 @@ import {
   type Portal,
 } from "./discord-roles";
 import { fetchDiscord } from "./discord-api";
-import type { AuthenticatedUser } from "./session";
 
 const guildMemberSchema = z.object({ roles: z.array(z.string()) });
 
@@ -84,18 +83,3 @@ export async function fetchLiveDiscordAccess(discordId: string) {
   return resolveDiscordAccess(member.roles);
 }
 
-/**
- * High-impact writes call this immediately before their database transaction.
- * The encrypted session snapshot is for navigation only and is never sufficient
- * for roster, points, MMR, event, or approval writes.
- */
-export async function authorizeLiveAction(
-  user: AuthenticatedUser,
-  requirement: { permission: Permission; franchiseNumber?: number },
-) {
-  const liveAccess = await fetchLiveDiscordAccess(user.discordId);
-  return {
-    access: liveAccess,
-    decision: authorizeAccess(liveAccess, requirement),
-  };
-}

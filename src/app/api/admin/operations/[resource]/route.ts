@@ -28,6 +28,7 @@ import {
 } from "@/db/schema";
 import { buildAuditLogRecord, toAuditJson } from "@/services/audit";
 import { checkPortalAccess } from "@/services/auth/portal-access";
+import { consumeAuthRateLimit } from "@/services/auth/rate-limit";
 import {
   desiredCompetitionRoleIds,
   type Permission,
@@ -239,6 +240,14 @@ export async function PATCH(
   if (!context) return NextResponse.json({ error: "Authorized staff access required" }, { status: 403 });
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: "Operations database is not configured" }, { status: 503 });
+  }
+  const rateLimit = await consumeAuthRateLimit({
+    key: `operations-write:${context.user.id}`,
+    limit: 600,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: "Operations write limit reached" }, { status: 429 });
   }
   const body = await request.json().catch(() => null);
   const db = getDatabase();
@@ -1013,6 +1022,14 @@ export async function POST(
   if (!context) return NextResponse.json({ error: "Authorized staff access required" }, { status: 403 });
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: "Operations database is not configured" }, { status: 503 });
+  }
+  const rateLimit = await consumeAuthRateLimit({
+    key: `operations-write:${context.user.id}`,
+    limit: 600,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: "Operations write limit reached" }, { status: 429 });
   }
   if (resource === "matches") {
     const parsed = matchCreateSchema.safeParse(await request.json().catch(() => null));
