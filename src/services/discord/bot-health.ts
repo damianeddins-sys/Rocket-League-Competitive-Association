@@ -40,7 +40,8 @@ export async function getDiscordBotHealth(): Promise<DiscordBotHealth> {
   const botToken = process.env.DISCORD_BOT_TOKEN;
   const applicationId = process.env.DISCORD_APPLICATION_ID ?? process.env.DISCORD_CLIENT_ID;
   const guildId = process.env.DISCORD_GUILD_ID;
-  const interactionSignature = Boolean(process.env.DISCORD_PUBLIC_KEY);
+  const publicKey = process.env.DISCORD_PUBLIC_KEY;
+  const interactionSignature = Boolean(publicKey && /^[a-f0-9]{64}$/i.test(publicKey));
   const botCredentials = Boolean(botToken && applicationId && guildId);
 
   let discordApi = false;
@@ -109,7 +110,7 @@ export async function getDiscordBotHealth(): Promise<DiscordBotHealth> {
   };
   const coreOnline = interactionSignature && botCredentials && discordApi;
   const missingConfiguration = [
-    !process.env.DISCORD_PUBLIC_KEY ? "DISCORD_PUBLIC_KEY" : null,
+    !interactionSignature ? "DISCORD_PUBLIC_KEY" : null,
     !botToken ? "DISCORD_BOT_TOKEN" : null,
     !applicationId ? "DISCORD_APPLICATION_ID" : null,
     !guildId ? "DISCORD_GUILD_ID" : null,
@@ -144,4 +145,9 @@ export async function getCachedDiscordBotHealth() {
       pendingHealth = null;
     });
   return pendingHealth;
+}
+
+export function invalidateDiscordBotHealthCache() {
+  cachedHealth = null;
+  pendingHealth = null;
 }

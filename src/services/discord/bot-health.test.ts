@@ -15,7 +15,7 @@ describe("Discord bot health", () => {
   });
 
   it("reports offline instead of claiming one configured key means online", async () => {
-    process.env.DISCORD_PUBLIC_KEY = "configured";
+    process.env.DISCORD_PUBLIC_KEY = "a".repeat(64);
     delete process.env.DISCORD_BOT_TOKEN;
     const health = await getDiscordBotHealth();
     expect(health.status).toBe("OFFLINE");
@@ -31,8 +31,15 @@ describe("Discord bot health", () => {
     ]));
   });
 
+  it("rejects a malformed Discord interaction public key", async () => {
+    process.env.DISCORD_PUBLIC_KEY = "configured-but-not-a-public-key";
+    const health = await getDiscordBotHealth();
+    expect(health.checks.interactionSignature).toBe(false);
+    expect(health.missingConfiguration).toContain("DISCORD_PUBLIC_KEY");
+  });
+
   it("verifies Discord connectivity and registered command names", async () => {
-    process.env.DISCORD_PUBLIC_KEY = "configured";
+    process.env.DISCORD_PUBLIC_KEY = "a".repeat(64);
     process.env.DISCORD_BOT_TOKEN = "token";
     process.env.DISCORD_APPLICATION_ID = "app";
     process.env.DISCORD_GUILD_ID = "guild";

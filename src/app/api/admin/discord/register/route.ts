@@ -4,9 +4,13 @@ import { z } from "zod";
 import { getDatabase } from "@/db";
 import { auditLogs } from "@/db/schema";
 import { buildAuditLogRecord } from "@/services/audit";
+import { fetchDiscord } from "@/services/auth/discord-api";
 import { checkPortalAccess } from "@/services/auth/portal-access";
 import { getSession } from "@/services/auth/session";
-import { REQUIRED_DISCORD_COMMANDS } from "@/services/discord/bot-health";
+import {
+  invalidateDiscordBotHealthCache,
+  REQUIRED_DISCORD_COMMANDS,
+} from "@/services/discord/bot-health";
 
 export const runtime = "nodejs";
 
@@ -37,7 +41,7 @@ export async function POST(request: Request) {
   if (!applicationId || !guildId || !botToken) {
     return NextResponse.json({ error: "Discord bot credentials are not configured" }, { status: 503 });
   }
-  const response = await fetch(
+  const response = await fetchDiscord(
     `https://discord.com/api/v10/applications/${applicationId}/guilds/${guildId}/commands`,
     {
       method: "PUT",
@@ -53,19 +57,41 @@ export async function POST(request: Request) {
     },
   );
   if (!response.ok) {
-    return NextResponse.json({ error: "Discord rejected command registration" }, { status: 502 });
+    const error = response.status === 401
+      ? "Discord rejected the bot token"
+      : response.status === 403
+        ? "The Discord bot lacks permission to manage commands in this server"
+        : response.status === 404
+          ? "The Discord application or server configuration does not match"
+          : response.status === 429
+            ? "Discord command registration is rate limited. Try again shortly."
+            : "Discord rejected command registration";
+    return NextResponse.json({ error }, { status: 502 });
   }
+  invalidateDiscordBotHealthCache();
+  let auditRecorded = false;
   if (process.env.DATABASE_URL) {
-    await getDatabase().insert(auditLogs).values(buildAuditLogRecord({
-      actorId: session.user.id,
-      actorDiscordRoleIds: access.roleIds,
-      actorFranchiseNumber: access.franchiseNumber,
-      action: "DISCORD_COMMANDS_REGISTERED",
-      entityType: "DISCORD_APPLICATION",
-      entityId: applicationId,
-      nextState: { guildId, commands: [...REQUIRED_DISCORD_COMMANDS] },
-      requestId: randomUUID(),
-    }));
+    try {
+      await getDatabase().insert(auditLogs).values(buildAuditLogRecord({
+        actorId: session.user.id,
+        actorDiscordRoleIds: access.roleIds,
+        actorFranchiseNumber: access.franchiseNumber,
+        action: "DISCORD_COMMANDS_REGISTERED",
+        entityType: "DISCORD_APPLICATION",
+        entityId: applicationId,
+        nextState: { guildId, commands: [...REQUIRED_DISCORD_COMMANDS] },
+        requestId: randomUUID(),
+      }));
+      auditRecorded = true;
+    } catch (error) {
+      console.error("Discord commands registered but audit persistence failed", {
+        errorName: error instanceof Error ? error.name : "UnknownError",
+      });
+    }
   }
-  return NextResponse.json({ registered: REQUIRED_DISCORD_COMMANDS.length, guildId });
+  return NextResponse.json({
+    registered: REQUIRED_DISCORD_COMMANDS.length,
+    guildId,
+    auditRecorded,
+  });
 }
