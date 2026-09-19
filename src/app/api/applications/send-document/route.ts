@@ -20,9 +20,6 @@ const allowedDocumentTypes = new Set([
 ]);
 
 export async function POST(request: Request) {
-  if (!process.env.DATABASE_URL) {
-    return NextResponse.json({ error: "Document database is not configured" }, { status: 503 });
-  }
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
@@ -38,6 +35,9 @@ export async function POST(request: Request) {
   const session = await getSession();
   if (!session?.user || !z.string().uuid().safeParse(session.user.id).success) {
     return NextResponse.json({ error: "Please sign in again" }, { status: 401 });
+  }
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: "Document database is not configured" }, { status: 503 });
   }
   const signupEmail = process.env.RLCA_SIGNUP_EMAIL;
   const fromEmail = process.env.RLCA_EMAIL_FROM;

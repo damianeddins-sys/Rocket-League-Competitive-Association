@@ -40,9 +40,6 @@ export async function POST(request: Request) {
   if (origin && origin !== new URL(request.url).origin) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
   }
-  if (!process.env.DATABASE_URL) {
-    return NextResponse.json({ error: "Transaction database is not configured" }, { status: 503 });
-  }
   const contentLength = Number(request.headers.get("content-length"));
   if (Number.isFinite(contentLength) && contentLength > 16_000) {
     return NextResponse.json({ error: "Transaction request is too large" }, { status: 413 });
@@ -55,6 +52,9 @@ export async function POST(request: Request) {
     return NextResponse.json({
       error: access.allowed ? "A single verified franchise role is required" : access.reason,
     }, { status: 403 });
+  }
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: "Transaction database is not configured" }, { status: 503 });
   }
   const parsed = submissionSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {

@@ -28,9 +28,6 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!process.env.DATABASE_URL) {
-    return NextResponse.json({ error: "Application database is not configured" }, { status: 503 });
-  }
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
@@ -42,6 +39,9 @@ export async function PATCH(
   const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: "Application database is not configured" }, { status: 503 });
   }
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) {

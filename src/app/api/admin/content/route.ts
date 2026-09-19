@@ -21,12 +21,13 @@ const categoryPermissions: Record<ContentCategory, Permission> = {
 };
 
 export async function POST(request: Request) {
-  if (!process.env.DATABASE_URL) {
-    return NextResponse.json({ error: "Content database is not configured" }, { status: 503 });
-  }
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
+  }
+  const session = await getSession();
+  if (!session?.user || !z.string().uuid().safeParse(session.user.id).success) {
+    return NextResponse.json({ error: "Please sign in again" }, { status: 401 });
   }
   const contentLength = Number(request.headers.get("content-length"));
   if (Number.isFinite(contentLength) && contentLength > 24_000) {
@@ -44,9 +45,8 @@ export async function POST(request: Request) {
   if (!access.allowed) {
     return NextResponse.json({ error: access.reason, code: access.code }, { status: 403 });
   }
-  const session = await getSession();
-  if (!session?.user || !z.string().uuid().safeParse(session.user.id).success) {
-    return NextResponse.json({ error: "Please sign in again" }, { status: 401 });
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: "Content database is not configured" }, { status: 503 });
   }
 
   const db = getDatabase();
@@ -105,12 +105,13 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  if (!process.env.DATABASE_URL) {
-    return NextResponse.json({ error: "Content database is not configured" }, { status: 503 });
-  }
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
+  }
+  const session = await getSession();
+  if (!session?.user || !z.string().uuid().safeParse(session.user.id).success) {
+    return NextResponse.json({ error: "Please sign in again" }, { status: 401 });
   }
   const parsed = z.object({
     id: z.string().uuid(),
@@ -123,9 +124,11 @@ export async function DELETE(request: Request) {
     undefined,
     categoryPermissions[parsed.data.category],
   );
-  const session = await getSession();
-  if (!access.allowed || !session?.user || !z.string().uuid().safeParse(session.user.id).success) {
+  if (!access.allowed) {
     return NextResponse.json({ error: "Authorized content access required" }, { status: 403 });
+  }
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: "Content database is not configured" }, { status: 503 });
   }
   const db = getDatabase();
   const [current] = await db.select().from(siteContent).where(eq(siteContent.id, parsed.data.id)).limit(1);

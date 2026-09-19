@@ -19,9 +19,6 @@ function isManagedBlob(url: string | null) {
 }
 
 export async function POST(request: Request) {
-  if (!process.env.DATABASE_URL) {
-    return NextResponse.json({ error: "Media database is not configured" }, { status: 503 });
-  }
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
@@ -30,6 +27,9 @@ export async function POST(request: Request) {
   const session = await getSession();
   if (!access.allowed || !session?.user || !z.string().uuid().safeParse(session.user.id).success) {
     return NextResponse.json({ error: "Authorized media access required" }, { status: 403 });
+  }
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: "Media database is not configured" }, { status: 503 });
   }
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   if (!token) return NextResponse.json({ error: "Media storage is not configured" }, { status: 503 });

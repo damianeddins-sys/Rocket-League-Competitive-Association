@@ -31,15 +31,15 @@ export async function POST(request: Request) {
   if (origin && origin !== new URL(request.url).origin) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
   }
-  if (!process.env.DATABASE_URL) {
-    return NextResponse.json({ error: "Staff database is not configured" }, { status: 503 });
-  }
   const [access, session] = await Promise.all([
     checkPortalAccess("LEAGUE_OPERATIONS", undefined, "users.manage"),
     getSession(),
   ]);
   if (!access.allowed || !session?.user) {
     return NextResponse.json({ error: "Owner authorization required" }, { status: 403 });
+  }
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: "Staff database is not configured" }, { status: 503 });
   }
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Valid Discord user ID is required" }, { status: 400 });

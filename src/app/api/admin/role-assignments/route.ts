@@ -32,11 +32,11 @@ async function ownerContext(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const context = await ownerContext(request);
+  if (!context) return NextResponse.json({ error: "Owner authorization required" }, { status: 403 });
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: "Staff assignment database is not configured" }, { status: 503 });
   }
-  const context = await ownerContext(request);
-  if (!context) return NextResponse.json({ error: "Owner authorization required" }, { status: 403 });
   const parsed = assignmentSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Role assignment is invalid" }, { status: 400 });
   const franchiseScopedRoles = new Set(["GENERAL_MANAGER", "ASSISTANT_GENERAL_MANAGER", "TEAM_CAPTAIN"]);
@@ -114,11 +114,11 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const context = await ownerContext(request);
+  if (!context) return NextResponse.json({ error: "Owner authorization required" }, { status: 403 });
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: "Staff assignment database is not configured" }, { status: 503 });
   }
-  const context = await ownerContext(request);
-  if (!context) return NextResponse.json({ error: "Owner authorization required" }, { status: 403 });
   const parsed = revokeSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Revocation details are invalid" }, { status: 400 });
   const db = getDatabase();

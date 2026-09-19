@@ -139,12 +139,12 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ resource: string }> },
 ) {
-  if (!process.env.DATABASE_URL) {
-    return NextResponse.json({ error: "Operations database is not configured" }, { status: 503 });
-  }
   const { resource } = await params;
   const context = await contextFor(request, resource);
   if (!context) return NextResponse.json({ error: "Authorized staff access required" }, { status: 403 });
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: "Operations database is not configured" }, { status: 503 });
+  }
   const body = await request.json().catch(() => null);
   const db = getDatabase();
   const requestId = randomUUID();
