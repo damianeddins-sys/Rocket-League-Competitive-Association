@@ -16,14 +16,31 @@ import { TIERS } from "@/services/tiers";
 export const runtime = "nodejs";
 
 const descriptions: Record<(typeof REQUIRED_DISCORD_COMMANDS)[number], string> = {
+  panel: "Open or post an RLCA navigation panel",
+  apply: "Open the private RLCA application form",
+  applications: "View your private RLCA applications",
   status: "Check whether RLCA systems are available",
+  health: "Show detailed RLCA bot health",
   standings: "Show current RLCA standings",
   schedule: "Show upcoming RLCA series",
+  results: "Show verified RLCA match results",
   teams: "Show official RLCA franchises",
-  events: "Show the current RLCA event circuit",
+  player: "Browse public RLCA player profiles",
+  statistics: "Show tier-specific RLCA statistics",
+  rankings: "Show tier-specific RLCA rankings",
+  rules: "Open the RLCA rules panel",
+  faq: "Open the RLCA frequently asked questions",
   help: "Show available RLCA commands",
 };
-const tierCommands = new Set(["standings", "schedule", "teams", "events"]);
+const tierCommands = new Set([
+  "standings",
+  "schedule",
+  "results",
+  "teams",
+  "player",
+  "statistics",
+  "rankings",
+]);
 const tierOptions = [{
   type: 3,
   name: "tier",
@@ -62,6 +79,20 @@ export async function POST(request: Request) {
         name,
         description: descriptions[name],
         ...(tierCommands.has(name) ? { options: tierOptions } : {}),
+        ...(name === "panel" ? {
+          options: [{
+            type: 3,
+            name: "view",
+            description: "Panel to open",
+            required: true,
+            choices: [
+              { name: "Member", value: "member" },
+              { name: "Applications Staff", value: "applications" },
+              { name: "Staff", value: "staff" },
+              { name: "Admin", value: "admin" },
+            ],
+          }],
+        } : {}),
       }))),
       cache: "no-store",
     },

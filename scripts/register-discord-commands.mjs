@@ -23,11 +23,35 @@ const tierOption = {
 };
 
 const commands = [
+  {
+    name: "panel",
+    description: "Open or post an RLCA navigation panel",
+    options: [{
+      type: 3,
+      name: "view",
+      description: "Panel to open",
+      required: true,
+      choices: [
+        { name: "Member", value: "member" },
+        { name: "Applications Staff", value: "applications" },
+        { name: "Staff", value: "staff" },
+        { name: "Admin", value: "admin" },
+      ],
+    }],
+  },
+  { name: "apply", description: "Open the private RLCA application form" },
+  { name: "applications", description: "View your private RLCA applications" },
   { name: "status", description: "Check whether RLCA systems are available" },
+  { name: "health", description: "Show detailed RLCA bot health" },
   { name: "standings", description: "Show current RLCA standings", options: [tierOption] },
   { name: "schedule", description: "Show upcoming RLCA series", options: [tierOption] },
+  { name: "results", description: "Show verified RLCA match results", options: [tierOption] },
   { name: "teams", description: "Show official RLCA franchises", options: [tierOption] },
-  { name: "events", description: "Show the current RLCA event circuit", options: [tierOption] },
+  { name: "player", description: "Browse public RLCA player profiles", options: [tierOption] },
+  { name: "statistics", description: "Show tier-specific RLCA statistics", options: [tierOption] },
+  { name: "rankings", description: "Show tier-specific RLCA rankings", options: [tierOption] },
+  { name: "rules", description: "Open the RLCA rules panel" },
+  { name: "faq", description: "Open the RLCA frequently asked questions" },
   { name: "help", description: "Show available RLCA commands" },
 ];
 

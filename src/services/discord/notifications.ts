@@ -9,8 +9,10 @@ import { TIER_IDS, type TierId } from "../tiers";
 
 export const DISCORD_NOTIFICATION_EVENTS = [
   "APPLICATION_SUBMITTED_PLAYER",
+  "APPLICATION_SUBMITTED_TEAM",
   "APPLICATION_SUBMITTED_GM_AGM",
   "APPLICATION_SUBMITTED_STAFF",
+  "APPLICATION_SUBMITTED_FRANCHISE",
   "APPLICATION_DECIDED",
   "TRANSACTION_SUBMITTED",
   "TRANSACTION_DECIDED",
@@ -34,8 +36,10 @@ export type DiscordNotificationPayload = {
 
 export const DEFAULT_DISCORD_NOTIFICATION_ROUTES = [
   { eventType: "APPLICATION_SUBMITTED_PLAYER", tierId: "all", channelKey: "PLAYER_SIGNUPS" },
+  { eventType: "APPLICATION_SUBMITTED_TEAM", tierId: "all", channelKey: "PLAYER_SIGNUPS" },
   { eventType: "APPLICATION_SUBMITTED_GM_AGM", tierId: "all", channelKey: "GM_AGM_APPLICATIONS" },
   { eventType: "APPLICATION_SUBMITTED_STAFF", tierId: "all", channelKey: "STAFF_SIGNUPS" },
+  { eventType: "APPLICATION_SUBMITTED_FRANCHISE", tierId: "all", channelKey: "GM_AGM_APPLICATIONS" },
   { eventType: "TRANSACTION_SUBMITTED", tierId: "all", channelKey: "PENDING_TRANSACTIONS" },
   { eventType: "TRANSACTION_DECIDED", tierId: "all", channelKey: "TRANSACTIONS" },
   ...TIER_IDS.map((tierId) => ({

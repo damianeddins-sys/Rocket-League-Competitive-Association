@@ -10,8 +10,10 @@ export const metadata: Metadata = { title: "Apply" };
 
 const applicationNames: Record<ApplicationType, string> = {
   PLAYER: "Player Application",
+  TEAM: "Team Application",
   GM_AGM: "GM / AGM Application",
   STAFF: "League Staff Application",
+  FRANCHISE: "Franchise Application",
 };
 
 export default async function ApplyPage({

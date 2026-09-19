@@ -6,14 +6,31 @@ import { TIER_IDS } from "../tiers";
 import { eq } from "drizzle-orm";
 
 export const REQUIRED_DISCORD_COMMANDS = [
+  "panel",
+  "apply",
+  "applications",
   "status",
+  "health",
   "standings",
   "schedule",
+  "results",
   "teams",
-  "events",
+  "player",
+  "statistics",
+  "rankings",
+  "rules",
+  "faq",
   "help",
 ] as const;
-const TIERED_DISCORD_COMMANDS = new Set(["standings", "schedule", "teams", "events"]);
+const TIERED_DISCORD_COMMANDS = new Set([
+  "standings",
+  "schedule",
+  "results",
+  "teams",
+  "player",
+  "statistics",
+  "rankings",
+]);
 
 export type DiscordBotHealth = {
   status: "HEALTHY" | "DEGRADED" | "OFFLINE";

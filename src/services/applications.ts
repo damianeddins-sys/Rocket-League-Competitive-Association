@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const applicationTypes = ["PLAYER", "GM_AGM", "STAFF"] as const;
+export const applicationTypes = ["PLAYER", "TEAM", "GM_AGM", "STAFF", "FRANCHISE"] as const;
 export const applicationStatuses = [
   "SUBMITTED",
   "UNDER_REVIEW",

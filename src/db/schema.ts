@@ -62,7 +62,13 @@ export const replayStatus = pgEnum("replay_status", [
   "REQUIRES_REVIEW",
 ]);
 export const decisionStatus = pgEnum("decision_status", ["PENDING", "APPROVED", "DENIED"]);
-export const applicationType = pgEnum("application_type", ["PLAYER", "GM_AGM", "STAFF"]);
+export const applicationType = pgEnum("application_type", [
+  "PLAYER",
+  "TEAM",
+  "GM_AGM",
+  "STAFF",
+  "FRANCHISE",
+]);
 export const applicationStatus = pgEnum("application_status", [
   "SUBMITTED",
   "UNDER_REVIEW",
@@ -464,6 +470,7 @@ export const applications = pgTable(
     experience: text("experience"),
     availability: text("availability").notNull(),
     notes: text("notes"),
+    answersJson: jsonb("answers_json").$type<Record<string, string>>().default({}).notNull(),
     agreementsAccepted: boolean("agreements_accepted").notNull(),
     submittedAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

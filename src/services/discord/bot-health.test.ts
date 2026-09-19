@@ -48,7 +48,7 @@ describe("Discord bot health", () => {
         return new Response(JSON.stringify(
           REQUIRED_DISCORD_COMMANDS.map((name) => ({
             name,
-            ...(["standings", "schedule", "teams", "events"].includes(name) ? {
+            ...(["standings", "schedule", "results", "teams", "player", "statistics", "rankings"].includes(name) ? {
               options: [{
                 name: "tier",
                 required: true,
