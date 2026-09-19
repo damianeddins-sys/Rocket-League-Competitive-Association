@@ -13,6 +13,10 @@ export const applicationStatuses = [
 export type ApplicationType = (typeof applicationTypes)[number];
 export type ApplicationStatus = (typeof applicationStatuses)[number];
 
+export function applicationReference(id: string) {
+  return `RLCA-${id.replaceAll("-", "").slice(0, 8).toUpperCase()}`;
+}
+
 export const applicationSubmissionSchema = z
   .object({
     type: z.enum(applicationTypes),

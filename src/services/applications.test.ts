@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applicationReviewSchema,
+  applicationReference,
   applicationSubmissionSchema,
   canReviewApplicationTransition,
 } from "./applications";
@@ -72,5 +73,17 @@ describe("application validation", () => {
       status: "MORE_INFO_REQUIRED",
       reason: "Please provide the missing Tracker URL.",
     }).success).toBe(true);
+  });
+
+  it("supports team and franchise applications with public references", () => {
+    for (const type of ["TEAM", "FRANCHISE"] as const) {
+      expect(applicationSubmissionSchema.safeParse({
+        ...base,
+        type,
+        experience: "A complete competitive and operational application plan.",
+      }).success).toBe(true);
+    }
+    expect(applicationReference("123e4567-e89b-12d3-a456-426614174000"))
+      .toBe("RLCA-123E4567");
   });
 });

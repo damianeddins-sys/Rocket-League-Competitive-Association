@@ -3,6 +3,7 @@ import { getDatabase } from "../db";
 import {
   divisions,
   events,
+  matchGames,
   matches,
   players,
   playerSeasons,
@@ -42,6 +43,7 @@ export type PublicTeamStanding = {
   gamesLost: number;
   gameDifferential: number;
   points: number;
+  averageMmr: number | null;
   winPercentage: number;
   currentStreak: string;
   status: "ACTIVE" | "LOCKED #1" | "LOCKED #2";
@@ -57,6 +59,12 @@ export type PublicMatch = {
   status: string;
   teamAScore: number | null;
   teamBScore: number | null;
+  games: Array<{
+    number: number;
+    teamAScore: number;
+    teamBScore: number;
+    playedAt: string | null;
+  }>;
   teamA: Pick<PublicTeamStanding, "id" | "slug" | "name" | "shortName" | "color" | "logoUrl">;
   teamB: Pick<PublicTeamStanding, "id" | "slug" | "name" | "shortName" | "color" | "logoUrl">;
 };
@@ -243,6 +251,14 @@ export async function loadPublicLeagueData(
         ? db.select().from(players).where(inArray(players.id, playerIds))
         : Promise.resolve([]),
     ]);
+    const matchIds = matchRows.map((match) => match.id);
+    const gameRows = matchIds.length
+      ? await db
+        .select()
+        .from(matchGames)
+        .where(inArray(matchGames.matchId, matchIds))
+        .orderBy(asc(matchGames.gameNumber))
+      : [];
 
     const pointTotals = new Map<string, number>();
     for (const point of pointRows) {
@@ -271,6 +287,7 @@ export async function loadPublicLeagueData(
           gamesLost: 0,
           gameDifferential: 0,
           points: pointTotals.get(team.id) ?? 0,
+          averageMmr: null,
           winPercentage: 0,
           currentStreak: "—",
           status: "ACTIVE",
@@ -371,6 +388,16 @@ export async function loadPublicLeagueData(
         status: match.status,
         teamAScore: match.status === "VERIFIED" ? match.teamAScore : null,
         teamBScore: match.status === "VERIFIED" ? match.teamBScore : null,
+        games: match.status === "VERIFIED"
+          ? gameRows
+            .filter((game) => game.matchId === match.id)
+            .map((game) => ({
+              number: game.gameNumber,
+              teamAScore: game.teamAScore,
+              teamBScore: game.teamBScore,
+              playedAt: game.playedAt?.toISOString() ?? null,
+            }))
+          : [],
         teamA,
         teamB,
       }];
@@ -393,6 +420,18 @@ export async function loadPublicLeagueData(
         team: membership ? teamNames.get(membership.teamId) ?? null : null,
       }];
     }).sort((a, b) => a.handle.localeCompare(b.handle));
+    standings = standings.map((team) => {
+      const values = publicPlayers
+        .filter((player) => player.team === team.name && player.currentMmr)
+        .map((player) => Number(player.currentMmr))
+        .filter(Number.isFinite);
+      return {
+        ...team,
+        averageMmr: values.length
+          ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)
+          : null,
+      };
+    });
 
     const currentWeek = weekRows.find((week) => week.startsAt <= now && week.endsAt >= now);
     return {

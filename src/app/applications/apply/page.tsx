@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ApplicationForm } from "@/components/application-form";
 import { getSession } from "@/services/auth/session";
-import type { ApplicationType } from "@/services/applications";
+import { applicationReference, type ApplicationType } from "@/services/applications";
 import { loadApplicantStatus } from "@/services/application-status";
 
 export const metadata: Metadata = { title: "Apply" };
@@ -60,7 +60,7 @@ export default async function ApplyPage({
             <p className="mt-3 text-slate-600">
               Submitted {new Date(existing.submittedAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC. This status is loaded from the official application record and remains available after refresh.
             </p>
-            <p className="mt-4 font-mono text-xs text-slate-400">Reference: {existing.id}</p>
+            <p className="mt-4 font-mono text-xs font-black text-slate-500">Application ID: {applicationReference(existing.id)}</p>
           </div>
         ) : (
           <>

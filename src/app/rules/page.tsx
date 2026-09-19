@@ -41,13 +41,15 @@ export default async function RulesPage() {
         </div>
       </section>
       <main className="mx-auto max-w-6xl px-5 py-14">
-        <div className="grid gap-5 md:grid-cols-2">
+        <div className="grid gap-4">
           {visibleSections.map(([title, text], index) => (
-            <article key={title} className="panel p-7">
-              <span className="font-mono text-sm font-black text-[#1683ff]">{String(index + 1).padStart(2, "0")}</span>
-              <h2 className="mt-4 text-2xl font-black text-[#081e3a]">{title}</h2>
-              <p className="mt-3 leading-7 text-slate-600">{text}</p>
-            </article>
+            <details key={title} className="panel group p-6" open={index === 0}>
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
+                <span className="flex items-center gap-4"><span className="font-mono text-sm font-black text-[#1683ff]">{String(index + 1).padStart(2, "0")}</span><span className="text-xl font-black text-[#081e3a]">{title}</span></span>
+                <span className="text-2xl font-light text-slate-400 group-open:rotate-45" aria-hidden>+</span>
+              </summary>
+              <p className="mt-5 border-t border-slate-100 pt-5 leading-7 text-slate-600">{text}</p>
+            </details>
           ))}
         </div>
         <section className="mt-10 rounded-xl border border-blue-200 bg-blue-50 p-8">

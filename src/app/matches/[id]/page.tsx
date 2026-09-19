@@ -51,9 +51,24 @@ export default async function MatchDetailPage({
           <p className="eyebrow text-[#1677ff]">Official match record</p>
           <dl className="mt-6 grid gap-6 sm:grid-cols-3">
             <div><dt className="text-sm text-slate-500">Status</dt><dd className="mt-1 font-black">{match.status}</dd></div>
-            <div><dt className="text-sm text-slate-500">Scheduled</dt><dd className="mt-1 font-black">{new Date(match.scheduledAt).toLocaleString()}</dd></div>
-            <div><dt className="text-sm text-slate-500">Match ID</dt><dd className="mt-1 break-all font-mono text-xs">{match.id}</dd></div>
+            <div><dt className="text-sm text-slate-500">Scheduled</dt><dd className="mt-1 font-black">{new Date(match.scheduledAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC</dd></div>
+            <div><dt className="text-sm text-slate-500">Series</dt><dd className="mt-1 font-black">Best of {match.bestOf}</dd></div>
           </dl>
+          {match.status === "VERIFIED" && (
+            <section className="mt-8 border-t border-slate-100 pt-7">
+              <h2 className="text-xl font-black">Game results</h2>
+              {match.games.length ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {match.games.map((game) => (
+                    <div key={game.number} className="rounded-xl border border-slate-200 p-4">
+                      <p className="eyebrow text-slate-400">Game {game.number}</p>
+                      <p className="mt-2 text-lg font-black">{match.teamA.shortName} {game.teamAScore}–{game.teamBScore} {match.teamB.shortName}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="mt-3 text-slate-500">Game-level results have not been published.</p>}
+            </section>
+          )}
           {match.status !== "VERIFIED" && (
             <p className="mt-7 rounded-md border border-amber-200 bg-amber-50 p-4 font-semibold text-amber-900">
               This result is not final. Points and scores remain unpublished until verification.

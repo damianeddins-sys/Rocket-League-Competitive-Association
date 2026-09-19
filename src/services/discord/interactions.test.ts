@@ -37,6 +37,7 @@ const leagueData: PublicLeagueData = {
     gamesLost: 0,
     gameDifferential: 0,
     points: 0,
+    averageMmr: null,
     winPercentage: 0,
     currentStreak: "—",
     status: "ACTIVE",

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
+import Link from "next/link";
 import type { ApplicationType } from "@/services/applications";
 import { readApiResult } from "@/services/api-response";
 
@@ -13,10 +14,11 @@ export function ApplicationForm({
   defaultName: string;
   defaultEmail: string;
 }) {
+  const [step, setStep] = useState(1);
   const [state, setState] = useState<{
     status: "idle" | "submitting" | "success" | "error";
     message?: string;
-    id?: string;
+    reference?: string;
   }>({ status: "idle" });
 
   async function submit(formData: FormData) {
@@ -33,11 +35,11 @@ export function ApplicationForm({
           alternateAccountsDeclared: payload.alternateAccountsDeclared === "on",
         }),
       });
-      const result = await readApiResult<{ id?: string }>(response);
+      const result = await readApiResult<{ id?: string; reference?: string }>(response);
       if (!response.ok) throw new Error(result.error ?? "Application could not be submitted");
       setState({
         status: "success",
-        id: result.id,
+        reference: result.reference,
         message: "Your application has been saved and added to the RLCA review queue.",
       });
     } catch (error) {
@@ -48,20 +50,46 @@ export function ApplicationForm({
     }
   }
 
+  function advance(event: MouseEvent<HTMLButtonElement>) {
+    const form = event.currentTarget.form;
+    const fieldset = form?.querySelector<HTMLElement>(`[data-step="${step}"]`);
+    const fields = [...(fieldset?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("input, textarea, select") ?? [])];
+    const invalid = fields.find((field) => !field.checkValidity());
+    if (invalid) {
+      invalid.reportValidity();
+      return;
+    }
+    setStep((value) => Math.min(3, value + 1));
+  }
+
   if (state.status === "success") {
     return (
       <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-8 text-center" role="status">
         <p className="eyebrow text-emerald-700">Application received</p>
         <h2 className="mt-3 text-2xl font-black text-emerald-950">You are in the review queue.</h2>
         <p className="mt-3 text-emerald-800">{state.message}</p>
-        <p className="mt-4 font-mono text-xs text-emerald-700">Reference: {state.id}</p>
+        <p className="mt-4 font-mono text-sm font-black text-emerald-700">Application ID: {state.reference ?? "Created"}</p>
+        <Link href={`/applications/apply?type=${type.toLowerCase().replace("_", "-")}`} className="mt-6 inline-flex rounded-lg bg-emerald-700 px-5 py-3 font-black text-white">
+          View application
+        </Link>
       </div>
     );
   }
 
   return (
     <form action={submit} className="panel p-6 sm:p-8">
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="mb-8">
+        <div className="flex items-center justify-between text-xs font-black uppercase tracking-wider text-slate-500">
+          <span>Step {step} of 3</span>
+          <span>{step === 1 ? "Basic information" : step === 2 ? "Application details" : "Confirmation"}</span>
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-2" aria-label={`Application step ${step} of 3`}>
+          {[1, 2, 3].map((number) => <span key={number} className={`h-2 rounded-full ${number <= step ? "bg-[#168bff]" : "bg-slate-200"}`} />)}
+        </div>
+      </div>
+
+      <fieldset data-step="1" className={step === 1 ? "grid gap-5 sm:grid-cols-2" : "hidden"}>
+        <legend className="sr-only">Basic information</legend>
         <label className="text-sm font-bold text-slate-700">
           Full name
           <input name="fullName" defaultValue={defaultName} required minLength={2} maxLength={120} className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 font-normal outline-none focus:border-blue-500" />
@@ -70,6 +98,10 @@ export function ApplicationForm({
           Contact email
           <input name="email" type="email" defaultValue={defaultEmail} required maxLength={254} className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 font-normal outline-none focus:border-blue-500" />
         </label>
+      </fieldset>
+
+      <fieldset data-step="2" className={step === 2 ? "grid gap-5 sm:grid-cols-2" : "hidden"}>
+        <legend className="sr-only">Application details</legend>
         {type === "PLAYER" && (
           <>
             <label className="text-sm font-bold text-slate-700">
@@ -120,6 +152,10 @@ export function ApplicationForm({
             <textarea name="experience" required minLength={20} maxLength={3000} rows={5} className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 font-normal outline-none focus:border-blue-500" />
           </label>
         )}
+      </fieldset>
+
+      <fieldset data-step="3" className={step === 3 ? "grid gap-5 sm:grid-cols-2" : "hidden"}>
+        <legend className="sr-only">Availability and confirmation</legend>
         <label className="text-sm font-bold text-slate-700 sm:col-span-2">
           Availability
           <textarea name="availability" required minLength={2} maxLength={1000} rows={3} placeholder="Days, times, and timezone" className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 font-normal outline-none focus:border-blue-500" />
@@ -128,14 +164,24 @@ export function ApplicationForm({
           Additional information <span className="font-normal text-slate-400">(optional)</span>
           <textarea name="notes" maxLength={3000} rows={4} className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 font-normal outline-none focus:border-blue-500" />
         </label>
+        <label className="flex items-start gap-3 rounded-lg bg-slate-50 p-4 text-sm leading-6 text-slate-700 sm:col-span-2">
+          <input name="agreementsAccepted" type="checkbox" required className="mt-1 h-4 w-4" />
+          I confirm this information is accurate and agree to the published RLCA rules, verification requirements, and staff review process.
+        </label>
+      </fieldset>
+
+      <div className="mt-7 flex flex-wrap justify-between gap-3 border-t border-slate-100 pt-6">
+        {step > 1 ? (
+          <button type="button" onClick={() => setStep((value) => Math.max(1, value - 1))} className="rounded-lg border border-slate-300 px-6 py-3 font-black text-slate-700">Back</button>
+        ) : <span />}
+        {step < 3 ? (
+          <button type="button" onClick={advance} className="rounded-lg bg-[#1683ff] px-6 py-3 font-black text-white">Next</button>
+        ) : (
+          <button disabled={state.status === "submitting"} className="rounded-lg bg-[#1683ff] px-6 py-3 font-black text-white disabled:cursor-wait disabled:bg-slate-400">
+            {state.status === "submitting" ? "Submitting…" : "Submit application"}
+          </button>
+        )}
       </div>
-      <label className="mt-6 flex items-start gap-3 rounded-lg bg-slate-50 p-4 text-sm leading-6 text-slate-700">
-        <input name="agreementsAccepted" type="checkbox" required className="mt-1 h-4 w-4" />
-        I confirm this information is accurate and agree to the published RLCA rules, verification requirements, and staff review process.
-      </label>
-      <button disabled={state.status === "submitting"} className="mt-6 rounded-lg bg-[#1683ff] px-6 py-3 font-black text-white disabled:cursor-wait disabled:bg-slate-400">
-        {state.status === "submitting" ? "Submitting…" : "Submit application"}
-      </button>
       {state.status === "error" && (
         <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800" role="alert">{state.message}</p>
       )}

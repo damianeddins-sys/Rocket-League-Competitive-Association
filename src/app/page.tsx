@@ -4,22 +4,36 @@ import { ArrowRight, BrainCircuit, CalendarDays, Gavel, LockKeyhole, Play, ScanS
 import { LeagueDataState } from "@/components/league-data-state";
 import { loadPublicLeagueData } from "@/services/public-league-data";
 import { loadSiteContent } from "@/services/site-content";
+import { TIERS } from "@/services/tiers";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [data, managedContent, managedSiteInfo, managedMedia] = await Promise.all([
-    loadPublicLeagueData(),
+  const [tierSnapshots, managedContent, managedSiteInfo, managedMedia] = await Promise.all([
+    Promise.all(TIERS.map((tier) => loadPublicLeagueData({ tier: tier.id }))),
     loadSiteContent("CONTENT"),
     loadSiteContent("LEAGUE_INFO"),
     loadSiteContent("MEDIA"),
   ]);
+  const data = tierSnapshots[0];
+  const readySnapshots = tierSnapshots.filter((snapshot) => snapshot.status === "ready");
   const websiteContent = [...managedSiteInfo, ...managedContent]
     .sort((a, b) => a.sortOrder - b.sortOrder);
-  const upcomingMatches =
-    data.status === "ready"
-      ? data.matches.filter((match) => match.status === "SCHEDULED").slice(0, 2)
-      : [];
+  const allMatches = readySnapshots.flatMap((snapshot) => snapshot.status === "ready" ? snapshot.matches : []);
+  const upcomingMatches = allMatches
+    .filter((match) => match.status === "SCHEDULED")
+    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+    .slice(0, 3);
+  const recentResults = allMatches
+    .filter((match) => match.status === "VERIFIED")
+    .sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime())
+    .slice(0, 3);
+  const totals = {
+    teams: readySnapshots.reduce((total, snapshot) => total + (snapshot.status === "ready" ? snapshot.standings.length : 0), 0),
+    players: readySnapshots.reduce((total, snapshot) => total + (snapshot.status === "ready" ? snapshot.players.length : 0), 0),
+    matches: allMatches.filter((match) => match.status === "VERIFIED").length,
+  };
+  const discordHref = process.env.NEXT_PUBLIC_DISCORD_INVITE_URL || "/login";
   return (
     <>
       <section className="hero-grid relative overflow-hidden bg-[#0b1f3a] text-white">
@@ -37,18 +51,21 @@ export default async function Home() {
               {data.status === "ready" ? data.season.name : "Season 1"} · RLCA 2v2
             </p>
             <h1 className="max-w-3xl text-5xl font-black leading-[0.98] tracking-[-0.04em] sm:text-6xl lg:text-7xl">
-              Where every series shapes the road to the title.
+              Rocket League esports, built for serious competition.
             </h1>
             <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300">
-              Eight franchises. Twenty-four players. One auditable competitive system from
-              preseason placement through the RLCA Championship.
+              A professional competitive league connecting players, teams, verified match records,
+              tier-specific standings, and community through one official system.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
-              <Link href="/standings" className="flex items-center gap-2 rounded-md bg-[#1677ff] px-5 py-3 font-bold">
-                View standings <ArrowRight size={17} />
+              <Link href="/apply" className="flex items-center gap-2 rounded-md bg-[#1677ff] px-5 py-3 font-bold">
+                Join RLCA <ArrowRight size={17} />
               </Link>
-              <Link href="/schedule" className="flex items-center gap-2 rounded-md border border-white/25 bg-white/5 px-5 py-3 font-bold">
-                <Play size={17} /> Match schedule
+              <Link href="/league" className="flex items-center gap-2 rounded-md border border-white/25 bg-white/5 px-5 py-3 font-bold">
+                <Play size={17} /> View league
+              </Link>
+              <Link href={discordHref} className="flex items-center gap-2 rounded-md border border-white/25 bg-white/5 px-5 py-3 font-bold">
+                Join Discord
               </Link>
             </div>
           </div>
@@ -89,12 +106,87 @@ export default async function Home() {
 
       <section className="border-b border-slate-200 bg-slate-50">
         <div className="mx-auto grid max-w-7xl gap-px bg-slate-200 sm:grid-cols-3">
-          {[["8", "Franchise teams"], ["24", "Rostered players"], ["2", "Series per Sunday"]].map(([value, label]) => (
+          {[
+            [String(totals.teams), "Active tier entries"],
+            [String(totals.players), "Published players"],
+            [String(totals.matches), "Verified matches"],
+          ].map(([value, label]) => (
             <div key={label} className="bg-slate-50 px-6 py-7 text-center">
               <p className="text-3xl font-black text-[#0b1f3a]">{value}</p>
               <p className="mt-1 text-sm font-semibold text-slate-500">{label}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="eyebrow text-[#168bff]">Competitive structure</p>
+            <h2 className="mt-2 text-3xl font-black tracking-tight text-[#061426] sm:text-4xl">Four tiers. Four separate races.</h2>
+          </div>
+          <Link href="/tiers" className="font-black text-[#0765c9]">Explore every tier →</Link>
+        </div>
+        <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {TIERS.map((tier, index) => {
+            const snapshot = tierSnapshots[index];
+            const teams = snapshot.status === "ready" ? snapshot.standings.length : 0;
+            const players = snapshot.status === "ready" ? snapshot.players.length : 0;
+            return (
+              <Link key={tier.id} href={`/tiers/${tier.id}`} className="panel group overflow-hidden">
+                <div className="h-1.5" style={{ backgroundColor: tier.color }} />
+                <div className="p-6">
+                  <p className="eyebrow" style={{ color: tier.color }}>{tier.code}</p>
+                  <h3 className="mt-2 text-2xl font-black text-[#061426]">{tier.name}</h3>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">
+                    Competitive level {tier.ordinal} of 4 with season-isolated teams, players, matches, and standings.
+                  </p>
+                  <dl className="mt-5 grid grid-cols-2 gap-3 border-t border-slate-100 pt-5 text-sm">
+                    <div><dt className="text-slate-400">Teams</dt><dd className="stat-number text-lg">{teams}</dd></div>
+                    <div><dt className="text-slate-400">Players</dt><dd className="stat-number text-lg">{players}</dd></div>
+                  </dl>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="bg-[#eef3f8]">
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-20 lg:grid-cols-2 lg:px-8">
+          <div>
+            <div className="flex items-center justify-between">
+              <div><p className="eyebrow text-[#168bff]">Next up</p><h2 className="mt-2 text-3xl font-black">Featured matches</h2></div>
+              <Link href="/matches?status=upcoming" className="text-sm font-black text-[#0765c9]">All matches</Link>
+            </div>
+            <div className="mt-6 grid gap-4">
+              {upcomingMatches.length ? upcomingMatches.map((match) => (
+                <Link key={match.id} href={`/matches/${match.id}?tier=${match.tierId}`} className="panel p-5">
+                  <p className="eyebrow text-[#168bff]">{match.tierId.toUpperCase()} · Week {match.week}</p>
+                  <div className="mt-3 flex items-center justify-between gap-3 font-black">
+                    <span>{match.teamA.shortName}</span><span className="text-slate-400">VS</span><span>{match.teamB.shortName}</span>
+                  </div>
+                  <p className="mt-3 text-sm text-slate-500">{new Date(match.scheduledAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC</p>
+                </Link>
+              )) : <div className="panel p-6 text-slate-600">No upcoming matches.</div>}
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center justify-between">
+              <div><p className="eyebrow text-[#168bff]">Final scores</p><h2 className="mt-2 text-3xl font-black">Recent results</h2></div>
+              <Link href="/matches?status=completed" className="text-sm font-black text-[#0765c9]">All results</Link>
+            </div>
+            <div className="mt-6 grid gap-4">
+              {recentResults.length ? recentResults.map((match) => (
+                <Link key={match.id} href={`/matches/${match.id}?tier=${match.tierId}`} className="panel p-5">
+                  <p className="eyebrow text-[#168bff]">{match.tierId.toUpperCase()} · Completed</p>
+                  <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3 font-black">
+                    <span>{match.teamA.shortName}</span><span className="text-xl">{match.teamAScore}–{match.teamBScore}</span><span className="text-right">{match.teamB.shortName}</span>
+                  </div>
+                </Link>
+              )) : <div className="panel p-6 text-slate-600">No recent results.</div>}
+            </div>
+          </div>
         </div>
       </section>
 

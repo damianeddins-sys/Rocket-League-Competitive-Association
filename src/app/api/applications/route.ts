@@ -13,7 +13,7 @@ import {
 import { buildAuditLogRecord } from "@/services/audit";
 import { consumeAuthRateLimit } from "@/services/auth/rate-limit";
 import { getSession } from "@/services/auth/session";
-import { applicationSubmissionSchema } from "@/services/applications";
+import { applicationReference, applicationSubmissionSchema } from "@/services/applications";
 import { notificationJob } from "@/services/discord/notifications";
 
 export const runtime = "nodejs";
@@ -156,5 +156,8 @@ export async function POST(request: Request) {
     throw error;
   }
 
-  return NextResponse.json(created, { status: 201 });
+  return NextResponse.json({
+    ...created,
+    reference: applicationReference(created.id),
+  }, { status: 201 });
 }

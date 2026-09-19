@@ -70,7 +70,7 @@ export default async function StandingsPage({
               <table className="w-full min-w-[1050px] border-collapse text-left">
                 <thead className="bg-[#05070C] text-xs uppercase tracking-wider text-slate-300">
                   <tr>
-                    {["Seed", "Franchise", "Series", "Played", "Games", "Diff", "Win %", "Streak", "Total pts", "Status"].map(
+                    {["Seed", "Franchise", "Series", "Played", "Games", "Diff", "Win %", "Streak", "MMR", "Total pts", "Status"].map(
                       (label) => <th key={label} className="px-5 py-4">{label}</th>,
                     )}
                   </tr>
@@ -102,6 +102,7 @@ export default async function StandingsPage({
                       </td>
                       <td className="px-5 py-4 font-mono">{team.winPercentage.toFixed(1)}%</td>
                       <td className="px-5 py-4 font-mono font-bold">{team.currentStreak}</td>
+                      <td className="px-5 py-4 font-mono font-bold">{team.averageMmr ?? "—"}</td>
                       <td className="px-5 py-4 font-mono text-lg font-black">{team.points}</td>
                       <td className="px-5 py-4 text-xs font-black">
                         {team.status.startsWith("LOCKED") && (

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { ArrowRight, BriefcaseBusiness, ExternalLink, Gamepad2, ShieldCheck } from "lucide-react";
+import { ArrowRight, BriefcaseBusiness, ExternalLink, Gamepad2, ShieldCheck, Users } from "lucide-react";
 
 export const metadata: Metadata = { title: "Applications" };
 
@@ -24,6 +24,15 @@ const applicationPaths: Array<{
     icon: Gamepad2,
   },
   {
+    title: "Team",
+    label: "Apply as Team",
+    description: "Submit a proposed team and roster for official league review.",
+    details: "Roster review · Tier placement · Eligibility checks",
+    href: "/applications/apply?type=team",
+    discordHref: "/api/discord/channels/player-signups",
+    icon: Users,
+  },
+  {
     title: "GM / AGM",
     label: "Apply for GM / AGM",
     description: "Apply to lead an RLCA franchise and manage its roster, schedule, scrims, and transaction requests.",
@@ -40,6 +49,15 @@ const applicationPaths: Array<{
     href: "/applications/apply?type=staff",
     discordHref: "/api/discord/channels/staff-signups",
     icon: ShieldCheck,
+  },
+  {
+    title: "Franchise",
+    label: "Apply as Franchise",
+    description: "Present an ownership and operations plan for an official RLCA franchise.",
+    details: "Ownership review · Management plan · League approval",
+    href: "/applications/apply?type=franchise",
+    discordHref: "/api/discord/channels/gm-agm-applications",
+    icon: BriefcaseBusiness,
   },
 ];
 
@@ -68,7 +86,7 @@ export default async function ApplicationsPage({
             The Discord channel link is temporarily unavailable. You can still begin the website application.
           </p>
         )}
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2">
           {applicationPaths.map((application) => {
             const Icon = application.icon;
             return (
