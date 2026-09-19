@@ -163,6 +163,21 @@ const matchResultSchema = z.object({
   }
 });
 
+const matchCreateSchema = z.object({
+  tierId: z.enum(TIER_IDS),
+  eventId: z.string().uuid(),
+  teamAId: z.string().uuid(),
+  teamBId: z.string().uuid(),
+  week: z.number().int().min(1).max(52),
+  sundaySlot: z.number().int().min(1).max(20),
+  bestOf: z.number().int().min(1).max(15),
+  scheduledAt: z.coerce.date(),
+  reason: z.string().trim().min(3).max(2000),
+}).refine((value) => value.teamAId !== value.teamBId, {
+  message: "A team cannot play itself",
+  path: ["teamBId"],
+});
+
 const permissions: Record<string, Permission> = {
   transactions: "transaction.approve",
   players: "player.manage",
@@ -884,13 +899,74 @@ export async function POST(
   { params }: { params: Promise<{ resource: string }> },
 ) {
   const { resource } = await params;
-  if (resource !== "channels") {
+  if (resource !== "channels" && resource !== "matches") {
     return NextResponse.json({ error: "Unknown operations resource" }, { status: 404 });
   }
   const context = await contextFor(request, resource);
   if (!context) return NextResponse.json({ error: "Authorized staff access required" }, { status: 403 });
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: "Operations database is not configured" }, { status: 503 });
+  }
+  if (resource === "matches") {
+    const parsed = matchCreateSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Match schedule entry is invalid" }, { status: 400 });
+    }
+    const db = getDatabase();
+    const [[season], [event]] = await Promise.all([
+      db.select({ id: seasons.id }).from(seasons).where(eq(seasons.active, true)).limit(1),
+      db.select().from(events).where(eq(events.id, parsed.data.eventId)).limit(1),
+    ]);
+    if (!season || !event || event.seasonId !== season.id) {
+      return NextResponse.json({ error: "Active season event not found" }, { status: 404 });
+    }
+    const [division] = await db.select().from(divisions).where(and(
+      eq(divisions.id, event.divisionId),
+      eq(divisions.seasonId, season.id),
+      eq(divisions.slug, parsed.data.tierId),
+    )).limit(1);
+    if (!division) {
+      return NextResponse.json({ error: "Event does not belong to the selected tier" }, { status: 409 });
+    }
+    try {
+      const created = await db.transaction(async (tx) => {
+        const [match] = await tx.insert(matches).values({
+          seasonId: season.id,
+          divisionId: division.id,
+          eventId: event.id,
+          teamAId: parsed.data.teamAId,
+          teamBId: parsed.data.teamBId,
+          week: parsed.data.week,
+          sundaySlot: parsed.data.sundaySlot,
+          bestOf: parsed.data.bestOf,
+          scheduledAt: parsed.data.scheduledAt,
+        }).returning();
+        await tx.insert(auditLogs).values(buildAuditLogRecord({
+          actorId: context.user.id,
+          actorDiscordRoleIds: context.access.roleIds,
+          actorFranchiseNumber: context.access.franchiseNumber,
+          action: "TIER_MATCH_SCHEDULED",
+          entityType: "MATCH",
+          entityId: match.id,
+          nextState: {
+            seasonId: season.id,
+            tierId: parsed.data.tierId,
+            eventId: event.id,
+            teamAId: parsed.data.teamAId,
+            teamBId: parsed.data.teamBId,
+            scheduledAt: parsed.data.scheduledAt.toISOString(),
+          },
+          reason: parsed.data.reason,
+          requestId: randomUUID(),
+        }));
+        return match;
+      });
+      return NextResponse.json({ id: created.id, saved: true }, { status: 201 });
+    } catch (error) {
+      return NextResponse.json({
+        error: error instanceof Error ? error.message : "Match could not be scheduled",
+      }, { status: 409 });
+    }
   }
   const parsed = createChannelSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {

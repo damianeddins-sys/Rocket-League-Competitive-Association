@@ -767,6 +767,7 @@ export function ProductionWorkspace({
   data: {
     tierId: TierId;
     events: Array<{ id: string; name: string; startsAt: string; endsAt: string }>;
+    teams: Array<{ id: string; name: string }>;
     matches: Array<{
       id: string;
       status: string;
@@ -797,10 +798,46 @@ export function ProductionWorkspace({
     setMessage(response.ok ? "Result verified in the selected tier." : result.error ?? "Result verification failed");
     if (response.ok) router.refresh();
   }
+  async function scheduleMatch(formData: FormData) {
+    setMessage("Validating tier entries and creating match…");
+    const response = await fetch("/api/admin/operations/matches", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tierId: data.tierId,
+        eventId: formData.get("eventId"),
+        teamAId: formData.get("teamAId"),
+        teamBId: formData.get("teamBId"),
+        week: Number(formData.get("week")),
+        sundaySlot: Number(formData.get("sundaySlot")),
+        bestOf: Number(formData.get("bestOf")),
+        scheduledAt: formData.get("scheduledAt"),
+        reason: formData.get("reason"),
+      }),
+    });
+    const result = await readApiResult<object>(response);
+    setMessage(response.ok ? "Tier-specific match scheduled." : result.error ?? "Match scheduling failed");
+    if (response.ok) router.refresh();
+  }
   return (
     <div className="mt-7 grid gap-5 lg:grid-cols-2">
       <div className="lg:col-span-2"><TierNavigation current={data.tierId} pathname="/operations/production" /></div>
       <div className="lg:col-span-2"><Feedback message={message} /></div>
+      <form action={scheduleMatch} className="rounded-xl border border-blue-200 bg-blue-50/40 p-5 lg:col-span-2">
+        <h3 className="text-lg font-black text-[#081e3a]">Schedule a tier match</h3>
+        <p className="mt-1 text-sm text-slate-600">Only teams and events active in the selected tier are accepted by the database.</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <select name="eventId" required className="rounded-lg border border-slate-300 bg-white p-2.5"><option value="">Select event</option>{data.events.map((event) => <option key={event.id} value={event.id}>{event.name}</option>)}</select>
+          <select name="teamAId" required className="rounded-lg border border-slate-300 bg-white p-2.5"><option value="">Team A</option>{data.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select>
+          <select name="teamBId" required className="rounded-lg border border-slate-300 bg-white p-2.5"><option value="">Team B</option>{data.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select>
+          <input name="scheduledAt" type="datetime-local" required className="rounded-lg border border-slate-300 bg-white p-2.5" aria-label="Scheduled date and time" />
+          <input name="week" type="number" min={1} max={52} required placeholder="Week" className="rounded-lg border border-slate-300 p-2.5" />
+          <input name="sundaySlot" type="number" min={1} max={20} required placeholder="Match block" className="rounded-lg border border-slate-300 p-2.5" />
+          <input name="bestOf" type="number" min={1} max={15} defaultValue={5} required placeholder="Best of" className="rounded-lg border border-slate-300 p-2.5" />
+          <input name="reason" minLength={3} required placeholder="Required audit reason" className="rounded-lg border border-slate-300 p-2.5" />
+        </div>
+        <button className="mt-4 rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Schedule match</button>
+      </form>
       <section className="rounded-xl border border-slate-200 bg-white p-5"><h3 className="text-lg font-black">Events</h3><div className="mt-3 space-y-2">{data.events.map((event) => <div key={event.id} className="rounded-lg bg-slate-50 p-3 text-sm"><strong>{event.name}</strong><p className="text-xs text-slate-500">{new Date(event.startsAt).toLocaleDateString()}–{new Date(event.endsAt).toLocaleDateString()}</p></div>)}</div></section>
       <section className="rounded-xl border border-slate-200 bg-white p-5"><h3 className="text-lg font-black">Match production queue</h3><div className="mt-3 space-y-3">{data.matches.map((match) => <div key={match.id} className="rounded-lg bg-slate-50 p-3 text-sm"><strong>{match.teamA} vs {match.teamB}</strong><p className="text-xs text-slate-500">{new Date(match.scheduledAt).toLocaleString()} · {match.status}</p>{match.status === "VERIFIED" ? <p className="mt-2 text-lg font-black">{match.teamAScore}–{match.teamBScore}</p> : <form action={verifyResult} className="mt-3 grid grid-cols-2 gap-2"><input type="hidden" name="id" value={match.id} /><input name="teamAScore" type="number" min={0} max={99} required placeholder={`${match.teamA} score`} className="rounded border border-slate-300 p-2" /><input name="teamBScore" type="number" min={0} max={99} required placeholder={`${match.teamB} score`} className="rounded border border-slate-300 p-2" /><input name="reason" minLength={3} required placeholder="Verification reason" className="col-span-2 rounded border border-slate-300 p-2" /><label className="col-span-2 flex items-center gap-2 text-xs font-bold"><input name="officialTie" type="checkbox" /> Official tie</label><button className="col-span-2 rounded bg-[#1683ff] px-3 py-2 font-black text-white">Verify result</button></form>}</div>)}</div></section>
     </div>

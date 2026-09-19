@@ -483,10 +483,16 @@ export function loadProductionWorkspace(tierInput?: string) {
         eq(divisions.slug, tierId),
       )).limit(1)
       : [];
-    const [eventRows, matchRows, teamRows] = await Promise.all([
+    const [eventRows, matchRows, teamRows, teamEntryRows] = await Promise.all([
       tier ? db.select().from(events).where(eq(events.divisionId, tier.id)).orderBy(asc(events.startsAt)) : Promise.resolve([]),
       tier ? db.select().from(matches).where(eq(matches.divisionId, tier.id)).orderBy(asc(matches.scheduledAt)).limit(250) : Promise.resolve([]),
       db.select({ id: teams.id, name: teams.name }).from(teams),
+      tier ? db.select({ teamId: teamSeasonEntries.teamId }).from(teamSeasonEntries).where(and(
+        eq(teamSeasonEntries.seasonId, activeSeason!.id),
+        eq(teamSeasonEntries.divisionId, tier.id),
+        eq(teamSeasonEntries.active, true),
+        isNull(teamSeasonEntries.endedAt),
+      )) : Promise.resolve([]),
     ]);
     const names = new Map(teamRows.map((team) => [team.id, team.name]));
     return {
@@ -497,6 +503,10 @@ export function loadProductionWorkspace(tierInput?: string) {
         startsAt: event.startsAt.toISOString(),
         endsAt: event.endsAt.toISOString(),
       })),
+      teams: teamEntryRows.flatMap((entry) => {
+        const name = names.get(entry.teamId);
+        return name ? [{ id: entry.teamId, name }] : [];
+      }),
       matches: matchRows.map((match) => ({
         id: match.id,
         status: match.status,
