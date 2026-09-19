@@ -25,6 +25,7 @@ import { loadApplicationQueue } from "@/services/application-admin";
 import { loadSiteContentManagement, type ContentCategory } from "@/services/site-content";
 import { loadUserManagement } from "@/services/user-management";
 import { getDiscordBotHealth } from "@/services/discord/bot-health";
+import { getSystemHealth } from "@/services/system-health";
 import {
   loadAuditManagement,
   loadDocumentManagement,
@@ -61,6 +62,7 @@ const sections = {
   rules: { label: "Rules", portal: "LEAGUE_OPERATIONS" as Portal, permission: "rules.manage" as Permission, icon: FileClock },
   settings: { label: "Settings", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: Settings },
   permissions: { label: "Permissions & RBAC", portal: "LEAGUE_OPERATIONS" as Portal, permission: "users.manage" as Permission, icon: ShieldAlert },
+  health: { label: "System Health", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.full" as Permission, icon: Activity },
   bot: { label: "Discord Bot", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.full" as Permission, icon: Bot },
   audit: { label: "Audit Log", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.full" as Permission, icon: Database },
   franchise: { label: "Franchise Manager", portal: "FRANCHISE_MANAGER" as Portal, permission: "franchise.view" as Permission, icon: Users },
@@ -108,6 +110,11 @@ export default async function OperationsPage({
   }
   const botHealth = sectionKey === "bot"
     ? await getDiscordBotHealth()
+    : null;
+  const systemHealth = sectionKey === "health"
+    ? await getSystemHealth(
+      `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/staff/system-health`,
+    )
     : null;
   const applicationQueue = sectionKey === "applications"
     ? await loadApplicationQueue(page)
@@ -190,7 +197,39 @@ export default async function OperationsPage({
               </div>
               <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700">AUTHORIZED</span>
             </div>
-            {overview?.status === "READY" ? (
+            {systemHealth ? (
+              <div className="mt-7">
+                <div className={`rounded-lg border p-5 ${systemHealth.status === "PASS" ? "border-emerald-200 bg-emerald-50" : systemHealth.status === "FAIL" ? "border-red-200 bg-red-50" : "border-slate-200 bg-slate-50"}`}>
+                  <p className="eyebrow">Production service health</p>
+                  <p className="mt-2 text-2xl font-black">{systemHealth.status}</p>
+                  <p className="mt-2 text-sm">Checked {new Date(systemHealth.checkedAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC</p>
+                </div>
+                <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                  {Object.entries(systemHealth.checks).map(([name, check]) => {
+                    const displayStatus = check.status === "PASS"
+                      ? "ONLINE"
+                      : check.status === "FAIL"
+                        ? "OFFLINE"
+                        : "UNKNOWN";
+                    return (
+                      <article key={name} className="rounded-lg border border-slate-200 bg-white p-5">
+                        <div className="flex items-center justify-between gap-3">
+                          <h3 className="font-black capitalize text-[#081e3a]">{name.replaceAll(/([A-Z])/g, " $1")}</h3>
+                          <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${check.status === "PASS" ? "bg-emerald-50 text-emerald-700" : check.status === "FAIL" ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600"}`}>
+                            {displayStatus}
+                          </span>
+                        </div>
+                        <p className="mt-3 font-mono text-xs text-slate-500">{check.code}</p>
+                        <p className="mt-3 text-sm leading-6 text-slate-600">{check.scope}</p>
+                        {check.incidentId && (
+                          <p className="mt-3 text-xs text-slate-500">Incident reference: <span className="font-mono">{check.incidentId}</span></p>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : overview?.status === "READY" ? (
               <OperationsOverview counts={overview.data} />
             ) : transactionManagement?.status === "READY" ? (
               <TransactionManager
