@@ -30,7 +30,10 @@ export default async function ApplyPage({
   const existing = session?.user
     ? await loadApplicantStatus(session.user.id, type)
     : null;
-  const canSubmit = !existing || existing.status === "DENIED" || existing.status === "WITHDRAWN";
+  const canSubmit = !existing
+    || existing.status === "DENIED"
+    || existing.status === "WITHDRAWN"
+    || existing.status === "MORE_INFO_REQUIRED";
 
   return (
     <div className="min-h-screen bg-[#f3f6fa]">
@@ -65,9 +68,10 @@ export default async function ApplyPage({
         ) : (
           <>
             {existing && (
-              <p className="mb-5 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
-                Previous application: <strong>{existing.status.replaceAll("_", " ")}</strong>. You may submit a new application.
-              </p>
+              <div className="mb-5 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+                <p>Application status: <strong>{existing.status.replaceAll("_", " ")}</strong>. {existing.status === "MORE_INFO_REQUIRED" ? "Submit the requested updates below." : "You may submit a new application."}</p>
+                {existing.latestReason && <p className="mt-3 rounded-md bg-amber-50 p-3 font-semibold text-amber-900">Staff request: {existing.latestReason}</p>}
+              </div>
             )}
           <ApplicationForm
             type={type}

@@ -9,6 +9,7 @@ import {
   BotControl,
   DocumentManager,
   FranchiseWorkspace,
+  MmrManager,
   OperationsOverview,
   PlayerManager,
   ProductionWorkspace,
@@ -44,13 +45,18 @@ export const dynamic = "force-dynamic";
 const sections = {
   overview: { label: "Operations Dashboard", portal: "LEAGUE_OPERATIONS" as Portal, icon: Activity },
   applications: { label: "Applications", portal: "SIGN_UP_MANAGER" as Portal, permission: "applications.manage" as Permission, icon: UserRoundCheck },
-  transactions: { label: "Transactions", portal: "LEAGUE_OPERATIONS" as Portal, permission: "transaction.approve" as Permission, icon: FileClock },
+  transactions: { label: "Rosters & Transactions", portal: "LEAGUE_OPERATIONS" as Portal, permission: "transaction.approve" as Permission, icon: FileClock },
   players: { label: "Players & Members", portal: "SIGN_UP_MANAGER" as Portal, permission: "player.manage" as Permission, icon: Users },
+  mmr: { label: "MMR Management", portal: "STATISTICS" as Portal, permission: "statistics.review" as Permission, icon: Activity },
   teams: { label: "Teams & Franchises", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: ShieldAlert },
+  matches: { label: "Matches", portal: "PRODUCTION" as Portal, permission: "matches.manage" as Permission, icon: Activity },
+  standings: { label: "Standings & Results", portal: "PRODUCTION" as Portal, permission: "matches.manage" as Permission, icon: Activity },
+  tiers: { label: "Tier Management", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: Settings },
   staff: { label: "Staff", portal: "LEAGUE_OPERATIONS" as Portal, permission: "users.manage" as Permission, icon: Users },
   documents: { label: "Documents", portal: "SIGN_UP_MANAGER" as Portal, permission: "applications.manage" as Permission, icon: FileClock },
   media: { label: "Photos & Media", portal: "LEAGUE_OPERATIONS" as Portal, permission: "media.manage" as Permission, icon: Image },
   content: { label: "Website Content", portal: "LEAGUE_OPERATIONS" as Portal, permission: "content.manage" as Permission, icon: FileClock },
+  news: { label: "News", portal: "LEAGUE_OPERATIONS" as Portal, permission: "content.manage" as Permission, icon: FileClock },
   "site-info": { label: "Site Information", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: FileClock },
   rules: { label: "Rules", portal: "LEAGUE_OPERATIONS" as Portal, permission: "rules.manage" as Permission, icon: FileClock },
   settings: { label: "Settings", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: Settings },
@@ -108,7 +114,7 @@ export default async function OperationsPage({
     : null;
   const contentCategory: ContentCategory | null =
     sectionKey === "rules" ? "RULES"
-      : sectionKey === "content" ? "CONTENT"
+      : sectionKey === "content" || sectionKey === "news" ? "CONTENT"
         : sectionKey === "site-info" ? "LEAGUE_INFO"
         : sectionKey === "media" ? "MEDIA"
           : null;
@@ -120,14 +126,16 @@ export default async function OperationsPage({
     : null;
   const overview = sectionKey === "overview" ? await loadOperationsOverview() : null;
   const transactionManagement = sectionKey === "transactions" ? await loadTransactionManagement(page) : null;
-  const playerManagement = sectionKey === "players" ? await loadPlayerManagement() : null;
+  const playerManagement = sectionKey === "players" || sectionKey === "mmr" ? await loadPlayerManagement() : null;
   const teamManagement = sectionKey === "teams" ? await loadTeamManagement() : null;
   const documentManagement = sectionKey === "documents" ? await loadDocumentManagement() : null;
-  const settingsManagement = sectionKey === "settings" ? await loadSettingsManagement() : null;
+  const settingsManagement = sectionKey === "settings" || sectionKey === "tiers" ? await loadSettingsManagement() : null;
   const auditManagement = sectionKey === "audit" ? await loadAuditManagement() : null;
   const franchiseWorkspace = sectionKey === "franchise" ? await loadFranchiseWorkspace(access.franchiseNumber) : null;
   const statisticsWorkspace = sectionKey === "statistics" ? await loadStatisticsWorkspace(tierId) : null;
-  const productionWorkspace = sectionKey === "production" ? await loadProductionWorkspace(tierId) : null;
+  const productionWorkspace = sectionKey === "production" || sectionKey === "matches" || sectionKey === "standings"
+    ? await loadProductionWorkspace(tierId)
+    : null;
   const selectedDataStatus = [
     overview,
     transactionManagement,
@@ -191,6 +199,8 @@ export default async function OperationsPage({
                 pages={transactionManagement.data.pages}
                 total={transactionManagement.data.total}
               />
+            ) : playerManagement?.status === "READY" && sectionKey === "mmr" ? (
+              <MmrManager players={playerManagement.data.players} />
             ) : playerManagement?.status === "READY" ? (
               <PlayerManager players={playerManagement.data.players} />
             ) : teamManagement?.status === "READY" ? (

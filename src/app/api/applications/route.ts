@@ -65,7 +65,7 @@ export async function POST(request: Request) {
   const db = getDatabase();
   const [duplicate, activeSeason] = await Promise.all([
     db
-      .select({ id: applications.id })
+      .select({ id: applications.id, status: applications.status })
       .from(applications)
       .where(and(
         eq(applications.userId, session.user.id),
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
       .orderBy(desc(seasons.startsAt))
       .limit(1),
   ]);
-  if (duplicate[0]) {
+  if (duplicate[0] && duplicate[0].status !== "MORE_INFO_REQUIRED") {
     return NextResponse.json({
       error: "You already have an open application of this type",
       applicationId: duplicate[0].id,
@@ -88,6 +88,65 @@ export async function POST(request: Request) {
   }
 
   const requestId = randomUUID();
+  if (duplicate[0]?.status === "MORE_INFO_REQUIRED") {
+    const updated = await db.transaction(async (tx) => {
+      const now = new Date();
+      await tx.update(applications).set({
+        status: "UNDER_REVIEW",
+        fullName: parsed.data.fullName,
+        email: parsed.data.email,
+        handle: parsed.data.handle || null,
+        platform: parsed.data.platform ?? null,
+        epicAccountId: parsed.data.epicAccountId || null,
+        trackerUrl: parsed.data.trackerUrl || null,
+        alternateAccountsDeclared: parsed.data.alternateAccountsDeclared,
+        preferredDepartment: parsed.data.preferredDepartment || null,
+        experience: parsed.data.experience || null,
+        availability: parsed.data.availability,
+        notes: parsed.data.notes || null,
+        agreementsAccepted: true,
+        updatedAt: now,
+      }).where(eq(applications.id, duplicate[0].id));
+      await tx.insert(applicationStatusHistory).values({
+        applicationId: duplicate[0].id,
+        fromStatus: "MORE_INFO_REQUIRED",
+        toStatus: "UNDER_REVIEW",
+        reason: "Applicant submitted requested changes through the RLCA website",
+        actorId: session.user.id,
+      });
+      await tx.insert(auditLogs).values(buildAuditLogRecord({
+        actorId: session.user.id,
+        actorDiscordRoleIds: session.user.access.roleIds,
+        actorFranchiseNumber: session.user.access.franchiseNumber,
+        action: "APPLICATION_RESUBMITTED",
+        entityType: "APPLICATION",
+        entityId: duplicate[0].id,
+        previousState: { status: "MORE_INFO_REQUIRED" },
+        nextState: { status: "UNDER_REVIEW" },
+        requestId,
+      }));
+      await tx.insert(discordNotificationJobs).values(notificationJob({
+        eventType: `APPLICATION_SUBMITTED_${parsed.data.type}`,
+        payload: {
+          title: "Application Changes Submitted",
+          color: 0x1683ff,
+          fields: [
+            { name: "Application", value: applicationReference(duplicate[0].id), inline: true },
+            { name: "Type", value: parsed.data.type.replaceAll("_", "/"), inline: true },
+            { name: "Status", value: "UNDER REVIEW", inline: true },
+          ],
+        },
+        sourceEntityType: "APPLICATION",
+        sourceEntityId: duplicate[0].id,
+        idempotencyKey: `application-resubmitted:${duplicate[0].id}:${requestId}`,
+      })).onConflictDoNothing();
+      return { id: duplicate[0].id, status: "UNDER_REVIEW" };
+    });
+    return NextResponse.json({
+      ...updated,
+      reference: applicationReference(updated.id),
+    });
+  }
   let created: { id: string; status: string };
   try {
     created = await db.transaction(async (tx) => {

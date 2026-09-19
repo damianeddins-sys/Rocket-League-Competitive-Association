@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDatabase } from "../db";
-import { applications } from "../db/schema";
+import { applications, applicationStatusHistory } from "../db/schema";
 import type { ApplicationType } from "./applications";
 
 export async function loadApplicantStatus(userId: string, type: ApplicationType) {
@@ -18,13 +18,21 @@ export async function loadApplicantStatus(userId: string, type: ApplicationType)
       .where(and(eq(applications.userId, userId), eq(applications.type, type)))
       .orderBy(desc(applications.submittedAt))
       .limit(1);
-    return application
-      ? {
+    if (!application) return null;
+    const [history] = application.status === "MORE_INFO_REQUIRED"
+      ? await getDatabase()
+        .select({ reason: applicationStatusHistory.reason })
+        .from(applicationStatusHistory)
+        .where(eq(applicationStatusHistory.applicationId, application.id))
+        .orderBy(desc(applicationStatusHistory.createdAt))
+        .limit(1)
+      : [];
+    return {
           ...application,
           submittedAt: application.submittedAt.toISOString(),
           updatedAt: application.updatedAt.toISOString(),
-        }
-      : null;
+          latestReason: history?.reason ?? null,
+        };
   } catch {
     return null;
   }

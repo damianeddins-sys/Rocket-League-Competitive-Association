@@ -253,6 +253,41 @@ export function PlayerManager({ players }: { players: PlayerRow[] }) {
   );
 }
 
+export function MmrManager({ players }: { players: PlayerRow[] }) {
+  const router = useRouter();
+  const [message, setMessage] = useState<string>();
+  async function save(formData: FormData) {
+    const payload = Object.fromEntries(formData.entries());
+    const response = await fetch("/api/admin/operations/mmr", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const result = await readApiResult<object>(response);
+    setMessage(response.ok ? "Player MMR updated with rating history and audit records." : result.error ?? "MMR update failed");
+    if (response.ok) router.refresh();
+  }
+  const eligible = players.filter((player) => player.playerSeasonId);
+  return (
+    <div className="mt-7 space-y-4">
+      <Feedback message={message} />
+      <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        Manual MMR corrections are restricted, append a rating event, and require an audit reason.
+      </p>
+      {eligible.map((player) => (
+        <form key={player.id} action={save} className="grid gap-3 rounded-xl border border-slate-200 bg-white p-5 md:grid-cols-[1fr_10rem_1.5fr_auto] md:items-end">
+          <input type="hidden" name="playerSeasonId" value={player.playerSeasonId!} />
+          <div><p className="font-black">{player.handle}</p><p className="mt-1 text-xs text-slate-500">{player.division ?? "Unplaced"} · {player.team ?? "No team"}</p></div>
+          <label className="text-sm font-bold">RLCA MMR<input name="currentMmr" type="number" min="0" max="5000" step="1" defaultValue={player.currentMmr ?? "1000"} required className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+          <label className="text-sm font-bold">Audit reason<input name="reason" minLength={3} maxLength={2000} required className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+          <button className="rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Update MMR</button>
+        </form>
+      ))}
+      {!eligible.length && <Empty text="No active player-season records are available for MMR management." />}
+    </div>
+  );
+}
+
 type TeamRow = {
   id: string;
   franchiseNumber: number | null;
@@ -487,6 +522,10 @@ export function SettingsManager({
   }
   async function saveTeamTier(formData: FormData) {
     const payload = Object.fromEntries(formData.entries());
+    if (!window.confirm("Confirm this franchise tier assignment change. The action will be audited.")) {
+      setMessage("Tier assignment change cancelled.");
+      return;
+    }
     await patch("team-tiers", { ...payload, active: payload.active === "on" });
   }
   return (

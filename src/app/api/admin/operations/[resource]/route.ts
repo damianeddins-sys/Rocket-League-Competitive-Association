@@ -16,6 +16,7 @@ import {
   playerStatusHistory,
   players,
   qualificationPointEvents,
+  ratingEvents,
   rosterMemberships,
   seasons,
   teams,
@@ -86,6 +87,12 @@ const playerSchema = z.object({
     "SUSPENDED",
     "ARCHIVED",
   ]).nullable(),
+  reason: z.string().trim().min(3).max(2000),
+});
+
+const mmrSchema = z.object({
+  playerSeasonId: z.string().uuid(),
+  currentMmr: z.coerce.number().min(0).max(5000),
   reason: z.string().trim().min(3).max(2000),
 });
 
@@ -181,6 +188,7 @@ const matchCreateSchema = z.object({
 const permissions: Record<string, Permission> = {
   transactions: "transaction.approve",
   players: "player.manage",
+  mmr: "statistics.review",
   teams: "league.manage",
   seasons: "league.manage",
   channels: "league.manage",
@@ -189,9 +197,10 @@ const permissions: Record<string, Permission> = {
   "team-tiers": "league.manage",
   matches: "matches.manage",
 };
-const portals: Record<string, "LEAGUE_OPERATIONS" | "SIGN_UP_MANAGER" | "PRODUCTION"> = {
+const portals: Record<string, "LEAGUE_OPERATIONS" | "SIGN_UP_MANAGER" | "PRODUCTION" | "STATISTICS"> = {
   transactions: "LEAGUE_OPERATIONS",
   players: "SIGN_UP_MANAGER",
+  mmr: "STATISTICS",
   teams: "LEAGUE_OPERATIONS",
   seasons: "LEAGUE_OPERATIONS",
   channels: "LEAGUE_OPERATIONS",
@@ -528,6 +537,47 @@ export async function PATCH(
       }));
     });
     return NextResponse.json({ id: current.id, saved: true });
+  }
+
+  if (resource === "mmr") {
+    const parsed = mmrSchema.safeParse(body);
+    if (!parsed.success) return NextResponse.json({ error: "MMR change is invalid" }, { status: 400 });
+    const [current] = await db
+      .select()
+      .from(playerSeasons)
+      .where(eq(playerSeasons.id, parsed.data.playerSeasonId))
+      .limit(1);
+    if (!current) return NextResponse.json({ error: "Player season record not found" }, { status: 404 });
+    const previous = Number(current.currentMmr ?? 1000);
+    const next = parsed.data.currentMmr;
+    await db.transaction(async (tx) => {
+      await tx
+        .update(playerSeasons)
+        .set({ currentMmr: String(next) })
+        .where(eq(playerSeasons.id, current.id));
+      await tx.insert(ratingEvents).values({
+        seasonId: current.seasonId,
+        playerId: current.playerId,
+        previousRating: String(previous),
+        delta: String(next - previous),
+        nextRating: String(next),
+        protectedRosterValue: current.protectedRosterValue ?? String(next),
+        reason: parsed.data.reason,
+      });
+      await tx.insert(auditLogs).values(buildAuditLogRecord({
+        actorId: context.user.id,
+        actorDiscordRoleIds: context.access.roleIds,
+        actorFranchiseNumber: context.access.franchiseNumber,
+        action: "PLAYER_MMR_CORRECTED",
+        entityType: "PLAYER_SEASON",
+        entityId: current.id,
+        previousState: { currentMmr: current.currentMmr },
+        nextState: { currentMmr: next },
+        reason: parsed.data.reason,
+        requestId,
+      }));
+    });
+    return NextResponse.json({ id: current.id, currentMmr: next });
   }
 
   if (resource === "teams") {
