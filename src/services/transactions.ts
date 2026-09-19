@@ -34,6 +34,10 @@ export function canTransitionTransactionRequest(
   return from !== to && transactionTransitions[from].includes(to);
 }
 
+export function canApproveTransaction(submittedBy: string, reviewedBy: string) {
+  return submittedBy !== reviewedBy;
+}
+
 export type TransactionCheck = {
   code: string;
   passed: boolean;

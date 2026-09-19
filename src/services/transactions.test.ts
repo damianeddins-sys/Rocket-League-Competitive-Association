@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { RosterPlayer } from "./rosters";
-import { canTransitionTransactionRequest, validateTransaction } from "./transactions";
+import {
+  canApproveTransaction,
+  canTransitionTransactionRequest,
+  validateTransaction,
+} from "./transactions";
 
 const roster: RosterPlayer[] = [
   { playerId: "premier-1", division: "PREMIER", protectedValue: 1400 },
@@ -31,6 +35,11 @@ describe("shared transaction validator", () => {
     expect(canTransitionTransactionRequest("ON_HOLD", "DENIED")).toBe(true);
     expect(canTransitionTransactionRequest("APPROVED", "DENIED")).toBe(false);
     expect(canTransitionTransactionRequest("DENIED", "APPROVED")).toBe(false);
+  });
+
+  it("prevents a submitter from approving their own transaction", () => {
+    expect(canApproveTransaction("submitter", "submitter")).toBe(false);
+    expect(canApproveTransaction("submitter", "operations-reviewer")).toBe(true);
   });
 
   it("returns one structured legal result for every interface", () => {

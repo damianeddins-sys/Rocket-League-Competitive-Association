@@ -6,6 +6,7 @@ import { useState } from "react";
 import { FileUp, Mail, Save } from "lucide-react";
 import type { ApplicationQueue } from "@/services/application-admin";
 import { readApiResult } from "@/services/api-response";
+import { applicationReference } from "@/services/applications";
 
 type QueueItem = Extract<ApplicationQueue, { status: "READY" }>["applications"][number];
 
@@ -37,11 +38,19 @@ export function ApplicationManager({
   async function review(formData: FormData) {
     setMessage("Saving review…");
     const id = String(formData.get("applicationId"));
+    const status = String(formData.get("status"));
+    if (
+      ["APPROVED", "DENIED"].includes(status)
+      && !window.confirm(`Confirm application status change to ${status.replaceAll("_", " ")}?`)
+    ) {
+      setMessage("Review was not changed.");
+      return;
+    }
     const response = await fetch(`/api/applications/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        status: formData.get("status"),
+        status,
         reason: formData.get("reason"),
       }),
     });
@@ -80,9 +89,11 @@ export function ApplicationManager({
                 </div>
                 <h3 className="mt-3 text-xl font-black text-[#081e3a]">{application.fullName}</h3>
                 <p className="mt-1 text-sm text-slate-500">{application.email} · Discord {application.discordUserId}</p>
-                <p className="mt-1 text-xs text-slate-400">Submitted {new Date(application.submittedAt).toLocaleString()}</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  Submitted {new Date(application.submittedAt).toLocaleString()} · Updated {new Date(application.updatedAt).toLocaleString()}
+                </p>
               </div>
-              <p className="font-mono text-xs text-slate-400">{application.id.slice(0, 8)}</p>
+              <p className="font-mono text-xs text-slate-500">{applicationReference(application.id)}</p>
             </div>
             <div className="mt-5 grid gap-3 rounded-lg bg-slate-50 p-4 text-sm sm:grid-cols-2">
               <p><strong>Availability:</strong> {application.availability}</p>
@@ -94,6 +105,13 @@ export function ApplicationManager({
               {application.preferredDepartment && <p><strong>Department:</strong> {application.preferredDepartment}</p>}
               {application.experience && <p className="sm:col-span-2"><strong>Experience:</strong> {application.experience}</p>}
               {application.notes && <p className="sm:col-span-2"><strong>Notes:</strong> {application.notes}</p>}
+              {Object.entries(application.answers)
+                .filter(([, value]) => value.trim().length > 0)
+                .map(([question, answer]) => (
+                  <p key={question} className="sm:col-span-2">
+                    <strong>{question.replaceAll("_", " ")}:</strong> {answer}
+                  </p>
+                ))}
             </div>
             {(owner || (normalTransitions[application.reviewStatus]?.length ?? 0) > 0) && (
             <form action={review} className="mt-5 grid gap-3 sm:grid-cols-[13rem_1fr_auto]">

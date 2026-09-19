@@ -34,7 +34,7 @@ import {
   WAIVER_PERIOD_MS,
 } from "@/services/player-lifecycle";
 import { calculateTierCapRange, transactionWindow, validateRoster, type RosterPlayer } from "@/services/rosters";
-import { canTransitionTransactionRequest } from "@/services/transactions";
+import { canApproveTransaction, canTransitionTransactionRequest } from "@/services/transactions";
 import {
   DISCORD_NOTIFICATION_EVENTS,
   notificationJob,
@@ -243,6 +243,15 @@ export async function PATCH(
     if (!parsed.success) return NextResponse.json({ error: "Transaction decision is invalid" }, { status: 400 });
     const [current] = await db.select().from(transactionRequests).where(eq(transactionRequests.id, parsed.data.id)).limit(1);
     if (!current) return NextResponse.json({ error: "Transaction request not found" }, { status: 404 });
+    if (
+      parsed.data.status === "APPROVED"
+      && !canApproveTransaction(current.submittedBy, context.user.id)
+    ) {
+      return NextResponse.json({
+        error: "You cannot approve a transaction that you submitted",
+        code: "SELF_APPROVAL_DENIED",
+      }, { status: 403 });
+    }
     const [transactionTeam] = await db
       .select({ name: teams.name })
       .from(teams)

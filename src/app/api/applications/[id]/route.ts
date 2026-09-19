@@ -19,6 +19,7 @@ import { buildAuditLogRecord } from "@/services/audit";
 import { checkPortalAccess } from "@/services/auth/portal-access";
 import { getSession } from "@/services/auth/session";
 import {
+  applicationReference,
   applicationReviewSchema,
   canReviewApplicationTransition,
 } from "@/services/applications";
@@ -209,6 +210,28 @@ export async function PATCH(
       sourceEntityType: "APPLICATION",
       sourceEntityId: id,
       idempotencyKey: `application-decision:${id}:${requestId}`,
+    })).onConflictDoNothing();
+    await tx.insert(discordNotificationJobs).values(notificationJob({
+      eventType: "APPLICATION_APPLICANT_UPDATED",
+      recipientDiscordUserId: current.discordUserId,
+      payload: {
+        title: "Your RLCA Application Was Updated",
+        description: parsed.data.status === "MORE_INFO_REQUIRED"
+          ? `Staff requested changes: ${parsed.data.reason}`
+          : `Your application is now ${parsed.data.status.replaceAll("_", " ")}.`,
+        color: parsed.data.status === "APPROVED"
+          ? 0x22c55e
+          : parsed.data.status === "DENIED"
+            ? 0xef4444
+            : 0x168bff,
+        fields: [
+          { name: "Application", value: applicationReference(id), inline: true },
+          { name: "Status", value: parsed.data.status.replaceAll("_", " "), inline: true },
+        ],
+      },
+      sourceEntityType: "APPLICATION",
+      sourceEntityId: id,
+      idempotencyKey: `website-applicant-update:${id}:${requestId}`,
     })).onConflictDoNothing();
     });
   } catch (error) {

@@ -25,7 +25,9 @@ export type ApplicationQueue =
         experience: string | null;
         availability: string;
         notes: string | null;
+        answers: Record<string, string>;
         submittedAt: string;
+        updatedAt: string;
       }>;
     };
 
@@ -63,7 +65,9 @@ export async function loadApplicationQueue(page = 1): Promise<ApplicationQueue> 
         experience: application.experience,
         availability: application.availability,
         notes: application.notes,
+        answers: application.answersJson,
         submittedAt: application.submittedAt.toISOString(),
+        updatedAt: application.updatedAt.toISOString(),
       })),
     };
   } catch (error) {
