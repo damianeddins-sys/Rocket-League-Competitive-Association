@@ -57,8 +57,6 @@ export const applicationReviewSchema = z.object({
   reason: z.string().trim().min(3).max(2000),
 });
 
-type ApplicationStatus = (typeof applicationStatuses)[number];
-
 const reviewTransitions: Record<ApplicationStatus, readonly ApplicationStatus[]> = {
   SUBMITTED: ["UNDER_REVIEW", "DENIED"],
   UNDER_REVIEW: ["MORE_INFO_REQUIRED", "APPROVED", "DENIED"],

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { canReviewApplicationTransition } from "./applications";
+import {
+  applicationReviewSchema,
+  applicationSubmissionSchema,
+  canReviewApplicationTransition,
+} from "./applications";
 
 describe("application review transitions", () => {
   it("allows the normal review workflow", () => {
@@ -20,8 +24,6 @@ describe("application review transitions", () => {
     expect(canReviewApplicationTransition("DENIED", "DENIED", true)).toBe(false);
   });
 });
-import { describe, expect, it } from "vitest";
-import { applicationReviewSchema, applicationSubmissionSchema } from "./applications";
 
 const base = {
   fullName: "Test Applicant",
@@ -40,6 +42,8 @@ describe("application validation", () => {
     expect(applicationSubmissionSchema.safeParse({
       ...base,
       type: "PLAYER",
+      handle: "TestPlayer",
+      platform: "EPIC",
       epicAccountId: "EpicPlayer123",
       trackerUrl: "https://rocketleague.tracker.network/profile/example",
     }).success).toBe(true);
