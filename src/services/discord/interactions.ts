@@ -130,7 +130,8 @@ const commandPage = (page: DiscordPage, ephemeral = false) => ({
 });
 
 function publicPanel(page: DiscordPage) {
-  const { flags: _flags, ...publicPage } = page;
+  const publicPage = { ...page };
+  delete publicPage.flags;
   return commandPage(publicPage, false);
 }
 
