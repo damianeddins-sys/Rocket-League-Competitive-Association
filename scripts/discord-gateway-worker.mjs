@@ -14,17 +14,20 @@ const missing = [
   !workerSecret || workerSecret.length < 32 ? "DISCORD_WORKER_SECRET (at least 32 characters)" : null,
 ].filter(Boolean);
 if (missing.length) {
-  console.error(`Discord worker cannot start. Missing or invalid: ${missing.join(", ")}`);
+  console.error(`[RLCA BOT ERROR] Missing or invalid environment: ${missing.join(", ")}`);
   process.exit(1);
 }
 if (!backendUrl.startsWith("https://") && !backendUrl.startsWith("http://localhost")) {
-  console.error("RLCA_BACKEND_URL must use HTTPS outside local development.");
+  console.error("[RLCA BOT ERROR] RLCA_BACKEND_URL must use HTTPS outside local development.");
   process.exit(1);
 }
+console.log("[RLCA BOT] Starting");
+console.log("[RLCA BOT] Environment validated");
 
 const sessionId = randomUUID();
 const workerEndpoint = `${backendUrl}/api/internal/discord/worker`;
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+console.log("[RLCA BOT] Discord client initialized");
 let heartbeatTimer;
 let heartbeatRunning = false;
 let stopping = false;
@@ -146,25 +149,41 @@ async function reportWorkerError(error) {
 }
 
 client.once("ready", async (readyClient) => {
+  console.log("[RLCA BOT] Gateway connected");
   readyClient.user.setPresence({
     status: "online",
     activities: [{ name: "RLCA league operations", type: 3 }],
   });
-  console.log(`Discord Gateway connected as ${readyClient.user.tag} (${readyClient.user.id})`);
+  console.log(`[RLCA BOT] Logged in as ${readyClient.user.tag} (${readyClient.user.id})`);
+  if (readyClient.guilds.cache.has(guildId)) {
+    console.log("[RLCA BOT] Guild verified");
+  } else {
+    console.error("[RLCA BOT ERROR] Target guild is not connected");
+  }
   await heartbeat();
   heartbeatTimer = setInterval(heartbeat, 15_000);
+  console.log("[RLCA BOT] ONLINE");
 });
 
 client.on("error", reportWorkerError);
-client.on("warn", (warning) => console.warn("Discord Gateway warning", warning.slice(0, 1000)));
+client.on("warn", (warning) => console.warn("[RLCA BOT] Gateway warning", warning.slice(0, 1000)));
 client.on("shardError", reportWorkerError);
+client.on("shardDisconnect", (_event, shardId) => {
+  console.warn(`[RLCA BOT] Gateway disconnected (shard ${shardId})`);
+});
+client.on("shardReconnecting", (shardId) => {
+  console.log(`[RLCA BOT] Gateway reconnecting (shard ${shardId})`);
+});
+client.on("shardResume", (shardId, replayedEvents) => {
+  console.log(`[RLCA BOT] Gateway resumed (shard ${shardId}, replayed ${replayedEvents} events)`);
+});
 client.on("invalidated", () => reportWorkerError(new Error("Discord Gateway session invalidated")));
 
 async function shutdown(signal) {
   if (stopping) return;
   stopping = true;
   if (heartbeatTimer) clearInterval(heartbeatTimer);
-  console.log(`Discord worker received ${signal}; disconnecting cleanly`);
+  console.log(`[RLCA BOT] Shutting down (${signal})`);
   try {
     await backendRequest({
       action: "shutdown",
@@ -174,7 +193,9 @@ async function shutdown(signal) {
   } catch (error) {
     console.error("Could not report worker shutdown", safeError(error));
   } finally {
+    console.log("[RLCA BOT] Closing Discord connection");
     client.destroy();
+    console.log("[RLCA BOT] Shutdown complete");
     process.exit(0);
   }
 }
@@ -189,7 +210,7 @@ process.on("unhandledRejection", async (error) => {
   await reportWorkerError(error);
 });
 
-console.log(`Starting RLCA Discord Gateway worker for guild ${guildId}`);
+console.log("[RLCA BOT] Connecting to Discord Gateway");
 client.login(botToken).catch(async (error) => {
   await reportWorkerError(error);
   process.exit(1);
