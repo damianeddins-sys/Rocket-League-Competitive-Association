@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { authorizeAccess, authorizeFranchiseAction } from "./authorization";
 import {
+  desiredCompetitionRoleIds,
   DISCORD_ROLE_IDS,
   planDiscordRoleSync,
   resolveDiscordAccess,
@@ -8,6 +9,23 @@ import {
 } from "./discord-roles";
 
 describe("authoritative Discord role resolver", () => {
+  it("builds only the managed tier, franchise, and status role set", () => {
+    expect(desiredCompetitionRoleIds({
+      tier: "MASTER",
+      franchiseNumber: 3,
+    })).toEqual([
+      DISCORD_ROLE_IDS.FRANCHISE_3,
+      DISCORD_ROLE_IDS.MASTER_TIER,
+    ].sort());
+    expect(desiredCompetitionRoleIds({
+      tier: "CONTENDER",
+      status: "FREE_AGENT",
+    })).toEqual([
+      DISCORD_ROLE_IDS.CONTENDER_TIER,
+      DISCORD_ROLE_IDS.FREE_AGENT,
+    ].sort());
+  });
+
   it("recognizes every configured role ID independently", () => {
     const access = resolveDiscordAccess(Object.values(DISCORD_ROLE_IDS));
     expect(access.recognizedRoles).toHaveLength(Object.keys(DISCORD_ROLE_IDS).length);

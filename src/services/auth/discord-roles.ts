@@ -126,6 +126,26 @@ export const SYNC_MANAGED_ROLE_IDS = new Set<string>([
   DISCORD_ROLE_IDS.INACTIVE_RESERVE,
 ]);
 
+export function desiredCompetitionRoleIds(input: {
+  tier: TierCode;
+  franchiseNumber?: number;
+  status?: "FREE_AGENT" | "UNRESTRICTED_FREE_AGENT" | "INACTIVE_RESERVE";
+}) {
+  const tierRoleId = [...tierRoles]
+    .find(([, tier]) => tier === input.tier)?.[0];
+  const franchiseRoleId = input.franchiseNumber === undefined
+    ? undefined
+    : [...franchiseRoles].find(([, number]) => number === input.franchiseNumber)?.[0];
+  const statusRoleId = input.status ? DISCORD_ROLE_IDS[input.status] : undefined;
+  if (!tierRoleId) throw new Error(`No Discord role is configured for tier ${input.tier}`);
+  if (input.franchiseNumber !== undefined && !franchiseRoleId) {
+    throw new Error(`No Discord role is configured for franchise ${input.franchiseNumber}`);
+  }
+  return [tierRoleId, franchiseRoleId, statusRoleId]
+    .filter((roleId): roleId is string => Boolean(roleId))
+    .sort();
+}
+
 const roleGroups = {
   operations: new Set([
     DISCORD_ROLE_IDS.RLCA_LEAGUE_OWNER,

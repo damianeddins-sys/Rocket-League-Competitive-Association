@@ -109,6 +109,7 @@ Apply all committed migrations through:
 
 - `0019_large_captain_america.sql` — Team/Franchise application types and structured answers.
 - `0020_friendly_groot.sql` — private Discord notification recipients.
+- `0021_curvy_silvermane.sql` — recoverable role-sync job leases for worker crash recovery.
 
 The MMR correction workflow uses existing `player_seasons`, `rating_events`, and
 `audit_logs` tables and does not require an additional migration.
@@ -144,7 +145,7 @@ Optional integrations remain documented in `.env.example`.
 1. Rotate the Discord bot token if it has ever been exposed, then update both the
    website and worker environments with the replacement.
 2. Deploy the website revision and verify production is serving that exact commit.
-3. Apply every database migration through `0020_friendly_groot.sql`.
+3. Apply every database migration through `0021_curvy_silvermane.sql`.
 4. Seed/configure the active season, four tiers, teams, Discord roles, channels,
    and notification routes.
 5. Configure all website environment variables.

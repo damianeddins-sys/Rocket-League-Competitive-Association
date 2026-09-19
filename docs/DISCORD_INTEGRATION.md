@@ -99,8 +99,8 @@ Existing RLCA keys such as `PLAYER_SIGNUPS`, `STAFF_SIGNUPS`,
 Channel IDs live in `discord_channel_configurations`; they are not repeated through
 the codebase. Running the season seed again does not overwrite Owner changes.
 
-Apply all database migrations through `0020_friendly_groot.sql` before enabling the
-interactive application and private-notification workflows.
+Apply all database migrations through `0021_curvy_silvermane.sql` before enabling
+interactive applications, private notifications, and recoverable Discord role sync.
 
 ## Commands
 
@@ -165,7 +165,7 @@ The exact OCI procedure and restart configuration are in
    screenshots, logs, or another untrusted location. Update the website and worker
    with the replacement; never commit it.
 2. Deploy the website revision and run all migrations through
-   `0020_friendly_groot.sql`.
+   `0021_curvy_silvermane.sql`.
 3. Configure the website environment variables.
 4. Add channel mappings and notification routes in Owner Settings.
 5. Set the Discord Interactions Endpoint URL and install the bot with the scopes and

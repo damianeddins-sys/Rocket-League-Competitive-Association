@@ -148,6 +148,13 @@
       "when": 1789796142601,
       "tag": "0020_friendly_groot",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789801863110,
+      "tag": "0021_curvy_silvermane",
+      "breakpoints": true
     }
   ]
 }

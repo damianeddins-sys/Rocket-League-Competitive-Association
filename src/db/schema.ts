@@ -227,6 +227,8 @@ export const discordRoleSyncJobs = pgTable(
     status: text("status").default("PENDING").notNull(),
     attempts: integer("attempts").default(0).notNull(),
     nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    lockedBy: text("locked_by"),
     lastError: text("last_error"),
     idempotencyKey: text("idempotency_key").notNull().unique(),
     createdAt: createdAt(),

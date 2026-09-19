@@ -83,6 +83,71 @@ async function reportDeliveryFailure(jobId, error) {
   }
 }
 
+async function completeRoleSync(jobId, resultingRoleIds) {
+  await backendRequest({
+    action: "role-complete",
+    sessionId,
+    jobId,
+    resultingRoleIds,
+  });
+}
+
+async function reportRoleSyncFailure(jobId, error) {
+  try {
+    await backendRequest({
+      action: "role-failure",
+      sessionId,
+      jobId,
+      error: safeError(error),
+    });
+  } catch (reportError) {
+    console.error("[RLCA BOT ERROR] Could not report failed role synchronization", safeError(reportError));
+  }
+}
+
+async function synchronizeMemberRoles(job) {
+  try {
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) throw new Error("Target guild is not connected");
+    const [member, botMember] = await Promise.all([
+      guild.members.fetch(job.discordUserId),
+      guild.members.fetchMe(),
+      guild.roles.fetch(),
+    ]);
+    const managed = new Set(job.managedRoleIds);
+    if (job.desiredRoleIds.some((roleId) => !managed.has(roleId))) {
+      throw new Error("Role synchronization requested an unmanaged role");
+    }
+    const current = new Set(member.roles.cache.keys());
+    const add = job.desiredRoleIds.filter((roleId) => !current.has(roleId));
+    const remove = [...current].filter(
+      (roleId) => managed.has(roleId) && !job.desiredRoleIds.includes(roleId),
+    );
+    const unmanageable = [...new Set([...add, ...remove])].filter((roleId) => {
+      const role = guild.roles.cache.get(roleId);
+      return !role || role.position >= botMember.roles.highest.position;
+    });
+    if (unmanageable.length > 0) {
+      throw new Error(`Bot role hierarchy cannot manage configured role(s): ${unmanageable.join(", ")}`);
+    }
+    if (add.length > 0) {
+      await member.roles.add(add, "RLCA authoritative league role synchronization");
+    }
+    if (remove.length > 0) {
+      await member.roles.remove(remove, "RLCA authoritative league role synchronization");
+    }
+    const refreshed = await guild.members.fetch({ user: job.discordUserId, force: true });
+    const resultingRoleIds = [...refreshed.roles.cache.keys()]
+      .filter((roleId) => roleId !== guild.id)
+      .sort();
+    await completeRoleSync(job.jobId, resultingRoleIds);
+    console.log(`[RLCA BOT] Synchronized Discord roles for job ${job.jobId}`);
+  } catch (error) {
+    console.error(`[RLCA BOT ERROR] Role synchronization ${job.jobId} failed`, safeError(error));
+    await reportRoleSyncFailure(job.jobId, error);
+  }
+}
+
 async function deliver(notification) {
   try {
     let destination;
@@ -124,6 +189,9 @@ async function heartbeat() {
     });
     for (const notification of result.deliveries ?? []) {
       await deliver(notification);
+    }
+    for (const roleSync of result.roleSyncs ?? []) {
+      await synchronizeMemberRoles(roleSync);
     }
     if (!targetGuildConnected) {
       console.error(`Discord bot is connected but is not a member of configured guild ${guildId}`);

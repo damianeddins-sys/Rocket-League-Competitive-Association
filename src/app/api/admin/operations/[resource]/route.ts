@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDatabase } from "@/db";
@@ -8,8 +8,10 @@ import {
   auditLogs,
   divisions,
   discordChannelConfigurations,
+  discordMembers,
   discordNotificationJobs,
   discordNotificationRoutes,
+  discordRoleSyncJobs,
   events,
   matches,
   playerSeasons,
@@ -26,7 +28,10 @@ import {
 } from "@/db/schema";
 import { buildAuditLogRecord, toAuditJson } from "@/services/audit";
 import { checkPortalAccess } from "@/services/auth/portal-access";
-import type { Permission } from "@/services/auth/discord-roles";
+import {
+  desiredCompetitionRoleIds,
+  type Permission,
+} from "@/services/auth/discord-roles";
 import { getSession } from "@/services/auth/session";
 import {
   ACTIVATION_HOLD_MS,
@@ -39,6 +44,7 @@ import {
   DISCORD_NOTIFICATION_EVENTS,
   notificationJob,
 } from "@/services/discord/notifications";
+import { roleSyncJob } from "@/services/discord/role-sync";
 import { normalizeTierId, TIER_IDS } from "@/services/tiers";
 import { regularSeasonPoints } from "@/services/points";
 
@@ -253,7 +259,7 @@ export async function PATCH(
       }, { status: 403 });
     }
     const [transactionTeam] = await db
-      .select({ name: teams.name })
+      .select({ name: teams.name, franchiseNumber: teams.franchiseNumber })
       .from(teams)
       .where(eq(teams.id, current.teamId))
       .limit(1);
@@ -268,6 +274,11 @@ export async function PATCH(
     if (!canTransitionTransactionRequest(current.status, parsed.data.status)) {
       return NextResponse.json({
         error: `Transaction cannot move from ${current.status} to ${parsed.data.status}`,
+      }, { status: 409 });
+    }
+    if (parsed.data.status === "APPROVED" && !transactionTeam?.franchiseNumber) {
+      return NextResponse.json({
+        error: "The transaction franchise does not have an official franchise number",
       }, { status: 409 });
     }
     try {
@@ -344,6 +355,20 @@ export async function PATCH(
           const currentIds = currentTeamMemberships.map((membership) => membership.playerId);
           const removedIds = currentIds.filter((playerId) => !proposedIds.includes(playerId));
           const addedIds = proposedIds.filter((playerId) => !currentIds.includes(playerId));
+          const affectedPlayerIds = [...new Set([...removedIds, ...addedIds])];
+          const discordMemberRows = affectedPlayerIds.length
+            ? await tx
+              .select({
+                playerId: players.id,
+                discordMemberId: discordMembers.id,
+              })
+              .from(players)
+              .innerJoin(discordMembers, eq(players.userId, discordMembers.userId))
+              .where(inArray(players.id, affectedPlayerIds))
+            : [];
+          const discordMemberByPlayer = new Map(
+            discordMemberRows.map((member) => [member.playerId, member.discordMemberId]),
+          );
 
           for (const playerId of removedIds) {
             const playerSeason = seasonByPlayer.get(playerId);
@@ -377,6 +402,16 @@ export async function PATCH(
               actorId: context.user.id,
               relatedTransactionId: current.id,
             });
+            const discordMemberId = discordMemberByPlayer.get(playerId);
+            if (discordMemberId) {
+              await tx.insert(discordRoleSyncJobs).values(roleSyncJob({
+                discordMemberId,
+                desiredRoleIds: desiredCompetitionRoleIds({ tier: requiredDivision }),
+                sourceEntityType: "TRANSACTION_REQUEST",
+                sourceEntityId: current.id,
+                idempotencyKey: `transaction-role-sync:${current.id}:${playerId}:released`,
+              })).onConflictDoNothing();
+            }
           }
 
           for (const playerId of addedIds) {
@@ -416,6 +451,19 @@ export async function PATCH(
               actorId: context.user.id,
               relatedTransactionId: current.id,
             });
+            const discordMemberId = discordMemberByPlayer.get(playerId);
+            if (discordMemberId) {
+              await tx.insert(discordRoleSyncJobs).values(roleSyncJob({
+                discordMemberId,
+                desiredRoleIds: desiredCompetitionRoleIds({
+                  tier: requiredDivision,
+                  franchiseNumber: transactionTeam?.franchiseNumber ?? undefined,
+                }),
+                sourceEntityType: "TRANSACTION_REQUEST",
+                sourceEntityId: current.id,
+                idempotencyKey: `transaction-role-sync:${current.id}:${playerId}:rostered`,
+              })).onConflictDoNothing();
+            }
           }
           appliedRoster = proposedIds;
         }

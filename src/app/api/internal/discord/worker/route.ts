@@ -15,6 +15,11 @@ import {
   failDiscordNotification,
   notificationJob,
 } from "@/services/discord/notifications";
+import {
+  claimDiscordRoleSyncJobs,
+  completeDiscordRoleSync,
+  failDiscordRoleSync,
+} from "@/services/discord/role-sync";
 
 export const runtime = "nodejs";
 
@@ -34,6 +39,18 @@ const workerSchema = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("failure"),
+    sessionId: z.string().uuid(),
+    jobId: z.string().uuid(),
+    error: z.string().trim().min(1).max(1000),
+  }),
+  z.object({
+    action: z.literal("role-complete"),
+    sessionId: z.string().uuid(),
+    jobId: z.string().uuid(),
+    resultingRoleIds: z.array(z.string().regex(/^\d{16,22}$/)).max(100),
+  }),
+  z.object({
+    action: z.literal("role-failure"),
     sessionId: z.string().uuid(),
     jobId: z.string().uuid(),
     error: z.string().trim().min(1).max(1000),
@@ -156,11 +173,15 @@ export async function POST(request: Request) {
       }
     });
 
-    const deliveries = await claimDiscordNotifications(workerId);
+    const [deliveries, roleSyncs] = await Promise.all([
+      claimDiscordNotifications(workerId),
+      claimDiscordRoleSyncJobs(workerId),
+    ]);
     return NextResponse.json({
       status: "ONLINE",
       heartbeatAt: now.toISOString(),
       deliveries,
+      roleSyncs,
     }, { headers: { "Cache-Control": "no-store" } });
   }
 
@@ -175,6 +196,24 @@ export async function POST(request: Request) {
 
   if (data.action === "failure") {
     const rescheduled = await failDiscordNotification({
+      jobId: data.jobId,
+      workerId,
+      error: data.error,
+    });
+    return NextResponse.json({ rescheduled }, { status: rescheduled ? 200 : 409 });
+  }
+
+  if (data.action === "role-complete") {
+    const completed = await completeDiscordRoleSync({
+      jobId: data.jobId,
+      workerId,
+      resultingRoleIds: data.resultingRoleIds,
+    });
+    return NextResponse.json({ completed }, { status: completed ? 200 : 409 });
+  }
+
+  if (data.action === "role-failure") {
+    const rescheduled = await failDiscordRoleSync({
       jobId: data.jobId,
       workerId,
       error: data.error,
