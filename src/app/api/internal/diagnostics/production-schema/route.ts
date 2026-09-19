@@ -211,36 +211,90 @@ export async function GET(request: Request) {
         }
       }
 
-      const applicationQueries: Record<string, string> = {
-        publicLeague: `select id, name, slug, active, starts_at from public.seasons where active = true order by starts_at desc limit 1`,
-        operationsOverview: `select
+      const applicationQueries: Record<string, {
+        query: string;
+        requires: string[];
+        columns?: string[];
+      }> = {
+        publicLeague: {
+          query: `select id, name, slug, active, starts_at from public.seasons where active = true order by starts_at desc limit 1`,
+          requires: ["seasons"],
+          columns: ["id", "name", "slug", "active", "starts_at"].map((column) => `seasons.${column}`),
+        },
+        operationsOverview: {
+          query: `select
           (select count(*) from public.applications) as applications,
           (select count(*) from public.transaction_requests) as transactions,
           (select count(*) from public.players) as players,
           (select count(*) from public.teams) as teams,
           (select count(*) from public.users) as users`,
-        tiers: `select id, season_id, code, slug, display_name, color, icon_path, ordinal, active from public.divisions order by ordinal`,
-        applications: `select count(*) from public.applications`,
-        staff: `select
+          requires: ["applications", "transaction_requests", "players", "teams", "users"],
+        },
+        tiers: {
+          query: `select id, season_id, code, slug, display_name, color, icon_path, ordinal, active from public.divisions order by ordinal`,
+          requires: ["divisions"],
+          columns: [
+            "id",
+            "season_id",
+            "code",
+            "slug",
+            "display_name",
+            "color",
+            "icon_path",
+            "ordinal",
+            "active",
+          ].map((column) => `divisions.${column}`),
+        },
+        applications: {
+          query: `select count(*) from public.applications`,
+          requires: ["applications"],
+        },
+        staff: {
+          query: `select
           (select count(*) from public.role_assignments) as assignments,
           (select count(*) from public.audit_logs) as audit_events`,
-        mmr: `select count(*) from public.rating_events`,
-        statistics: `select count(*) from public.match_participants`,
+          requires: ["role_assignments", "audit_logs"],
+        },
+        mmr: {
+          query: `select count(*) from public.rating_events`,
+          requires: ["rating_events"],
+        },
+        statistics: {
+          query: `select count(*) from public.match_participants`,
+          requires: ["match_participants"],
+        },
       };
       const applicationResults: Record<string, unknown> = {};
-      for (const [name, query] of Object.entries(applicationQueries)) {
+      for (const [name, definition] of Object.entries(applicationQueries)) {
+        const missingTables = definition.requires.filter((table) => !tableNames.has(table));
+        const missingColumns = (definition.columns ?? [])
+          .filter((column) => !columnNames.has(column));
+        if (missingTables.length > 0 || missingColumns.length > 0) {
+          applicationResults[name] = {
+            status: "FAIL",
+            error: {
+              code: missingTables.length ? "42P01" : "42703",
+              message: [
+                missingTables.length ? `Missing required relations: ${missingTables.join(", ")}` : null,
+                missingColumns.length ? `Missing required columns: ${missingColumns.join(", ")}` : null,
+              ].filter(Boolean).join("; "),
+            },
+            affectedQuery: definition.query,
+          };
+          continue;
+        }
         try {
-          const rows = await tx.unsafe<Record<string, unknown>[]>(query);
+          const rows = await tx.unsafe<Record<string, unknown>[]>(definition.query);
           applicationResults[name] = {
             status: "PASS",
             result: serializable(rows).slice(0, name === "tiers" ? 20 : 1),
-            affectedQuery: query,
+            affectedQuery: definition.query,
           };
         } catch (error) {
           applicationResults[name] = {
             status: "FAIL",
             error: safeError(error),
-            affectedQuery: query,
+            affectedQuery: definition.query,
           };
         }
       }
