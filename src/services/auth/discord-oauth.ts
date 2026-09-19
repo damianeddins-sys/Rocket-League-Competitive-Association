@@ -153,11 +153,14 @@ export function getDiscordOAuthHealth(
     .map(([name]) => name);
   return {
     status: missing.length === 0 ? "ready" : "misconfigured",
+    scope: "DISCORD_OAUTH_CONFIGURATION_ONLY",
     environment: env.VERCEL_ENV || env.NODE_ENV || "unknown",
     checks,
     missing,
     callbackOrigin: redirectUri ? new URL(redirectUri).origin : null,
     databaseConfigured: Boolean(env.DATABASE_URL?.trim()),
+    databaseConnectivity: "NOT_TESTED" as const,
+    systemHealthEndpoint: "/api/health",
     rateLimitMode: env.DATABASE_URL?.trim() ? "database" : "instance-memory",
   };
 }

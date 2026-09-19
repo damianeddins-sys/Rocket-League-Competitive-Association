@@ -105,6 +105,7 @@ describe("Discord OAuth configuration", () => {
     );
     expect(health).toMatchObject({
       status: "ready",
+      scope: "DISCORD_OAUTH_CONFIGURATION_ONLY",
       checks: {
         discordClient: true,
         secureSession: true,
@@ -113,6 +114,8 @@ describe("Discord OAuth configuration", () => {
       },
       missing: [],
       callbackOrigin: "https://rlca.example",
+      databaseConnectivity: "NOT_TESTED",
+      systemHealthEndpoint: "/api/health",
     });
     expect(JSON.stringify(health)).not.toContain(configuredEnvironment.DISCORD_CLIENT_SECRET);
     expect(JSON.stringify(health)).not.toContain(configuredEnvironment.SESSION_SECRET);

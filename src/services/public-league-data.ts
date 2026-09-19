@@ -15,6 +15,10 @@ import {
   teamSeasonEntries,
 } from "../db/schema";
 import { competitionEvent } from "./competition-events";
+import {
+  reportDatabaseFailure,
+  type DatabaseFailureReason,
+} from "./database-diagnostics";
 import { seasonOneFranchise } from "./franchises";
 import { resolveChampionshipLockIds } from "./points";
 import {
@@ -116,7 +120,11 @@ export type PublicLeagueData =
       events: PublicEvent[];
       updatedAt: string;
     }
-  | { status: "unavailable"; reason: "DATABASE_NOT_CONFIGURED" | "DATABASE_UNAVAILABLE" }
+  | {
+      status: "unavailable";
+      reason: "DATABASE_NOT_CONFIGURED" | DatabaseFailureReason;
+      incidentId?: string;
+    }
   | { status: "empty"; reason: "NO_ACTIVE_SEASON" | "NO_TIER_CONFIGURATION" };
 
 type PublicLeagueDataOptions = {
@@ -473,10 +481,7 @@ export async function loadPublicLeagueData(
       updatedAt: now.toISOString(),
     };
   } catch (error) {
-    console.error("Public league tier query failed", {
-      tier: selectedTierId,
-      errorName: error instanceof Error ? error.name : "UnknownError",
-    });
-    return { status: "unavailable", reason: "DATABASE_UNAVAILABLE" };
+    const failure = reportDatabaseFailure(`public-league-data:${selectedTierId}`, error);
+    return { status: "unavailable", ...failure };
   }
 }

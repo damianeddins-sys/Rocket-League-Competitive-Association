@@ -5,7 +5,9 @@ export function LeagueDataState({
 }: {
   state:
     | "DATABASE_NOT_CONFIGURED"
-    | "DATABASE_UNAVAILABLE"
+    | "DATABASE_CONNECTION_FAILED"
+    | "DATABASE_SCHEMA_INCOMPLETE"
+    | "DATABASE_QUERY_FAILED"
     | "NO_ACTIVE_SEASON"
     | "NO_TIER_CONFIGURATION";
 }) {
@@ -14,9 +16,17 @@ export function LeagueDataState({
       title: "League data is not configured",
       detail: "The public database connection has not been configured for this deployment.",
     },
-    DATABASE_UNAVAILABLE: {
-      title: "League data is temporarily unavailable",
-      detail: "RLCA could not reach the official database. No demonstration results are being shown.",
+    DATABASE_CONNECTION_FAILED: {
+      title: "Official league data could not be reached",
+      detail: "The production database connection is not currently usable. No demonstration results are being shown.",
+    },
+    DATABASE_SCHEMA_INCOMPLETE: {
+      title: "Official league data is being updated",
+      detail: "The database connection works, but the required league schema is incomplete. No demonstration results are being shown.",
+    },
+    DATABASE_QUERY_FAILED: {
+      title: "Official league data could not be loaded",
+      detail: "The database responded, but the official league query failed. The technical incident has been logged privately.",
     },
     NO_ACTIVE_SEASON: {
       title: "No active season",
