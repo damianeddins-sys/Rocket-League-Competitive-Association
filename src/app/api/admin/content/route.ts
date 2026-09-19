@@ -7,6 +7,7 @@ import { getDatabase } from "@/db";
 import { auditLogs, siteContent } from "@/db/schema";
 import { buildAuditLogRecord } from "@/services/audit";
 import { checkPortalAccess } from "@/services/auth/portal-access";
+import { consumeAuthRateLimit } from "@/services/auth/rate-limit";
 import type { Permission } from "@/services/auth/discord-roles";
 import { getSession } from "@/services/auth/session";
 import { siteContentSchema, type ContentCategory } from "@/services/site-content";
@@ -47,6 +48,14 @@ export async function POST(request: Request) {
   }
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: "Content database is not configured" }, { status: 503 });
+  }
+  const rateLimit = await consumeAuthRateLimit({
+    key: `content-write:${session.user.id}`,
+    limit: 120,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: "Content write limit reached" }, { status: 429 });
   }
 
   const db = getDatabase();
@@ -129,6 +138,14 @@ export async function DELETE(request: Request) {
   }
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: "Content database is not configured" }, { status: 503 });
+  }
+  const rateLimit = await consumeAuthRateLimit({
+    key: `content-write:${session.user.id}`,
+    limit: 120,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: "Content write limit reached" }, { status: 429 });
   }
   const db = getDatabase();
   const [current] = await db.select().from(siteContent).where(eq(siteContent.id, parsed.data.id)).limit(1);

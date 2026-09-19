@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Attach a PNG, JPEG, WebP, or GIF image up to 5 MB" }, { status: 400 });
   }
   if (!fields.success) return NextResponse.json({ error: "Media details are invalid" }, { status: 400 });
-  const bytes = new Uint8Array(await file.arrayBuffer());
+  const bytes = Buffer.from(await file.arrayBuffer());
   const fileValidation = await validateBinaryFile(bytes, file.type, imageTypes);
   if (!fileValidation.valid) {
     return NextResponse.json({ error: "Image contents do not match an allowed file type" }, { status: 400 });

@@ -13,6 +13,7 @@ import {
 } from "@/db/schema";
 import { buildAuditLogRecord } from "@/services/audit";
 import { checkPortalAccess } from "@/services/auth/portal-access";
+import { consumeAuthRateLimit } from "@/services/auth/rate-limit";
 import { getSession } from "@/services/auth/session";
 import { assignableRoleCodes } from "@/services/role-assignments";
 import { notificationJob } from "@/services/discord/notifications";
@@ -44,6 +45,14 @@ export async function POST(request: Request) {
   if (!context) return NextResponse.json({ error: "Owner authorization required" }, { status: 403 });
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: "Staff assignment database is not configured" }, { status: 503 });
+  }
+  const rateLimit = await consumeAuthRateLimit({
+    key: `role-assignment-write:${context.user.id}`,
+    limit: 60,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: "Role assignment limit reached" }, { status: 429 });
   }
   const parsed = assignmentSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Role assignment is invalid" }, { status: 400 });
@@ -142,6 +151,14 @@ export async function DELETE(request: Request) {
   if (!context) return NextResponse.json({ error: "Owner authorization required" }, { status: 403 });
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: "Staff assignment database is not configured" }, { status: 503 });
+  }
+  const rateLimit = await consumeAuthRateLimit({
+    key: `role-assignment-write:${context.user.id}`,
+    limit: 60,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: "Role assignment limit reached" }, { status: 429 });
   }
   const parsed = revokeSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Revocation details are invalid" }, { status: 400 });

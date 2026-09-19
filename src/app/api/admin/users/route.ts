@@ -7,6 +7,7 @@ import { auditLogs, discordMembers, discordRoleSnapshots, users } from "@/db/sch
 import { buildAuditLogRecord } from "@/services/audit";
 import { fetchDiscord } from "@/services/auth/discord-api";
 import { checkPortalAccess } from "@/services/auth/portal-access";
+import { consumeAuthRateLimit } from "@/services/auth/rate-limit";
 import { resolveDiscordAccess } from "@/services/auth/discord-roles";
 import { getSession } from "@/services/auth/session";
 
@@ -40,6 +41,14 @@ export async function POST(request: Request) {
   }
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: "Staff database is not configured" }, { status: 503 });
+  }
+  const rateLimit = await consumeAuthRateLimit({
+    key: `staff-user-import:${session.user.id}`,
+    limit: 60,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: "Staff user import limit reached" }, { status: 429 });
   }
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Valid Discord user ID is required" }, { status: 400 });

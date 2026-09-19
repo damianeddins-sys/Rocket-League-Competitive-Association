@@ -18,6 +18,7 @@ import {
 } from "@/db/schema";
 import { buildAuditLogRecord } from "@/services/audit";
 import { checkPortalAccess } from "@/services/auth/portal-access";
+import { consumeAuthRateLimit } from "@/services/auth/rate-limit";
 import { getSession } from "@/services/auth/session";
 import { calculateTierCapRange, validateRoster, type RosterPlayer } from "@/services/rosters";
 import { transactionWindow } from "@/services/rosters";
@@ -60,6 +61,14 @@ export async function POST(request: Request) {
   }
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: "Transaction database is not configured" }, { status: 503 });
+  }
+  const rateLimit = await consumeAuthRateLimit({
+    key: `transaction-submit:${session.user.id}`,
+    limit: 20,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: "Transaction submission limit reached" }, { status: 429 });
   }
   const parsed = submissionSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {

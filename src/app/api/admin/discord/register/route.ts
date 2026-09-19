@@ -6,6 +6,7 @@ import { auditLogs } from "@/db/schema";
 import { buildAuditLogRecord } from "@/services/audit";
 import { fetchDiscord } from "@/services/auth/discord-api";
 import { checkPortalAccess } from "@/services/auth/portal-access";
+import { consumeAuthRateLimit } from "@/services/auth/rate-limit";
 import { getSession } from "@/services/auth/session";
 import {
   invalidateDiscordBotHealthCache,
@@ -60,6 +61,14 @@ export async function POST(request: Request) {
   ]);
   if (!access.allowed || !session?.user || !z.string().uuid().safeParse(session.user.id).success) {
     return NextResponse.json({ error: "Owner authorization required" }, { status: 403 });
+  }
+  const rateLimit = await consumeAuthRateLimit({
+    key: `discord-command-register:${session.user.id}`,
+    limit: 10,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: "Discord registration limit reached" }, { status: 429 });
   }
   const applicationId = process.env.DISCORD_APPLICATION_ID ?? process.env.DISCORD_CLIENT_ID;
   const guildId = process.env.DISCORD_GUILD_ID;
