@@ -1,0 +1,1 @@
+ALTER TABLE "discord_notification_jobs" ADD COLUMN "recipient_discord_user_id" text;

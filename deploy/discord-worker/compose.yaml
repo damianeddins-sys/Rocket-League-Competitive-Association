@@ -1,0 +1,18 @@
+services:
+  discord-worker:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.bot
+    image: rlca-discord-worker:local
+    init: true
+    restart: unless-stopped
+    environment:
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:?DISCORD_BOT_TOKEN is required}
+      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID:?DISCORD_GUILD_ID is required}
+      RLCA_BACKEND_URL: ${RLCA_BACKEND_URL:?RLCA_BACKEND_URL is required}
+      DISCORD_WORKER_SECRET: ${DISCORD_WORKER_SECRET:?DISCORD_WORKER_SECRET is required}
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: "5"

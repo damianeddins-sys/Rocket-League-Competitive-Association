@@ -1,0 +1,2 @@
+ALTER TABLE "application_email_documents" ADD COLUMN "subject" text DEFAULT 'Signup document' NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "roster_active_player_season" ON "roster_memberships" USING btree ("player_id","season_id") WHERE "roster_memberships"."ends_at" is null;
