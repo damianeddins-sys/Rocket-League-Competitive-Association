@@ -263,6 +263,36 @@ export function teamProfilePage(
   };
 }
 
+export function teamRosterPage(
+  league: PublicLeagueData,
+  team: PublicTeamStanding,
+): DiscordPage {
+  if (league.status !== "ready") return unavailablePage("roster");
+  const roster = league.players.filter((player) => player.team === team.name);
+  const tier = tierDefinition(team.tierId);
+  return {
+    embeds: [{
+      title: `RLCA ${tier.code} ROSTER • ${team.name}`,
+      description: roster.length
+        ? roster.map((player) =>
+          `• **${player.handle}**${player.currentMmr ? ` • ${Math.round(Number(player.currentMmr))} MMR` : " • Unrated"}`).join("\n")
+        : "No active roster is published for this team and tier.",
+      color: Number.parseInt(team.color.replace("#", ""), 16) || RLCA_COLOR,
+      footer,
+    }],
+    components: [
+      ...(roster.length ? [
+        select("rlca:player-select:team", "View a player", roster.slice(0, 25).map((player) => ({
+          label: player.handle,
+          value: `${team.tierId}:${player.id}:${team.id}`,
+          description: player.currentMmr ? `${Math.round(Number(player.currentMmr))} MMR` : tier.name,
+        }))),
+      ] : []),
+      navigation(`rlca:teams:${team.tierId}:0`),
+    ],
+  };
+}
+
 export function playersPage(league: PublicLeagueData, tierId: TierId, page: number): DiscordPage {
   if (league.status !== "ready") return unavailablePage("players");
   const tier = tierDefinition(tierId);
@@ -315,6 +345,24 @@ export function playerProfilePage(
       footer,
     }],
     components: [navigation(back)],
+  };
+}
+
+export function playerMmrPage(player: PublicPlayer): DiscordPage {
+  const tier = tierDefinition(player.tierId);
+  return {
+    embeds: [{
+      title: `RLCA MMR • ${player.handle}`,
+      description: [
+        `**Official RLCA MMR:** ${player.currentMmr ? Math.round(Number(player.currentMmr)).toLocaleString() : "Unrated"}`,
+        `**Tier:** ${tier.code}`,
+        `**Team:** ${player.team ?? "Free Agent"}`,
+        `**Status:** ${player.status.replaceAll("_", " ")}`,
+      ].join("\n"),
+      color: Number.parseInt(tier.color.slice(1), 16),
+      footer,
+    }],
+    components: [navigation(`rlca:players:${player.tierId}:0`)],
   };
 }
 
@@ -414,11 +462,11 @@ export function helpPage(): DiscordPage {
     embeds: [{
       title: "RLCA HELP",
       description: [
-        "**Applications** — Submit and privately track your RLCA application.",
-        "**Standings & Rankings** — View tier-isolated competition records.",
-        "**Teams & Players** — Open public profiles without private account details.",
-        "**Schedule & Results** — Follow upcoming and completed official series.",
-        "**Rules & FAQ** — Learn how RLCA competition works.",
+        "**Applications** — `/apply`, `/applications`, and `/application` submit and privately track applications.",
+        "**Standings & Rankings** — `/standings`, `/stats`, and `/mmr` use tier-isolated official records.",
+        "**Teams & Players** — `/team`, `/roster`, and `/player` open public profiles without private account details.",
+        "**Schedule & Results** — `/schedule` and `/results` show upcoming and completed official series.",
+        "**Rules & FAQ** — `/rules` and `/faq` explain how RLCA competition works.",
         "",
         "Staff tools only appear for verified, authorized RLCA staff.",
       ].join("\n"),

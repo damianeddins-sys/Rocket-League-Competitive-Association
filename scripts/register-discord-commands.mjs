@@ -22,6 +22,20 @@ const tierOption = {
   ],
 };
 
+const teamOption = {
+  type: 3,
+  name: "team",
+  description: "Official team name or abbreviation",
+  required: true,
+};
+
+const playerOption = {
+  type: 3,
+  name: "player",
+  description: "Official player handle",
+  required: true,
+};
+
 const commands = [
   {
     name: "panel",
@@ -41,14 +55,28 @@ const commands = [
   },
   { name: "apply", description: "Open the private RLCA application form" },
   { name: "applications", description: "View your private RLCA applications" },
+  {
+    name: "application",
+    description: "View one of your private RLCA applications",
+    options: [{
+      type: 3,
+      name: "id",
+      description: "Application reference, for example RLCA-1234ABCD",
+      required: true,
+    }],
+  },
   { name: "status", description: "Check whether RLCA systems are available" },
   { name: "health", description: "Show detailed RLCA bot health" },
   { name: "standings", description: "Show current RLCA standings", options: [tierOption] },
   { name: "schedule", description: "Show upcoming RLCA series", options: [tierOption] },
   { name: "results", description: "Show verified RLCA match results", options: [tierOption] },
   { name: "teams", description: "Show official RLCA franchises", options: [tierOption] },
-  { name: "player", description: "Browse public RLCA player profiles", options: [tierOption] },
+  { name: "team", description: "Show one official RLCA team", options: [tierOption, teamOption] },
+  { name: "roster", description: "Show an official tier-specific roster", options: [tierOption, teamOption] },
+  { name: "player", description: "Show one official RLCA player", options: [tierOption, playerOption] },
+  { name: "mmr", description: "Show a player's official RLCA MMR", options: [tierOption, playerOption] },
   { name: "statistics", description: "Show tier-specific RLCA statistics", options: [tierOption] },
+  { name: "stats", description: "Show tier-specific RLCA statistics", options: [tierOption] },
   { name: "rankings", description: "Show tier-specific RLCA rankings", options: [tierOption] },
   { name: "rules", description: "Open the RLCA rules panel" },
   { name: "faq", description: "Open the RLCA frequently asked questions" },
@@ -73,4 +101,4 @@ if (!response.ok) {
   process.exit(1);
 }
 
-console.log(`Registered ${commands.length} RLCA commands for guild ${guildId}.`);
+console.log(`Registered ${commands.length} RLCA commands.`);

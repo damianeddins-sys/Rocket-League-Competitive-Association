@@ -39,6 +39,7 @@ import {
   errorPage,
   helpPage,
   memberHomePage,
+  playerMmrPage,
   playerProfilePage,
   playersPage,
   resultsPage,
@@ -46,6 +47,7 @@ import {
   standingsPage,
   statisticsPage,
   teamProfilePage,
+  teamRosterPage,
   teamsPage,
   tierPickerPage,
   type DiscordPage,
@@ -166,6 +168,12 @@ function modalValues(interaction: DiscordInteraction) {
 function option(interaction: DiscordInteraction, name: string) {
   const value = interaction.data?.options?.find((candidate) => candidate.name === name)?.value;
   return typeof value === "string" ? value : null;
+}
+
+function matchesLookup(value: string, ...candidates: Array<string | null | undefined>) {
+  const normalized = value.trim().toLocaleLowerCase();
+  return Boolean(normalized) && candidates.some((candidate) =>
+    candidate?.trim().toLocaleLowerCase() === normalized);
 }
 
 function tierFromRoute(value: string | undefined): TierId {
@@ -290,14 +298,68 @@ export async function respondToDiscordInteraction(
       case "applications":
         if (!actor) return message("Discord member identity is required.", true);
         return commandPage(myApplicationsPage(await loadMyDiscordApplications(actor)), true);
+      case "application": {
+        if (!actor) return message("Discord member identity is required.", true);
+        const reference = option(interaction, "id");
+        if (!reference) return message("An application reference is required.", true);
+        const application = (await loadMyDiscordApplications(actor))
+          .find((candidate) => candidate.publicId.toLocaleLowerCase() === reference.trim().toLocaleLowerCase());
+        return application
+          ? commandPage(myApplicationDetailPage(application), true)
+          : message("No application with that reference belongs to your Discord account.", true);
+      }
+      case "team":
+      case "roster": {
+        const teamQuery = option(interaction, "team");
+        if (!teamQuery) return message("An official team name or abbreviation is required.", true);
+        const league = await loadLeagueData({ tier: tierId });
+        if (league.status !== "ready") {
+          return commandPage(teamsPage(league, tierId), false);
+        }
+        const team = league.standings.find((candidate) =>
+          matchesLookup(teamQuery, candidate.name, candidate.shortName, candidate.slug));
+        if (!team) return message(`No ${tierId} team matched that name or abbreviation.`, true);
+        return commandPage(
+          interaction.data.name === "roster"
+            ? teamRosterPage(league, team)
+            : teamProfilePage(league, team, `rlca:teams:${tierId}:0`),
+          false,
+        );
+      }
+      case "mmr": {
+        const playerQuery = option(interaction, "player");
+        if (!playerQuery) return message("An official player handle is required.", true);
+        const league = await loadLeagueData({ tier: tierId });
+        if (league.status !== "ready") {
+          return commandPage(playersPage(league, tierId, 0), false);
+        }
+        const player = league.players.find((candidate) =>
+          matchesLookup(playerQuery, candidate.handle));
+        return player
+          ? commandPage(playerMmrPage(player), false)
+          : message(`No ${tierId} player matched that handle.`, true);
+      }
       case "standings":
       case "schedule":
       case "results":
       case "teams":
       case "player":
       case "statistics":
+      case "stats":
       case "rankings": {
-        const route = interaction.data.name === "player" ? "players" : interaction.data.name;
+        if (interaction.data.name === "player") {
+          const playerQuery = option(interaction, "player");
+          const league = await loadLeagueData({ tier: tierId });
+          if (league.status !== "ready") {
+            return commandPage(playersPage(league, tierId, 0), false);
+          }
+          const player = league.players.find((candidate) =>
+            matchesLookup(playerQuery ?? "", candidate.handle));
+          return player
+            ? commandPage(playerProfilePage(player, `rlca:players:${tierId}:0`), false)
+            : message(`No ${tierId} player matched that handle.`, true);
+        }
+        const route = interaction.data.name === "stats" ? "statistics" : interaction.data.name;
         return commandPage(await leaguePage(route, tierId, 0, loadLeagueData), false);
       }
       case "rules":

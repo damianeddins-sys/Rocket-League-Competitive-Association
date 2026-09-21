@@ -43,7 +43,15 @@ const leagueData: PublicLeagueData = {
     status: "ACTIVE",
   }],
   matches: [],
-  players: [],
+  players: [{
+    id: "player-1",
+    handle: "NovaAce",
+    avatarUrl: null,
+    tierId: "challenger",
+    currentMmr: "1425",
+    status: "ACTIVE",
+    team: "Nova",
+  }],
   events: [],
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
@@ -133,6 +141,98 @@ describe("Discord interactions", () => {
       type: 2,
       data: { name: "help" },
     })).resolves.toMatchObject({ type: 4, data: { flags: 64 } });
+  });
+
+  it("handles the required singular team, roster, player, MMR, and stats commands", async () => {
+    const loadLeague = async () => leagueData;
+    await expect(respondToDiscordInteraction({
+      type: 2,
+      data: {
+        name: "team",
+        options: [
+          { name: "tier", value: "challenger" },
+          { name: "team", value: "NVA" },
+        ],
+      },
+    }, loadLeague)).resolves.toMatchObject({
+      type: 4,
+      data: { embeds: [{ title: expect.stringContaining("TEAM PROFILE • Nova") }] },
+    });
+    await expect(respondToDiscordInteraction({
+      type: 2,
+      data: {
+        name: "roster",
+        options: [
+          { name: "tier", value: "challenger" },
+          { name: "team", value: "Nova" },
+        ],
+      },
+    }, loadLeague)).resolves.toMatchObject({
+      type: 4,
+      data: {
+        embeds: [{
+          title: expect.stringContaining("ROSTER • Nova"),
+          description: expect.stringContaining("NovaAce"),
+        }],
+      },
+    });
+    await expect(respondToDiscordInteraction({
+      type: 2,
+      data: {
+        name: "player",
+        options: [
+          { name: "tier", value: "challenger" },
+          { name: "player", value: "NovaAce" },
+        ],
+      },
+    }, loadLeague)).resolves.toMatchObject({
+      type: 4,
+      data: { embeds: [{ title: expect.stringContaining("PLAYER PROFILE • NovaAce") }] },
+    });
+    await expect(respondToDiscordInteraction({
+      type: 2,
+      data: {
+        name: "mmr",
+        options: [
+          { name: "tier", value: "challenger" },
+          { name: "player", value: "NovaAce" },
+        ],
+      },
+    }, loadLeague)).resolves.toMatchObject({
+      type: 4,
+      data: {
+        embeds: [{
+          title: expect.stringContaining("MMR • NovaAce"),
+          description: expect.stringContaining("1,425"),
+        }],
+      },
+    });
+    await expect(respondToDiscordInteraction({
+      type: 2,
+      data: {
+        name: "stats",
+        options: [{ name: "tier", value: "challenger" }],
+      },
+    }, loadLeague)).resolves.toMatchObject({
+      type: 4,
+      data: { embeds: [{ title: expect.stringContaining("CHALLENGER STATISTICS") }] },
+    });
+  });
+
+  it("keeps individual application lookup private to the Discord member", async () => {
+    await expect(respondToDiscordInteraction({
+      type: 2,
+      data: {
+        name: "application",
+        options: [{ name: "id", value: "RLCA-1234ABCD" }],
+      },
+    })).resolves.toMatchObject({
+      type: 4,
+      data: {
+        content: expect.stringContaining("Discord member identity is required"),
+        flags: 64,
+      },
+    });
   });
 
   it("never substitutes demonstration standings when the database is unavailable", async () => {
