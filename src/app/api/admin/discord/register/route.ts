@@ -20,14 +20,19 @@ const descriptions: Record<(typeof REQUIRED_DISCORD_COMMANDS)[number], string> =
   panel: "Open or post an RLCA navigation panel",
   apply: "Open the private RLCA application form",
   applications: "View your private RLCA applications",
+  application: "View one of your private RLCA applications",
   status: "Check whether RLCA systems are available",
   health: "Show detailed RLCA bot health",
   standings: "Show current RLCA standings",
   schedule: "Show upcoming RLCA series",
   results: "Show verified RLCA match results",
   teams: "Show official RLCA franchises",
-  player: "Browse public RLCA player profiles",
+  team: "Show one official RLCA team",
+  roster: "Show an official tier-specific roster",
+  player: "Show one official RLCA player",
+  mmr: "Show a player's official RLCA MMR",
   statistics: "Show tier-specific RLCA statistics",
+  stats: "Show tier-specific RLCA statistics",
   rankings: "Show tier-specific RLCA rankings",
   rules: "Open the RLCA rules panel",
   faq: "Open the RLCA frequently asked questions",
@@ -38,8 +43,12 @@ const tierCommands = new Set([
   "schedule",
   "results",
   "teams",
+  "team",
+  "roster",
   "player",
+  "mmr",
   "statistics",
+  "stats",
   "rankings",
 ]);
 const tierOptions = [{
@@ -49,6 +58,18 @@ const tierOptions = [{
   required: true,
   choices: TIERS.map((tier) => ({ name: tier.name, value: tier.id })),
 }];
+const teamOption = {
+  type: 3,
+  name: "team",
+  description: "Official team name or abbreviation",
+  required: true,
+};
+const playerOption = {
+  type: 3,
+  name: "player",
+  description: "Official player handle",
+  required: true,
+};
 
 export async function POST(request: Request) {
   const origin = request.headers.get("origin");
@@ -87,7 +108,21 @@ export async function POST(request: Request) {
       body: JSON.stringify(REQUIRED_DISCORD_COMMANDS.map((name) => ({
         name,
         description: descriptions[name],
-        ...(tierCommands.has(name) ? { options: tierOptions } : {}),
+        ...(tierCommands.has(name) ? {
+          options: [
+            ...tierOptions,
+            ...(["team", "roster"].includes(name) ? [teamOption] : []),
+            ...(["player", "mmr"].includes(name) ? [playerOption] : []),
+          ],
+        } : {}),
+        ...(name === "application" ? {
+          options: [{
+            type: 3,
+            name: "id",
+            description: "Application reference, for example RLCA-1234ABCD",
+            required: true,
+          }],
+        } : {}),
         ...(name === "panel" ? {
           options: [{
             type: 3,
