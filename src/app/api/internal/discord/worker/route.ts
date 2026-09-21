@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDatabase } from "@/db";
@@ -24,6 +24,9 @@ import {
 export const runtime = "nodejs";
 
 const workerSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("preflight"),
+  }),
   z.object({
     action: z.literal("heartbeat"),
     sessionId: z.string().uuid(),
@@ -97,6 +100,14 @@ export async function POST(request: Request) {
   const db = getDatabase();
   const now = new Date();
   const data = parsed.data;
+  if (data.action === "preflight") {
+    await db.execute(sql`select 1`);
+    return NextResponse.json({
+      workerAuthentication: true,
+      database: true,
+      checkedAt: now.toISOString(),
+    }, { headers: { "Cache-Control": "no-store" } });
+  }
   const workerId = data.sessionId;
 
   if (data.action === "heartbeat") {

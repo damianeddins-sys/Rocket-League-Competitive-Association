@@ -4,6 +4,13 @@ The RLCA website and secure worker API run on Vercel. The persistent Discord
 Gateway worker runs on a Linux VM. PostgreSQL remains behind the website API; the
 worker must not receive database credentials or become a second database client.
 
+The preferred production procedure is automated by
+`deploy/oracle/cloud-init.yaml`, `scripts/oracle-bootstrap.sh`, and
+`scripts/finalize-discord-worker.sh`. Follow
+[`ORACLE-RLCA-BOT-SETUP.md`](./ORACLE-RLCA-BOT-SETUP.md) for the minimal final
+operator steps. The manual systemd procedure below remains a fallback and
+troubleshooting reference.
+
 This preserves the production boundary:
 
 ```text
@@ -93,6 +100,10 @@ chat, screenshots, service files, or commands retained in shell history.
 | `DISCORD_GUILD_ID` | yes | Requires and verifies the one production RLCA guild. |
 | `RLCA_BACKEND_URL` | yes | HTTPS origin of the Vercel website and authenticated worker API. |
 | `DISCORD_WORKER_SECRET` | yes | Shared 32+ character credential for worker-to-website requests. |
+
+`DISCORD_CLIENT_ID`, `DISCORD_APPLICATION_ID`, and `DISCORD_PUBLIC_KEY` belong to
+the Vercel website's OAuth, command-registration, and interaction-verification
+paths; the Gateway worker does not consume them.
 
 The worker intentionally does not receive `DATABASE_URL`. Database connectivity
 belongs to the website API. If PostgreSQL or the website is temporarily unavailable,

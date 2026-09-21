@@ -80,6 +80,8 @@ describe("Discord bot health", () => {
       discordApi: true,
       commandsRegistered: true,
       database: false,
+      applications: false,
+      staffSync: false,
       gatewayConnected: false,
       targetGuildConnected: false,
       workerAuthentication: false,
