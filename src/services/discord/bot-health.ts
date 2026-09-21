@@ -1,6 +1,10 @@
 import { sql } from "drizzle-orm";
 import { getDatabase } from "../../db";
-import { discordBotRuntime } from "../../db/schema";
+import {
+  applications,
+  discordBotRuntime,
+  discordRoleSyncJobs,
+} from "../../db/schema";
 import { fetchDiscord } from "../auth/discord-api";
 import { TIER_IDS } from "../tiers";
 import { eq } from "drizzle-orm";
@@ -50,6 +54,8 @@ export type DiscordBotHealth = {
     discordApi: boolean;
     commandsRegistered: boolean;
     database: boolean;
+    applications: boolean;
+    staffSync: boolean;
     gatewayConnected: boolean;
     targetGuildConnected: boolean;
     workerAuthentication: boolean;
@@ -113,6 +119,8 @@ export async function getDiscordBotHealth(): Promise<DiscordBotHealth> {
   }
 
   let database = false;
+  let applicationsReady = false;
+  let staffSyncReady = false;
   let gatewayConnected = false;
   let targetGuildConnected = false;
   let gatewayLastHeartbeatAt: string | null = null;
@@ -122,11 +130,17 @@ export async function getDiscordBotHealth(): Promise<DiscordBotHealth> {
     try {
       await getDatabase().execute(sql`select 1`);
       database = true;
-      const [runtime] = await getDatabase()
-        .select()
-        .from(discordBotRuntime)
-        .where(eq(discordBotRuntime.key, "gateway"))
-        .limit(1);
+      const [[runtime]] = await Promise.all([
+        getDatabase()
+          .select()
+          .from(discordBotRuntime)
+          .where(eq(discordBotRuntime.key, "gateway"))
+          .limit(1),
+        getDatabase().select({ id: applications.id }).from(applications).limit(1),
+        getDatabase().select({ id: discordRoleSyncJobs.id }).from(discordRoleSyncJobs).limit(1),
+      ]);
+      applicationsReady = true;
+      staffSyncReady = true;
       gatewayLastHeartbeatAt = runtime?.lastHeartbeatAt?.toISOString() ?? null;
       gatewayStartedAt = runtime?.startedAt?.toISOString() ?? null;
       gatewayUptimeSeconds = runtime?.startedAt
@@ -147,6 +161,8 @@ export async function getDiscordBotHealth(): Promise<DiscordBotHealth> {
     discordApi,
     commandsRegistered,
     database,
+    applications: applicationsReady,
+    staffSync: staffSyncReady,
     gatewayConnected,
     targetGuildConnected,
     workerAuthentication: Boolean(

@@ -1,0 +1,27 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+packages:
+  - ca-certificates
+  - curl
+  - git
+  - xz-utils
+
+write_files:
+  - path: /etc/rlca/oracle-bootstrap.conf
+    owner: root:root
+    permissions: "0644"
+    content: |
+      RLCA_REPOSITORY_URL=https://github.com/damianeddins-sys/Rocket-League-Competitive-Association.git
+      RLCA_GIT_REF=__RLCA_REVIEWED_COMMIT_SHA__
+      RLCA_NODE_VERSION=22.14.0
+      RLCA_INSTALL_DIR=/opt/rlca
+
+runcmd:
+  - [bash, -lc, "set -Eeuo pipefail; source /etc/rlca/oracle-bootstrap.conf; test \"${RLCA_GIT_REF}\" != \"__RLCA_REVIEWED_COMMIT_SHA__\""]
+  - [bash, -lc, "set -Eeuo pipefail; source /etc/rlca/oracle-bootstrap.conf; curl --fail --silent --show-error --location --retry 5 --retry-all-errors \"https://raw.githubusercontent.com/damianeddins-sys/Rocket-League-Competitive-Association/${RLCA_GIT_REF}/scripts/oracle-bootstrap.sh\" --output /usr/local/sbin/oracle-bootstrap; chmod 0750 /usr/local/sbin/oracle-bootstrap; /usr/local/sbin/oracle-bootstrap"]
+
+output:
+  all: "| tee -a /var/log/cloud-init-output.log"
+
+final_message: "RLCA worker software preparation completed in $UPTIME seconds. Secrets and Gateway start remain intentionally deferred."
