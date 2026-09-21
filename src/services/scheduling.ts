@@ -1,3 +1,5 @@
+import { SEASON_ONE_RULES } from "./rules";
+
 export type ScheduledSeries = {
   week: number;
   sundaySlot: 1 | 2;
@@ -24,8 +26,9 @@ function roundRobin(teamIds: string[]): Pair[][] {
 }
 
 export function generateRegularSeasonSchedule(teamIds: string[]): ScheduledSeries[] {
-  if (teamIds.length !== 8 || new Set(teamIds).size !== 8) {
-    throw new Error("Season 1 scheduling requires eight unique teams");
+  const teamCount = SEASON_ONE_RULES.scheduling.teamCount;
+  if (teamIds.length !== teamCount || new Set(teamIds).size !== teamCount) {
+    throw new Error(`Season 1 scheduling requires ${teamCount} unique teams`);
   }
 
   const firstCycle = roundRobin(teamIds);
@@ -49,11 +52,19 @@ export function assertValidRegularSeasonSchedule(schedule: ScheduledSeries[], te
     const teamSeries = schedule.filter(
       (series) => series.homeTeamId === teamId || series.awayTeamId === teamId,
     );
-    if (teamSeries.length !== 16) throw new Error(`${teamId} must play exactly 16 series`);
+    if (teamSeries.length !== SEASON_ONE_RULES.scheduling.totalSeriesPerTeam) {
+      throw new Error(
+        `${teamId} must play exactly ${SEASON_ONE_RULES.scheduling.totalSeriesPerTeam} series`,
+      );
+    }
 
-    for (let week = 1; week <= 8; week += 1) {
+    for (let week = 1; week <= SEASON_ONE_RULES.scheduling.regularSeasonWeeks; week += 1) {
       const weekly = teamSeries.filter((series) => series.week === week);
-      if (weekly.length !== 2) throw new Error(`${teamId} must play twice in week ${week}`);
+      if (weekly.length !== SEASON_ONE_RULES.scheduling.seriesPerTeamPerSunday) {
+        throw new Error(
+          `${teamId} must play ${SEASON_ONE_RULES.scheduling.seriesPerTeamPerSunday} times in week ${week}`,
+        );
+      }
       const opponents = weekly.map((series) =>
         series.homeTeamId === teamId ? series.awayTeamId : series.homeTeamId,
       );

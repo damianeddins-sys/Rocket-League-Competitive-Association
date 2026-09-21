@@ -1,0 +1,318 @@
+import { randomUUID } from "node:crypto";
+import { Client, GatewayIntentBits } from "discord.js";
+
+const botToken = process.env.DISCORD_BOT_TOKEN;
+const guildId = process.env.DISCORD_GUILD_ID;
+const backendUrl = (process.env.RLCA_BACKEND_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "")
+  .replace(/\/+$/, "");
+const workerSecret = process.env.DISCORD_WORKER_SECRET;
+
+const missing = [
+  !botToken ? "DISCORD_BOT_TOKEN" : null,
+  !guildId ? "DISCORD_GUILD_ID" : null,
+  !backendUrl ? "RLCA_BACKEND_URL" : null,
+  !workerSecret || workerSecret.length < 32 ? "DISCORD_WORKER_SECRET (at least 32 characters)" : null,
+].filter(Boolean);
+if (missing.length) {
+  console.error(`[RLCA BOT ERROR] Missing or invalid environment: ${missing.join(", ")}`);
+  process.exit(1);
+}
+if (!backendUrl.startsWith("https://") && !backendUrl.startsWith("http://localhost")) {
+  console.error("[RLCA BOT ERROR] RLCA_BACKEND_URL must use HTTPS outside local development.");
+  process.exit(1);
+}
+console.log("[RLCA BOT] Starting");
+console.log("[RLCA BOT] Environment validated");
+
+const sessionId = randomUUID();
+const workerStartedAt = Date.now();
+const workerEndpoint = `${backendUrl}/api/internal/discord/worker`;
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+console.log("[RLCA BOT] Discord client initialized");
+let heartbeatTimer;
+let heartbeatRunning = false;
+let heartbeatFailures = 0;
+let successfulHeartbeats = 0;
+let onlineAnnounced = false;
+let stopping = false;
+
+function safeError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message
+    .replaceAll(botToken, "[REDACTED]")
+    .replaceAll(workerSecret, "[REDACTED]")
+    .slice(0, 1000);
+}
+
+async function backendRequest(body, timeoutMs = 15_000) {
+  const response = await fetch(workerEndpoint, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${workerSecret}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(
+      typeof result.error === "string"
+        ? `Backend rejected worker request (${response.status}): ${result.error}`
+        : `Backend rejected worker request (${response.status})`,
+    );
+  }
+  return result;
+}
+
+async function acknowledge(jobId, discordMessageId) {
+  await backendRequest({
+    action: "complete",
+    sessionId,
+    jobId,
+    discordMessageId,
+  });
+}
+
+async function reportDeliveryFailure(jobId, error) {
+  try {
+    await backendRequest({
+      action: "failure",
+      sessionId,
+      jobId,
+      error: safeError(error),
+    });
+  } catch (reportError) {
+    console.error("Could not report failed Discord delivery", safeError(reportError));
+  }
+}
+
+async function completeRoleSync(jobId, resultingRoleIds) {
+  await backendRequest({
+    action: "role-complete",
+    sessionId,
+    jobId,
+    resultingRoleIds,
+  });
+}
+
+async function reportRoleSyncFailure(jobId, error) {
+  try {
+    await backendRequest({
+      action: "role-failure",
+      sessionId,
+      jobId,
+      error: safeError(error),
+    });
+  } catch (reportError) {
+    console.error("[RLCA BOT ERROR] Could not report failed role synchronization", safeError(reportError));
+  }
+}
+
+async function synchronizeMemberRoles(job) {
+  try {
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) throw new Error("Target guild is not connected");
+    const [member, botMember] = await Promise.all([
+      guild.members.fetch(job.discordUserId),
+      guild.members.fetchMe(),
+      guild.roles.fetch(),
+    ]);
+    const managed = new Set(job.managedRoleIds);
+    if (job.desiredRoleIds.some((roleId) => !managed.has(roleId))) {
+      throw new Error("Role synchronization requested an unmanaged role");
+    }
+    const current = new Set(member.roles.cache.keys());
+    const add = job.desiredRoleIds.filter((roleId) => !current.has(roleId));
+    const remove = [...current].filter(
+      (roleId) => managed.has(roleId) && !job.desiredRoleIds.includes(roleId),
+    );
+    const unmanageable = [...new Set([...add, ...remove])].filter((roleId) => {
+      const role = guild.roles.cache.get(roleId);
+      return !role || role.position >= botMember.roles.highest.position;
+    });
+    if (unmanageable.length > 0) {
+      throw new Error(`Bot role hierarchy cannot manage configured role(s): ${unmanageable.join(", ")}`);
+    }
+    if (add.length > 0) {
+      await member.roles.add(add, "RLCA authoritative league role synchronization");
+    }
+    if (remove.length > 0) {
+      await member.roles.remove(remove, "RLCA authoritative league role synchronization");
+    }
+    const refreshed = await guild.members.fetch({ user: job.discordUserId, force: true });
+    const resultingRoleIds = [...refreshed.roles.cache.keys()]
+      .filter((roleId) => roleId !== guild.id)
+      .sort();
+    await completeRoleSync(job.jobId, resultingRoleIds);
+    console.log(`[RLCA BOT] Synchronized Discord roles for job ${job.jobId}`);
+  } catch (error) {
+    console.error(`[RLCA BOT ERROR] Role synchronization ${job.jobId} failed`, safeError(error));
+    await reportRoleSyncFailure(job.jobId, error);
+  }
+}
+
+async function deliver(notification) {
+  try {
+    let destination;
+    if (notification.recipientDiscordUserId) {
+      destination = await client.users.fetch(notification.recipientDiscordUserId);
+    } else if (notification.channelId) {
+      destination = await client.channels.fetch(notification.channelId);
+    }
+    if (!destination || !("send" in destination)) {
+      throw new Error("Configured Discord notification destination is not writable");
+    }
+    const sent = await destination.send({
+      embeds: [{
+        ...notification.payload,
+        timestamp: new Date().toISOString(),
+        footer: { text: "RLCA website database is the source of truth" },
+      }],
+      allowedMentions: { parse: [] },
+    });
+    await acknowledge(notification.jobId, sent.id);
+    console.log(`Delivered Discord notification ${notification.jobId}`);
+  } catch (error) {
+    console.error(`Discord notification ${notification.jobId} failed`, safeError(error));
+    await reportDeliveryFailure(notification.jobId, error);
+  }
+}
+
+async function heartbeat() {
+  if (heartbeatRunning || stopping || !client.user) return false;
+  heartbeatRunning = true;
+  try {
+    const targetGuildConnected = client.guilds.cache.has(guildId);
+    const uptimeSeconds = Math.floor((Date.now() - workerStartedAt) / 1000);
+    const gatewayPingMs = Number.isFinite(client.ws.ping) ? Math.round(client.ws.ping) : -1;
+    const result = await backendRequest({
+      action: "heartbeat",
+      sessionId,
+      botUserId: client.user.id,
+      guildCount: client.guilds.cache.size,
+      targetGuildConnected,
+      uptimeSeconds,
+      gatewayPingMs,
+    });
+    if (heartbeatFailures > 0) {
+      console.log(`[RLCA BOT] Backend heartbeat recovered after ${heartbeatFailures} failure(s)`);
+      heartbeatFailures = 0;
+    }
+    successfulHeartbeats += 1;
+    if (!onlineAnnounced && targetGuildConnected) {
+      client.user.setPresence({
+        status: "online",
+        activities: [{ name: "RLCA league operations", type: 3 }],
+      });
+      onlineAnnounced = true;
+      console.log("[RLCA BOT] ONLINE");
+    }
+    if (successfulHeartbeats % 20 === 0) {
+      console.log(
+        `[RLCA BOT] Healthy uptime=${uptimeSeconds}s ping=${gatewayPingMs}ms guilds=${client.guilds.cache.size}`,
+      );
+    }
+    for (const notification of result.deliveries ?? []) {
+      await deliver(notification);
+    }
+    for (const roleSync of result.roleSyncs ?? []) {
+      await synchronizeMemberRoles(roleSync);
+    }
+    if (!targetGuildConnected) {
+      console.error("[RLCA BOT ERROR] Discord bot is not connected to the configured guild");
+    }
+    return true;
+  } catch (error) {
+    heartbeatFailures += 1;
+    console.error("Discord worker heartbeat failed", safeError(error));
+    return false;
+  } finally {
+    heartbeatRunning = false;
+  }
+}
+
+async function reportWorkerError(error) {
+  console.error("Discord Gateway error", safeError(error));
+  try {
+    await backendRequest({
+      action: "error",
+      sessionId,
+      error: safeError(error),
+    });
+  } catch (reportError) {
+    console.error("Could not report Discord Gateway error", safeError(reportError));
+  }
+}
+
+client.once("ready", async (readyClient) => {
+  console.log("[RLCA BOT] Gateway connected");
+  readyClient.user.setPresence({
+    status: "idle",
+    activities: [{ name: "Connecting RLCA services", type: 3 }],
+  });
+  console.log(`[RLCA BOT] Logged in as ${readyClient.user.tag}`);
+  if (readyClient.guilds.cache.has(guildId)) {
+    console.log("[RLCA BOT] Guild verified");
+  } else {
+    console.error("[RLCA BOT ERROR] Target guild is not connected");
+    await reportWorkerError(new Error("Target guild is not connected"));
+    client.destroy();
+    process.exit(1);
+  }
+  await heartbeat();
+  heartbeatTimer = setInterval(heartbeat, 15_000);
+});
+
+client.on("error", reportWorkerError);
+client.on("warn", (warning) => console.warn("[RLCA BOT] Gateway warning", warning.slice(0, 1000)));
+client.on("shardError", reportWorkerError);
+client.on("shardDisconnect", (_event, shardId) => {
+  console.warn(`[RLCA BOT] Gateway disconnected (shard ${shardId})`);
+});
+client.on("shardReconnecting", (shardId) => {
+  console.log(`[RLCA BOT] Gateway reconnecting (shard ${shardId})`);
+});
+client.on("shardResume", (shardId, replayedEvents) => {
+  console.log(`[RLCA BOT] Gateway resumed (shard ${shardId}, replayed ${replayedEvents} events)`);
+  void heartbeat();
+});
+client.on("invalidated", () => reportWorkerError(new Error("Discord Gateway session invalidated")));
+
+async function shutdown(signal) {
+  if (stopping) return;
+  stopping = true;
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  console.log(`[RLCA BOT] Shutting down (${signal})`);
+  try {
+    await backendRequest({
+      action: "shutdown",
+      sessionId,
+      reason: `Worker stopped by ${signal}`,
+    }, 5_000);
+  } catch (error) {
+    console.error("Could not report worker shutdown", safeError(error));
+  } finally {
+    console.log("[RLCA BOT] Closing Discord connection");
+    client.destroy();
+    console.log("[RLCA BOT] Shutdown complete");
+    process.exit(0);
+  }
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("uncaughtException", async (error) => {
+  await reportWorkerError(error);
+  process.exit(1);
+});
+process.on("unhandledRejection", async (error) => {
+  await reportWorkerError(error);
+  process.exit(1);
+});
+
+console.log("[RLCA BOT] Connecting to Discord Gateway");
+client.login(botToken).catch(async (error) => {
+  await reportWorkerError(error);
+  process.exit(1);
+});
