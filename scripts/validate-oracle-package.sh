@@ -49,28 +49,28 @@ console.log(`[ORACLE VALIDATION] ${Object.keys(lock.packages ?? {}).length - 1} 
 NODE
 
 echo "[ORACLE VALIDATION] Secret isolation"
-if rg -n \
+if grep -En \
   'DISCORD_BOT_TOKEN=.{12,}|DISCORD_WORKER_SECRET=.{12,}|DATABASE_URL=' \
   deploy/oracle/cloud-init.yaml \
   deploy/oracle/rlca-discord-worker.service; then
   echo "[ORACLE VALIDATION] A credential-like assignment exists in public deployment files."
   exit 1
 fi
-rg -q '__RLCA_REVIEWED_COMMIT_SHA__' deploy/oracle/cloud-init.yaml
-rg -q 'RLCA_GIT_REF must be an exact 40-character' scripts/oracle-bootstrap.sh
+grep -q '__RLCA_REVIEWED_COMMIT_SHA__' deploy/oracle/cloud-init.yaml
+grep -q 'RLCA_GIT_REF must be an exact 40-character' scripts/oracle-bootstrap.sh
 
 echo "[ORACLE VALIDATION] systemd policy"
-rg -q '^User=rlca$' deploy/oracle/rlca-discord-worker.service
-rg -q '^Restart=on-failure$' deploy/oracle/rlca-discord-worker.service
-rg -q '^WantedBy=multi-user.target$' deploy/oracle/rlca-discord-worker.service
-rg -q '^EnvironmentFile=/etc/rlca/discord-worker.env$' deploy/oracle/rlca-discord-worker.service
+grep -q '^User=rlca$' deploy/oracle/rlca-discord-worker.service
+grep -q '^Restart=on-failure$' deploy/oracle/rlca-discord-worker.service
+grep -q '^WantedBy=multi-user.target$' deploy/oracle/rlca-discord-worker.service
+grep -q '^EnvironmentFile=/etc/rlca/discord-worker.env$' deploy/oracle/rlca-discord-worker.service
 if command -v systemd-analyze >/dev/null 2>&1; then
   set +e
   unit_output="$(systemd-analyze verify deploy/oracle/rlca-discord-worker.service 2>&1)"
   unit_status=$?
   set -e
   unexpected_unit_output="$(printf '%s\n' "$unit_output" \
-    | rg -v 'Command /usr/local/bin/node is not executable: No such file or directory' \
+    | grep -Ev 'Command /usr/local/bin/node is not executable: No such file or directory' \
     || true)"
   if [[ -n "$unexpected_unit_output" ]]; then
     printf '%s\n' "$unexpected_unit_output"
@@ -84,9 +84,9 @@ else
 fi
 
 echo "[ORACLE VALIDATION] cloud-init structure"
-rg -q '^#cloud-config$' deploy/oracle/cloud-init.yaml
-rg -q '^package_update: true$' deploy/oracle/cloud-init.yaml
-rg -q '^runcmd:$' deploy/oracle/cloud-init.yaml
+grep -q '^#cloud-config$' deploy/oracle/cloud-init.yaml
+grep -q '^package_update: true$' deploy/oracle/cloud-init.yaml
+grep -q '^runcmd:$' deploy/oracle/cloud-init.yaml
 if command -v cloud-init >/dev/null 2>&1; then
   cloud-init schema --config-file deploy/oracle/cloud-init.yaml
 else
@@ -94,10 +94,10 @@ else
 fi
 
 echo "[ORACLE VALIDATION] Container definition"
-rg -q 'FROM --platform=\$BUILDPLATFORM node:.* AS dependencies' Dockerfile.bot
-rg -q 'FROM --platform=\$TARGETPLATFORM node:' Dockerfile.bot
-rg -q '^USER node$' Dockerfile.bot
-rg -q '^HEALTHCHECK ' Dockerfile.bot
+grep -q 'FROM --platform=\$BUILDPLATFORM node:.* AS dependencies' Dockerfile.bot
+grep -q 'FROM --platform=\$TARGETPLATFORM node:' Dockerfile.bot
+grep -q '^USER node$' Dockerfile.bot
+grep -q '^HEALTHCHECK ' Dockerfile.bot
 if command -v docker >/dev/null 2>&1 \
   && docker info >/dev/null 2>&1; then
   docker build --file Dockerfile.bot --tag rlca-discord-worker:validation .
