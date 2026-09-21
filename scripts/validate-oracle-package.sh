@@ -95,21 +95,22 @@ fi
 
 echo "[ORACLE VALIDATION] Container definition"
 grep -q 'FROM --platform=\$BUILDPLATFORM node:.* AS dependencies' Dockerfile.bot
-grep -q 'FROM --platform=\$TARGETPLATFORM node:' Dockerfile.bot
+grep -q '^FROM node:${NODE_VERSION}-alpine$' Dockerfile.bot
 grep -q '^USER node$' Dockerfile.bot
 grep -q '^HEALTHCHECK ' Dockerfile.bot
 if command -v docker >/dev/null 2>&1 \
   && docker info >/dev/null 2>&1; then
   docker build --file Dockerfile.bot --tag rlca-discord-worker:validation .
   if docker buildx version >/dev/null 2>&1; then
-    arm_image="$(mktemp --suffix=.tar)"
-    trap 'rm -f "${arm_image:-}"' EXIT
     docker buildx build \
       --platform linux/arm64 \
       --file Dockerfile.bot \
-      --output "type=oci,dest=${arm_image}" \
+      --tag rlca-discord-worker:arm64-validation \
+      --load \
       .
-    test -s "$arm_image"
+    test "$(docker image inspect \
+      --format '{{.Architecture}}' \
+      rlca-discord-worker:arm64-validation)" = "arm64"
   elif [[ "${CI:-}" == "true" ]]; then
     echo "[ORACLE VALIDATION] Docker Buildx is required for the ARM64 image check."
     exit 1

@@ -58,7 +58,7 @@ describe("Discord production worker contract", () => {
     const dockerfile = repositoryFile("Dockerfile.bot");
     const runtime = repositoryFile("deploy/discord-worker/package.json");
     expect(dockerfile).toContain("FROM --platform=$BUILDPLATFORM");
-    expect(dockerfile).toContain("FROM --platform=$TARGETPLATFORM");
+    expect(dockerfile).toContain("FROM node:${NODE_VERSION}-alpine");
     expect(dockerfile).toContain("USER node");
     expect(dockerfile).toContain("HEALTHCHECK");
     expect(runtime).toContain('"discord.js": "14.27.0"');

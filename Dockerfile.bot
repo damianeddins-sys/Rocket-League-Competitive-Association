@@ -6,7 +6,7 @@ WORKDIR /build
 COPY deploy/discord-worker/package.json deploy/discord-worker/package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
-FROM --platform=$TARGETPLATFORM node:${NODE_VERSION}-alpine
+FROM node:${NODE_VERSION}-alpine
 
 ENV NODE_ENV=production
 WORKDIR /app
