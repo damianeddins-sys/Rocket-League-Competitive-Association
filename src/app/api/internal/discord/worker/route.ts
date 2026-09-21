@@ -30,6 +30,8 @@ const workerSchema = z.discriminatedUnion("action", [
     botUserId: z.string().regex(/^\d{16,22}$/),
     guildCount: z.number().int().min(0).max(1000),
     targetGuildConnected: z.boolean(),
+    uptimeSeconds: z.number().int().min(0).max(10 * 365 * 24 * 60 * 60),
+    gatewayPingMs: z.number().int().min(-1).max(120_000),
   }),
   z.object({
     action: z.literal("complete"),
@@ -167,6 +169,8 @@ export async function POST(request: Request) {
             botUserId: data.botUserId,
             guildCount: data.guildCount,
             targetGuildConnected: data.targetGuildConnected,
+            uptimeSeconds: data.uptimeSeconds,
+            gatewayPingMs: data.gatewayPingMs,
           },
           requestId: workerId,
         }));

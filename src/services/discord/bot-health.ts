@@ -9,14 +9,19 @@ export const REQUIRED_DISCORD_COMMANDS = [
   "panel",
   "apply",
   "applications",
+  "application",
   "status",
   "health",
   "standings",
   "schedule",
   "results",
   "teams",
+  "team",
+  "roster",
   "player",
+  "mmr",
   "statistics",
+  "stats",
   "rankings",
   "rules",
   "faq",
@@ -27,8 +32,12 @@ const TIERED_DISCORD_COMMANDS = new Set([
   "schedule",
   "results",
   "teams",
+  "team",
+  "roster",
   "player",
+  "mmr",
   "statistics",
+  "stats",
   "rankings",
 ]);
 
@@ -48,6 +57,8 @@ export type DiscordBotHealth = {
   missingConfiguration: string[];
   interactionEndpoint: string;
   gatewayLastHeartbeatAt: string | null;
+  gatewayStartedAt: string | null;
+  gatewayUptimeSeconds: number | null;
   checkedAt: string;
 };
 
@@ -105,6 +116,8 @@ export async function getDiscordBotHealth(): Promise<DiscordBotHealth> {
   let gatewayConnected = false;
   let targetGuildConnected = false;
   let gatewayLastHeartbeatAt: string | null = null;
+  let gatewayStartedAt: string | null = null;
+  let gatewayUptimeSeconds: number | null = null;
   if (process.env.DATABASE_URL) {
     try {
       await getDatabase().execute(sql`select 1`);
@@ -115,6 +128,10 @@ export async function getDiscordBotHealth(): Promise<DiscordBotHealth> {
         .where(eq(discordBotRuntime.key, "gateway"))
         .limit(1);
       gatewayLastHeartbeatAt = runtime?.lastHeartbeatAt?.toISOString() ?? null;
+      gatewayStartedAt = runtime?.startedAt?.toISOString() ?? null;
+      gatewayUptimeSeconds = runtime?.startedAt
+        ? Math.max(0, Math.floor((Date.now() - runtime.startedAt.getTime()) / 1000))
+        : null;
       gatewayConnected = runtime?.status === "ONLINE"
         && Boolean(runtime.lastHeartbeatAt)
         && Date.now() - runtime.lastHeartbeatAt!.getTime() < 45_000;
@@ -157,6 +174,8 @@ export async function getDiscordBotHealth(): Promise<DiscordBotHealth> {
     missingConfiguration,
     interactionEndpoint: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/api/discord/interactions`,
     gatewayLastHeartbeatAt,
+    gatewayStartedAt,
+    gatewayUptimeSeconds,
     checkedAt: new Date().toISOString(),
   };
 }

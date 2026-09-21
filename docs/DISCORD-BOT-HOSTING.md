@@ -56,9 +56,14 @@ sudo -u rlca git clone YOUR_REPOSITORY_URL /opt/rlca
 cd /opt/rlca
 sudo -u rlca git checkout APPROVED_COMMIT_SHA
 sudo -u rlca npm ci --omit=dev --ignore-scripts
+sudo -u rlca node --check scripts/discord-gateway-worker.mjs
 ```
 
 Do not deploy an unreviewed branch tip or copy a developer `.env` file.
+The worker is native ESM JavaScript, so there is no transpilation step. `npm ci
+--omit=dev --ignore-scripts` is the production dependency/build preparation command;
+`npm run discord:worker` is the supported foreground start command for manual
+diagnostics.
 
 ## 4. Configure secrets
 
@@ -82,6 +87,18 @@ Do not place `DATABASE_URL`, OAuth secrets, session secrets, Blob credentials, o
 email credentials on the worker VM. Never paste secret values into source control,
 chat, screenshots, service files, or commands retained in shell history.
 
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `DISCORD_BOT_TOKEN` | yes | Authenticates the Gateway client to the real RLCA Discord application. |
+| `DISCORD_GUILD_ID` | yes | Requires and verifies the one production RLCA guild. |
+| `RLCA_BACKEND_URL` | yes | HTTPS origin of the Vercel website and authenticated worker API. |
+| `DISCORD_WORKER_SECRET` | yes | Shared 32+ character credential for worker-to-website requests. |
+
+The worker intentionally does not receive `DATABASE_URL`. Database connectivity
+belongs to the website API. If PostgreSQL or the website is temporarily unavailable,
+the worker retains its Discord connection, retries the authenticated heartbeat every
+15 seconds, and logs recovery after the backend/database path succeeds again.
+
 ## 5. Install and start systemd
 
 ```sh
@@ -90,6 +107,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now rlca-discord-worker
 sudo systemctl status rlca-discord-worker --no-pager
 sudo journalctl -u rlca-discord-worker -n 100 --no-pager
+sudo journalctl -u rlca-discord-worker -f
 ```
 
 Expected logs include:
@@ -102,10 +120,14 @@ Expected logs include:
 [RLCA BOT] Gateway connected
 [RLCA BOT] Guild verified
 [RLCA BOT] ONLINE
+[RLCA BOT] Healthy uptime=...s ping=...ms guilds=...
 ```
 
 The unit runs as the non-root `rlca` user, restarts failed processes with a bounded
-delay, starts after networking, and sends `SIGTERM` for graceful shutdown.
+delay, starts after networking, uses a restrictive file-creation mask, and sends
+`SIGTERM` for graceful shutdown. `systemctl enable` is what installs automatic
+startup after reboot. `Restart=on-failure` restarts crashes and unexpected exits;
+an intentional `systemctl stop` remains stopped.
 
 ## 6. Verify dependencies
 
@@ -123,11 +145,20 @@ not proof of a working connection.
 Verify in Discord:
 
 1. The bot shows online.
-2. `/status` returns current system state.
-3. Authorized `/health` reports a current Gateway heartbeat and connected guild.
-4. Commands are registered with `npm run discord:register` from a protected
-   operator environment.
-5. An application persists on the website before its Discord notification is sent.
+2. `/health` reports a current Gateway heartbeat, uptime, and connected guild.
+3. `/help` opens the command guide.
+4. `/apply` opens the private application workflow.
+5. `/applications` lists only the invoking member's applications.
+6. `/application` rejects records not owned by the invoking member.
+7. `/standings` returns the selected tier's official data or honest empty state.
+8. `/stats` returns the selected tier's official statistics or honest empty state.
+9. `/team`, `/roster`, `/player`, and `/mmr` remain tier-scoped.
+10. Commands are registered with `npm run discord:register` from a protected
+    operator environment.
+11. An application persists on the website before its Discord notification is sent.
+
+Registration is not command acceptance. Invoke each command from a real authorized
+Discord account and inspect both the Discord response and website records.
 
 ## 7. Restart and reconnect tests
 
@@ -136,6 +167,7 @@ Service restart:
 ```sh
 sudo systemctl restart rlca-discord-worker
 sudo systemctl status rlca-discord-worker --no-pager
+curl -fsS https://rlcasystem.vercel.app/api/discord/health
 ```
 
 Crash recovery:
@@ -144,6 +176,7 @@ Crash recovery:
 sudo systemctl kill --signal=SIGKILL rlca-discord-worker
 sleep 15
 sudo systemctl status rlca-discord-worker --no-pager
+sudo journalctl -u rlca-discord-worker --since "-2 minutes" --no-pager
 ```
 
 VM reboot:
@@ -155,6 +188,24 @@ sudo reboot
 After reconnecting, verify systemd is active, Discord is online, the backend has a
 fresh heartbeat, and queued notifications are delivered once. Test a controlled
 network interruption and confirm Discord.js reconnects without duplicate delivery.
+
+For the network test, temporarily block outbound traffic only from the worker host
+using the operator's normal firewall tooling, then restore it. Confirm logs show
+Gateway disconnect/reconnect or resume, backend heartbeat recovery, a fresh health
+timestamp, and one online bot session. Do not alter OCI security lists in a way that
+locks out SSH.
+
+The production acceptance gate is not complete until all of the following are
+observed, not inferred:
+
+- database health passes through the website API;
+- Discord Gateway connects and emits the ready event;
+- the configured guild is found;
+- command registration health passes;
+- Discord displays the bot as online;
+- `/health`, `/help`, `/apply`, `/applications`, `/application`, `/standings`, and
+  `/stats` work when invoked;
+- crash restart and VM reboot both return the bot to online state.
 
 ## 8. Update and rollback
 

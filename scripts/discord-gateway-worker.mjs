@@ -25,11 +25,15 @@ console.log("[RLCA BOT] Starting");
 console.log("[RLCA BOT] Environment validated");
 
 const sessionId = randomUUID();
+const workerStartedAt = Date.now();
 const workerEndpoint = `${backendUrl}/api/internal/discord/worker`;
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 console.log("[RLCA BOT] Discord client initialized");
 let heartbeatTimer;
 let heartbeatRunning = false;
+let heartbeatFailures = 0;
+let successfulHeartbeats = 0;
+let onlineAnnounced = false;
 let stopping = false;
 
 function safeError(error) {
@@ -176,17 +180,39 @@ async function deliver(notification) {
 }
 
 async function heartbeat() {
-  if (heartbeatRunning || stopping || !client.user) return;
+  if (heartbeatRunning || stopping || !client.user) return false;
   heartbeatRunning = true;
   try {
     const targetGuildConnected = client.guilds.cache.has(guildId);
+    const uptimeSeconds = Math.floor((Date.now() - workerStartedAt) / 1000);
+    const gatewayPingMs = Number.isFinite(client.ws.ping) ? Math.round(client.ws.ping) : -1;
     const result = await backendRequest({
       action: "heartbeat",
       sessionId,
       botUserId: client.user.id,
       guildCount: client.guilds.cache.size,
       targetGuildConnected,
+      uptimeSeconds,
+      gatewayPingMs,
     });
+    if (heartbeatFailures > 0) {
+      console.log(`[RLCA BOT] Backend heartbeat recovered after ${heartbeatFailures} failure(s)`);
+      heartbeatFailures = 0;
+    }
+    successfulHeartbeats += 1;
+    if (!onlineAnnounced && targetGuildConnected) {
+      client.user.setPresence({
+        status: "online",
+        activities: [{ name: "RLCA league operations", type: 3 }],
+      });
+      onlineAnnounced = true;
+      console.log("[RLCA BOT] ONLINE");
+    }
+    if (successfulHeartbeats % 20 === 0) {
+      console.log(
+        `[RLCA BOT] Healthy uptime=${uptimeSeconds}s ping=${gatewayPingMs}ms guilds=${client.guilds.cache.size}`,
+      );
+    }
     for (const notification of result.deliveries ?? []) {
       await deliver(notification);
     }
@@ -194,10 +220,13 @@ async function heartbeat() {
       await synchronizeMemberRoles(roleSync);
     }
     if (!targetGuildConnected) {
-      console.error(`Discord bot is connected but is not a member of configured guild ${guildId}`);
+      console.error("[RLCA BOT ERROR] Discord bot is not connected to the configured guild");
     }
+    return true;
   } catch (error) {
+    heartbeatFailures += 1;
     console.error("Discord worker heartbeat failed", safeError(error));
+    return false;
   } finally {
     heartbeatRunning = false;
   }
@@ -219,18 +248,20 @@ async function reportWorkerError(error) {
 client.once("ready", async (readyClient) => {
   console.log("[RLCA BOT] Gateway connected");
   readyClient.user.setPresence({
-    status: "online",
-    activities: [{ name: "RLCA league operations", type: 3 }],
+    status: "idle",
+    activities: [{ name: "Connecting RLCA services", type: 3 }],
   });
-  console.log(`[RLCA BOT] Logged in as ${readyClient.user.tag} (${readyClient.user.id})`);
+  console.log(`[RLCA BOT] Logged in as ${readyClient.user.tag}`);
   if (readyClient.guilds.cache.has(guildId)) {
     console.log("[RLCA BOT] Guild verified");
   } else {
     console.error("[RLCA BOT ERROR] Target guild is not connected");
+    await reportWorkerError(new Error("Target guild is not connected"));
+    client.destroy();
+    process.exit(1);
   }
   await heartbeat();
   heartbeatTimer = setInterval(heartbeat, 15_000);
-  console.log("[RLCA BOT] ONLINE");
 });
 
 client.on("error", reportWorkerError);
@@ -244,6 +275,7 @@ client.on("shardReconnecting", (shardId) => {
 });
 client.on("shardResume", (shardId, replayedEvents) => {
   console.log(`[RLCA BOT] Gateway resumed (shard ${shardId}, replayed ${replayedEvents} events)`);
+  void heartbeat();
 });
 client.on("invalidated", () => reportWorkerError(new Error("Discord Gateway session invalidated")));
 
@@ -276,6 +308,7 @@ process.on("uncaughtException", async (error) => {
 });
 process.on("unhandledRejection", async (error) => {
   await reportWorkerError(error);
+  process.exit(1);
 });
 
 console.log("[RLCA BOT] Connecting to Discord Gateway");
