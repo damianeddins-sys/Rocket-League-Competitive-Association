@@ -257,9 +257,9 @@ export default async function Home() {
       </section>
 
       <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
-        <div className="mb-8 flex items-end justify-between">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div><p className="eyebrow text-[#168bff]">Qualification and performance</p><h2 className="display-title mt-3 text-5xl text-[#061426]">Tier standings</h2><p className="mt-3 max-w-2xl text-slate-600">Every competitive record remains isolated by tier. Select a table for the complete standings and statistics.</p></div>
-          <div className="flex gap-4"><Link href="/standings" className="font-black text-[#0765c9]">Full standings →</Link><Link href="/statistics" className="font-black text-[#0765c9]">Statistics →</Link></div>
+          <div className="flex flex-wrap gap-4"><Link href="/standings" className="font-black text-[#0765c9]">Full standings →</Link><Link href="/statistics" className="font-black text-[#0765c9]">Statistics →</Link></div>
         </div>
         {!readySnapshots.length ? (
           <LeagueDataState state={data.status === "ready" ? "NO_TIER_CONFIGURATION" : data.reason} />

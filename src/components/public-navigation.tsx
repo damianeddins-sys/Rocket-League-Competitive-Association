@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, Menu, Search } from "lucide-react";
 import { TierIcon } from "@/components/tier-navigation";
@@ -42,6 +42,20 @@ export function PublicNavigation({
     setMobileTiersOpen(false);
     if (mobileMenu.current) mobileMenu.current.open = false;
   };
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setDesktopTiersOpen(false);
+      setMobileTiersOpen(false);
+      if (mobileMenu.current?.open) {
+        mobileMenu.current.open = false;
+        mobileMenu.current.querySelector("summary")?.focus();
+      }
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, []);
 
   return (
     <>
