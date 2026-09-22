@@ -47,19 +47,20 @@ export async function consumeAuthRateLimit(input: {
   if (!process.env.DATABASE_URL) return consumeRateLimit(input);
 
   const now = input.now ?? Date.now();
-  const nowDate = new Date(now);
-  const resetAt = new Date(now + input.windowMs);
+  const nowTimestamp = new Date(now).toISOString();
+  const resetAtTimestamp = new Date(now + input.windowMs).toISOString();
   const hashedKey = createHash("sha256").update(input.key).digest("hex");
   const rows = await getDatabase().execute(sql<{ count: number; reset_at: Date }>`
     insert into ${authRateLimits} ("key", "count", "reset_at")
-    values (${hashedKey}, 1, ${resetAt})
+    values (${hashedKey}, 1, ${resetAtTimestamp}::timestamptz)
     on conflict ("key") do update set
       "count" = case
-        when ${authRateLimits.resetAt} <= ${nowDate} then 1
+        when ${authRateLimits.resetAt} <= ${nowTimestamp}::timestamptz then 1
         else ${authRateLimits.count} + 1
       end,
       "reset_at" = case
-        when ${authRateLimits.resetAt} <= ${nowDate} then ${resetAt}
+        when ${authRateLimits.resetAt} <= ${nowTimestamp}::timestamptz
+          then ${resetAtTimestamp}::timestamptz
         else ${authRateLimits.resetAt}
       end
     returning "count", "reset_at"
