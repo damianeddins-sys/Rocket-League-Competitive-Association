@@ -10,6 +10,7 @@ import { tierDefinition, TIERS } from "../tiers";
 const leagueData: PublicLeagueData = {
   status: "ready",
   season: { id: "season-1", name: "Season 1", slug: "season-1" },
+  availableSeasons: [{ id: "season-1", name: "Season 1", slug: "season-1", active: true }],
   tier: tierDefinition("challenger"),
   availableTiers: TIERS,
   currentWeek: { number: 1, phase: "REGULAR_SPLIT_1" },
