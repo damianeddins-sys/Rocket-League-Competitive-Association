@@ -66,8 +66,8 @@ export default async function Home() {
       <section className="hero-grid relative overflow-hidden bg-[#061426] text-white">
         <RlcaLogo
           decorative
-          className="pointer-events-none absolute -right-24 top-1/2 w-[500px] -translate-y-1/2 object-contain opacity-[0.1] lg:right-4 lg:w-[680px]"
-          sizes="(min-width: 1024px) 680px, 500px"
+          className="pointer-events-none absolute -right-20 top-1/2 w-[300px] -translate-y-1/2 object-contain opacity-[0.09] lg:right-[8%] lg:w-[480px]"
+          sizes="(min-width: 1024px) 480px, 300px"
           quality={65}
           priority
         />
@@ -245,7 +245,7 @@ export default async function Home() {
               const JourneyIcon = Icon as typeof UserPlus;
               return (
                 <Link key={step as string} href={href as string} className="group bg-[#091b31] p-6 hover:bg-[#0d2542]">
-                  <div className="flex items-center justify-between"><JourneyIcon className="text-blue-300" size={21} /><span className="font-mono text-xs text-slate-500">{step as string}</span></div>
+                  <div className="flex items-center justify-between"><JourneyIcon className="text-blue-300" size={21} /><span className="font-mono text-xs text-slate-300">{step as string}</span></div>
                   <h3 className="mt-8 text-xl font-black group-hover:text-blue-200">{title as string}</h3>
                   <p className="mt-2 text-sm leading-6 text-slate-400">{text as string}</p>
                 </Link>

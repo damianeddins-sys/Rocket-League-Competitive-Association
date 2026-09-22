@@ -79,7 +79,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <header className="rlca-site-header sticky top-0 z-50 border-b border-white/10 text-white shadow-[0_14px_40px_rgba(0,0,0,.22)] backdrop-blur-xl">
           <div className="h-[2px] bg-gradient-to-r from-transparent via-[#168bff] to-transparent" />
           <div className="mx-auto flex h-[4.9rem] max-w-[90rem] items-center gap-4 px-5 xl:px-8">
-            <Link href="/" className="mr-auto flex min-w-0 items-center gap-3" aria-label={`${RLCA_FULL_NAME} ${RLCA_FORMAT}`}>
+            <Link href="/" className="mr-auto flex min-w-0 items-center gap-3">
               <RlcaLogo
                 decorative
                 className="h-12 w-12 shrink-0 object-contain sm:h-14 sm:w-14"
