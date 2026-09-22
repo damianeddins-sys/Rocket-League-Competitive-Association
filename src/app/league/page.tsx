@@ -46,7 +46,7 @@ export default async function LeaguePage() {
           {[
             [ShieldCheck, "Verified competition", "Applications, eligibility, rosters, and permissions are enforced by the backend rather than frontend labels."],
             [Swords, "Weekly series", "Regular weeks organize scrims and two official match blocks while every result stays tied to its season and tier."],
-            [Trophy, "Major event journey", "Major 1, Major 2, Last Chance, and the Championship create a clear season-long competitive story."],
+            [Trophy, "Major event journey", "Major 1, Major 2, the Last Chance Major, and the Championship Major form the BO7 event path."],
             [CalendarDays, "Current season", primary?.status === "ready" ? `${primary.season.name} is the active public competition record.` : "The next active season will appear when configured in the official database."],
           ].map(([Icon, title, description]) => {
             const FeatureIcon = Icon as typeof ShieldCheck;

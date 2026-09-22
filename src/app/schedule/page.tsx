@@ -95,7 +95,7 @@ export default async function SchedulePage({
           </p>
           <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">Season schedule</h1>
           <p className="mt-4 max-w-2xl text-slate-300">
-            Navigate all 16 weeks. Scrims, official match blocks, event brackets, and verification states remain clearly separated.
+            Scrimmage windows, official BO5 regular-season matches, and BO7 Major brackets remain clearly separated.
           </p>
         </div>
       </section>
@@ -152,9 +152,9 @@ export default async function SchedulePage({
                     <div className="flex gap-4">
                       <span className="rounded-lg bg-cyan-100 p-3 text-cyan-700"><Dumbbell size={22} /></span>
                       <div>
-                        <p className="eyebrow text-cyan-700">Optional practice · Not an official match</p>
-                        <h3 className="mt-1 text-xl font-black text-[#0b1f3a]">7:00 PM Scrim Window</h3>
-                        <p className="mt-1 text-sm text-slate-600">Scrim listings remain separate from standings and official results.</p>
+                        <p className="eyebrow text-cyan-700">Separate from official competition</p>
+                        <h3 className="mt-1 text-xl font-black text-[#0b1f3a]">1 Hour Scrimmage Window</h3>
+                        <p className="mt-1 text-sm text-slate-600">The scrimmage window is not one of the two official BO5 matches and does not count in official results.</p>
                       </div>
                     </div>
                     <Link href="/scrims" className="rounded-lg border border-cyan-300 bg-white px-4 py-2 text-sm font-bold text-cyan-800">View scrims</Link>
@@ -170,7 +170,7 @@ export default async function SchedulePage({
                     <span className="inline-flex rounded-lg bg-blue-500/15 p-3 text-blue-300"><Trophy size={28} /></span>
                     <p className="eyebrow mt-6 text-blue-300">Bracket-first event week</p>
                     <h3 className="mt-2 text-3xl font-black">{event.name}</h3>
-                    <p className="mt-3 text-slate-300">{event.teams} teams · {event.award}</p>
+                    <p className="mt-3 text-slate-300">{event.teams} teams · Every match Best of 7 · {event.award}</p>
                   </div>
                   <Link href={`/events/${event.slug}`} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#1677ff] px-5 py-3 font-bold">
                     Open clickable bracket <Swords size={18} />

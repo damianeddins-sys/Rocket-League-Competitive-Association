@@ -3,7 +3,6 @@ import {
   championshipBracket,
   lastChanceBracket,
   majorBracket,
-  resolveChampionshipSemifinals,
 } from "./brackets";
 import {
   assignCombineRatings,
@@ -64,18 +63,18 @@ describe("qualification", () => {
     expect(result.lastChanceTeamIds).toEqual(["team-3", "team-4", "team-5", "team-6", "team-7", "team-8"]);
   });
 
-  it("preserves locked seeds while selecting four Last Chance teams", () => {
+  it("preserves locked seeds while seeding all six Last Chance teams", () => {
     const { locked, lastChanceTeamIds } = lockTopTwo(standings);
     const reordered = standings.map((team) =>
       team.teamId === "team-8" ? { ...team, rank: 1, qualificationPoints: 999 } : { ...team, rank: team.rank + 1 },
     );
     const field = championshipField(locked, reordered, lastChanceTeamIds);
     expect(field.slice(0, 2)).toEqual(locked);
-    expect(field).toHaveLength(6);
+    expect(field).toHaveLength(8);
     expect(field[2]).toEqual({ teamId: "team-8", seed: 3 });
   });
 
-  it("activates immutable Championship locks immediately after Major 2", () => {
+  it("activates immutable Championship locks before the Last Chance Major", () => {
     const majorTwoEndsAt = new Date("2026-06-01T00:00:00Z");
     expect(resolveChampionshipLockIds({
       now: new Date("2026-05-31T23:59:59Z"),
@@ -121,11 +120,9 @@ describe("brackets", () => {
     expect(lastChanceBracket(eight.slice(2)).slice(0, 4).map((slot) => [slot.home, slot.away])).toEqual([
       ["t3", "t8"], ["t4", "t7"], ["t5", "WINNER:R1A"], ["t6", "WINNER:R1B"],
     ]);
-    expect(championshipBracket(eight.slice(0, 6)).map((slot) => slot.bestOf)).toEqual([5, 5, 7, 7, 7]);
-    expect(resolveChampionshipSemifinals(eight.slice(0, 6), ["t3", "t5"])).toEqual([
-      { id: "SF1", home: "t1", away: "t5" },
-      { id: "SF2", home: "t2", away: "t3" },
-    ]);
+    expect(majorBracket(eight).every((slot) => slot.bestOf === 7)).toBe(true);
+    expect(lastChanceBracket(eight.slice(2)).every((slot) => slot.bestOf === 7)).toBe(true);
+    expect(championshipBracket(eight).map((slot) => slot.bestOf)).toEqual([7, 7, 7, 7, 7, 7, 7]);
   });
 });
 

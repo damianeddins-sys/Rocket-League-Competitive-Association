@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, LockKeyhole, Trophy } from "lucide-react";
+import { ArrowLeft, LockKeyhole } from "lucide-react";
 import { notFound } from "next/navigation";
 import { LeagueDataState } from "@/components/league-data-state";
 import { TierBadge } from "@/components/tier-navigation";
+import { TournamentBracket } from "@/components/tournament-bracket";
 import { competitionEventBySlug } from "@/services/competition-events";
 import { loadPublicLeagueData } from "@/services/public-league-data";
 import { DEFAULT_TIER_ID, normalizeTierId } from "@/services/tiers";
@@ -38,6 +39,12 @@ export default async function EventDetailPage({
   const lockedTeams = data.status === "ready"
     ? data.standings.filter((team) => team.status.startsWith("LOCKED"))
     : [];
+  const bracketType =
+    eventType === "LAST_CHANCE"
+      ? "LAST_CHANCE"
+      : eventType === "CHAMPIONSHIP"
+        ? "CHAMPIONSHIP"
+        : "MAJOR";
 
   return (
     <div className="min-h-screen bg-[#f4f7fa]">
@@ -48,7 +55,7 @@ export default async function EventDetailPage({
           </Link>
           <div className="mt-10 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="eyebrow text-blue-300">{presentation.weeks} · {presentation.teams} teams</p>
+              <p className="eyebrow text-blue-300">{presentation.teams} teams · Best of {presentation.bestOf}</p>
               <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">{presentation.name}</h1>
               <div className="mt-4"><TierBadge tierId={tierId} /></div>
               <p className="mt-4 text-lg text-slate-300">{presentation.format}</p>
@@ -63,9 +70,15 @@ export default async function EventDetailPage({
 
       <main className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
         {data.status !== "ready" ? (
-          <LeagueDataState state={data.reason} />
+          <div className="grid gap-8">
+            <LeagueDataState state={data.reason} />
+            <TournamentBracket type={bracketType} title={`${presentation.name} · ${presentation.teams}-Team Bracket`} />
+          </div>
         ) : !event ? (
-          <LeagueDataState state="NO_ACTIVE_SEASON" />
+          <div className="grid gap-8">
+            <LeagueDataState state="NO_ACTIVE_SEASON" />
+            <TournamentBracket type={bracketType} title={`${presentation.name} · ${presentation.teams}-Team Bracket`} />
+          </div>
         ) : (
           <>
             {(eventType === "LAST_CHANCE" || eventType === "CHAMPIONSHIP") && (
@@ -73,9 +86,9 @@ export default async function EventDetailPage({
                 <div className="flex gap-4">
                   <LockKeyhole className="shrink-0 text-emerald-700" />
                   <div>
-                    <p className="font-black text-emerald-950">Top 2 Locked — Championship Seeds #1 and #2 are secured.</p>
+                    <p className="font-black text-emerald-950">#1 Seed — Locked · #2 Seed — Locked</p>
                     <p className="mt-1 text-sm leading-6 text-emerald-800">
-                      Last Chance results cannot change these two locked seed identities.
+                      The teams ranked #1 and #2 immediately before the Last Chance Major retain those Championship Major seeds.
                     </p>
                     {lockedTeams.length > 0 && (
                       <div className="mt-4 flex flex-wrap gap-2">
@@ -110,6 +123,10 @@ export default async function EventDetailPage({
                       <div className="mt-4 space-y-4">
                         {eventMatches.filter((match) => match.sundaySlot === round).map((match) => (
                           <Link key={match.id} href={`/matches/${match.id}?tier=${tierId}`} className="panel block p-4 hover:border-blue-300">
+                            <div className="mb-2 flex items-center justify-between border-b border-slate-100 pb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                              <span>Official Major match</span>
+                              <span className="text-blue-700">Best of 7</span>
+                            </div>
                             {[match.teamA, match.teamB].map((team, index) => (
                               <div key={team.id} className="flex items-center gap-3 py-2">
                                 <span className="h-3 w-3 rounded-full" style={{ backgroundColor: team.color }} />
@@ -125,10 +142,11 @@ export default async function EventDetailPage({
                 </div>
               </div>
             ) : (
-              <div className="panel mt-7 border-dashed p-10 text-center">
-                <Trophy className="mx-auto text-blue-400" size={34} />
-                <h3 className="mt-4 text-xl font-black text-[#0b1f3a]">Bracket awaiting official seeding</h3>
-                <p className="mt-2 text-sm text-slate-500">The bracket will populate from verified league data when seeding is locked.</p>
+              <div className="mt-7">
+                <TournamentBracket type={bracketType} title={`${presentation.name} · ${presentation.teams}-Team Bracket`} />
+                <p className="mt-3 text-center text-sm text-slate-500">
+                  Seed placeholders will be replaced by verified league data when official seeding is available.
+                </p>
               </div>
             )}
           </>

@@ -40,7 +40,7 @@ export function buildSeasonOneEvents(weeks: ReturnType<typeof buildSeasonOneWeek
     { type: "REGULAR_SEASON" as const, name: "Regular Season", ...period(1, 10) },
     { type: "MAJOR_1" as const, name: "Major 1", ...period(5, 6) },
     { type: "MAJOR_2" as const, name: "Major 2", ...period(11, 12) },
-    { type: "LAST_CHANCE" as const, name: "Last Chance", ...period(13, 14) },
-    { type: "CHAMPIONSHIP" as const, name: "RLCA Championship", ...period(15, 16) },
+    { type: "LAST_CHANCE" as const, name: "Last Chance Major", ...period(13, 14) },
+    { type: "CHAMPIONSHIP" as const, name: "Championship Major", ...period(15, 16) },
   ];
 }

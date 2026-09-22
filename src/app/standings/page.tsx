@@ -54,10 +54,10 @@ export default async function StandingsPage({
                 <p className="mt-2 font-bold text-emerald-950">
                   {championshipLocked
                     ? "Top 2 Locked — Seeds #1 and #2 are secured."
-                    : "Seeds #1 and #2 lock immediately after Major 2 concludes."}
+                    : "Seeds #1 and #2 lock immediately before the Last Chance Major."}
                 </p>
                 <p className="mt-1 text-sm text-emerald-800">
-                  Once secured, Last Chance results cannot change either locked seed.
+                  The teams ranked #1 and #2 at that point retain those Championship Major seeds.
                 </p>
               </div>
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-5">

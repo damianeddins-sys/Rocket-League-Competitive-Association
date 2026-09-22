@@ -123,9 +123,9 @@ export function championshipField(
         b.gameDifferential - a.gameDifferential ||
         a.teamId.localeCompare(b.teamId),
     )
-    .slice(0, 4)
+    .slice(0, 6)
     .map((team, index) => ({ teamId: team.teamId, seed: index + 3 }));
 
-  if (remaining.length !== 4) throw new Error("Championship requires four Last Chance qualifiers");
+  if (remaining.length !== 6) throw new Error("Championship requires all six Last Chance participants");
   return [...locked, ...remaining];
 }

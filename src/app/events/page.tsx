@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, CalendarRange, Trophy, Users } from "lucide-react";
+import { ArrowRight, Trophy, Users } from "lucide-react";
 import { LeagueDataState } from "@/components/league-data-state";
 import { TierBadge, TierNavigation } from "@/components/tier-navigation";
 import { loadPublicLeagueData } from "@/services/public-league-data";
@@ -27,7 +27,7 @@ export default async function EventsPage({
           </p>
           <h1 className="mt-3 text-4xl font-black">Events</h1>
           <p className="mt-4 max-w-2xl text-slate-300">
-            Two Majors, one Last Chance, and the six-team RLCA Championship.
+            Major 1, Major 2, the six-team Last Chance Major, and the eight-team Championship Major. Every event match is Best of 7.
           </p>
         </div>
       </section>
@@ -57,8 +57,7 @@ export default async function EventsPage({
                   <h2 className="mt-6 text-3xl font-black">{event.name}</h2>
                   <div className="mt-3"><TierBadge tierId={tierId} compact /></div>
                   <p className={`mt-2 text-sm ${championship ? "text-slate-300" : "text-slate-500"}`}>{event.format}</p>
-                  <div className={`mt-7 grid gap-4 border-t pt-5 text-sm sm:grid-cols-3 ${championship ? "border-white/15 text-slate-300" : "border-slate-100 text-slate-500"}`}>
-                    <span className="flex items-center gap-2"><CalendarRange size={16} /><strong>{`Weeks ${event.startWeek}–${event.endWeek}`}</strong></span>
+                  <div className={`mt-7 grid gap-4 border-t pt-5 text-sm sm:grid-cols-2 ${championship ? "border-white/15 text-slate-300" : "border-slate-100 text-slate-500"}`}>
                     <span className="flex items-center gap-2"><Users size={16} /><strong>{event.teams} teams</strong></span>
                     <span className="sm:text-right"><strong>{event.award}</strong><small className="block">Top award</small></span>
                   </div>
