@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LeagueDataState } from "@/components/league-data-state";
-import { TierBadge } from "@/components/tier-navigation";
+import { TierBadge, TierIcon } from "@/components/tier-navigation";
 import { loadPublicLeagueData } from "@/services/public-league-data";
 import { normalizeTierId, tierDefinition } from "@/services/tiers";
 
@@ -26,20 +26,20 @@ export default async function TierDetailPage({
   if (!tierId) notFound();
   const tier = tierDefinition(tierId);
   const data = await loadPublicLeagueData({ tier: tierId });
-
-  if (data.status !== "ready") {
-    return <main className="min-h-[70vh] bg-[#f4f7fb] px-5 py-16"><LeagueDataState state={data.reason} /></main>;
-  }
-  const upcoming = data.matches.filter((match) => match.status === "SCHEDULED").slice(0, 4);
+  const upcoming = data.status === "ready"
+    ? data.matches.filter((match) => match.status === "SCHEDULED").slice(0, 4)
+    : [];
 
   return (
     <div className="min-h-screen bg-[#f4f7fb]">
       <section className="esports-surface px-5 py-16 text-white" style={{ borderBottom: `5px solid ${tier.color}` }}>
-        <div className="mx-auto max-w-7xl">
-          <TierBadge tierId={tierId} />
+        <div className="mx-auto grid max-w-7xl gap-8 sm:grid-cols-[auto_1fr] sm:items-center">
+          <TierIcon tier={tierId} size={124} />
+          <div>
+          <TierBadge tierId={tierId} dark />
           <h1 className="display-title mt-6 text-5xl sm:text-7xl">{tier.code}</h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
-            {data.season.name} teams, players, standings, matches, and rankings for the {tier.name} division only.
+            {data.status === "ready" ? data.season.name : "Season not announced"} · {tier.description}
           </p>
           <nav className="mt-8 flex flex-wrap gap-2" aria-label={`${tier.name} sections`}>
             {[
@@ -51,10 +51,15 @@ export default async function TierDetailPage({
               ["Rankings", `/rankings?tier=${tierId}`],
             ].map(([label, href]) => <Link key={label} href={href} className="rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-sm font-black hover:bg-white/10">{label}</Link>)}
           </nav>
+          </div>
         </div>
       </section>
 
       <main className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
+        {data.status !== "ready" ? (
+          <LeagueDataState state={data.reason} />
+        ) : (
+        <>
         <div className="grid gap-4 sm:grid-cols-3">
           {[[data.standings.length, "Teams"], [data.players.length, "Players"], [data.matches.length, "Matches"]].map(([value, label]) => (
             <div key={String(label)} className="panel p-6"><p className="stat-number text-4xl">{value}</p><p className="mt-2 text-sm font-bold text-slate-500">{label}</p></div>
@@ -83,6 +88,8 @@ export default async function TierDetailPage({
             </div>
           </section>
         </div>
+        </>
+        )}
       </main>
     </div>
   );

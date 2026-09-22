@@ -35,12 +35,17 @@ export default async function FranchiseDetailPage({
 
   return (
     <div className="min-h-screen bg-[#f4f7fa]">
-      <section className="px-5 py-16 text-white" style={{ backgroundColor: team.color }}>
-        <div className="mx-auto max-w-6xl">
+      <section className="esports-surface border-b-4 px-5 py-16 text-white" style={{ borderColor: team.color }}>
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-6">
+          <span className="flex h-24 w-24 items-center justify-center border border-white/20 text-2xl font-black text-white" style={{ backgroundColor: team.color }}>
+            {team.shortName}
+          </span>
+          <div>
           <p className="eyebrow">{data.season.name} franchise</p>
-          <h1 className="mt-3 text-5xl font-black">{team.name}</h1>
+          <h1 className="display-title mt-3 text-5xl sm:text-6xl">{team.name}</h1>
           <div className="mt-4"><TierBadge tierId={tierId} /></div>
           <p className="mt-4 text-lg">{team.wins}–{team.losses} · {team.points} Qualification Points</p>
+          </div>
         </div>
       </section>
       <section className="mx-auto grid max-w-6xl gap-6 px-5 py-12 md:grid-cols-3">

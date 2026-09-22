@@ -40,6 +40,13 @@ export default async function StandingsPage({
           <LeagueDataState state={data.reason} />
         ) : (
           <>
+            <div className="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
+              <div>
+                <p className="eyebrow text-slate-400">Season</p>
+                <p className="mt-2 text-lg font-black text-[#061426]">{data.season.name}</p>
+              </div>
+              <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Regular season · Tier isolated</p>
+            </div>
             <TierNavigation current={tierId} pathname="/standings" searchParams={{ season: query.season }} />
             <div className="mb-6 mt-6 grid gap-4 sm:grid-cols-2">
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-5">
@@ -67,8 +74,8 @@ export default async function StandingsPage({
                 <TierBadge tierId={tierId} />
                 <span className="text-xs font-bold text-slate-500">Season and tier isolated</span>
               </div>
-              <table className="w-full min-w-[1050px] border-collapse text-left">
-                <thead className="bg-[#05070C] text-xs uppercase tracking-wider text-slate-300">
+              <table className="data-table w-full min-w-[1050px] border-collapse text-left">
+                <thead className="bg-[#061426] text-xs uppercase tracking-wider text-slate-300">
                   <tr>
                     {["Seed", "Franchise", "Series", "Played", "Games", "Diff", "Win %", "Streak", "MMR", "Total pts", "Status"].map(
                       (label) => <th key={label} className="px-5 py-4">{label}</th>,

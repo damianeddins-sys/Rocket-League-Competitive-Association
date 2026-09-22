@@ -13,7 +13,7 @@ const filters = ["all", "upcoming", "live", "completed"] as const;
 export default async function MatchesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tier?: string; status?: string; page?: string }>;
+  searchParams: Promise<{ tier?: string; status?: string; team?: string; page?: string }>;
 }) {
   const query = await searchParams;
   const tierId = normalizeTierId(query.tier) ?? DEFAULT_TIER_ID;
@@ -29,6 +29,10 @@ export default async function MatchesPage({
       || (status === "upcoming" && match.status === "SCHEDULED")
       || (status === "live" && match.status === "SUBMITTED")
       || (status === "completed" && match.status === "VERIFIED"))
+      .filter((match) => !query.team || match.teamA.id === query.team || match.teamB.id === query.team)
+    : [];
+  const teams = data.status === "ready"
+    ? data.standings.map((team) => ({ id: team.id, name: team.name }))
     : [];
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const visible = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -40,10 +44,19 @@ export default async function MatchesPage({
       </section>
       <main className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
         {data.status !== "ready" ? <LeagueDataState state={data.reason} /> : <>
-          <TierNavigation current={tierId} pathname="/matches" searchParams={{ status }} />
+          <TierNavigation current={tierId} pathname="/matches" searchParams={{ status, team: query.team }} />
           <nav className="mt-5 flex flex-wrap gap-2" aria-label="Match status">
-            {filters.map((filter) => <Link key={filter} href={`/matches?tier=${tierId}&status=${filter}`} className={`rounded-full px-4 py-2 text-sm font-black ${status === filter ? "bg-[#061426] text-white" : "border border-slate-200 bg-white text-slate-600"}`}>{filter[0].toUpperCase() + filter.slice(1)}</Link>)}
+            {filters.map((filter) => <Link key={filter} href={`/matches?tier=${tierId}&status=${filter}${query.team ? `&team=${query.team}` : ""}`} className={`rounded-full px-4 py-2 text-sm font-black ${status === filter ? "bg-[#061426] text-white" : "border border-slate-200 bg-white text-slate-600"}`}>{filter[0].toUpperCase() + filter.slice(1)}</Link>)}
           </nav>
+          <form className="mt-5 flex max-w-lg gap-2">
+            <input type="hidden" name="tier" value={tierId} />
+            <input type="hidden" name="status" value={status} />
+            <select name="team" defaultValue={query.team ?? ""} aria-label="Filter matches by team" className="min-w-0 flex-1 border border-slate-300 bg-white px-4 py-2.5">
+              <option value="">All teams</option>
+              {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+            </select>
+            <button className="bg-[#168bff] px-5 py-2.5 font-black text-white">Filter</button>
+          </form>
           <div className="mt-7 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {visible.map((match) => (
               <Link key={match.id} href={`/matches/${match.id}?tier=${tierId}`} className="panel overflow-hidden">
@@ -61,7 +74,7 @@ export default async function MatchesPage({
             ))}
           </div>
           {!visible.length && <div className="panel mt-7 p-8 text-center text-slate-600">No {status === "all" ? "" : `${status} `}matches found.</div>}
-          {pages > 1 && <nav className="mt-7 flex justify-center gap-2" aria-label="Match pages">{page > 1 && <Link href={`/matches?tier=${tierId}&status=${status}&page=${page - 1}`} className="rounded-lg border bg-white px-4 py-2 font-bold">Previous</Link>}<span className="px-4 py-2 text-sm font-bold">Page {page} of {pages}</span>{page < pages && <Link href={`/matches?tier=${tierId}&status=${status}&page=${page + 1}`} className="rounded-lg border bg-white px-4 py-2 font-bold">Next</Link>}</nav>}
+          {pages > 1 && <nav className="mt-7 flex justify-center gap-2" aria-label="Match pages">{page > 1 && <Link href={`/matches?tier=${tierId}&status=${status}${query.team ? `&team=${query.team}` : ""}&page=${page - 1}`} className="rounded-lg border bg-white px-4 py-2 font-bold">Previous</Link>}<span className="px-4 py-2 text-sm font-bold">Page {page} of {pages}</span>{page < pages && <Link href={`/matches?tier=${tierId}&status=${status}${query.team ? `&team=${query.team}` : ""}&page=${page + 1}`} className="rounded-lg border bg-white px-4 py-2 font-bold">Next</Link>}</nav>}
         </>}
       </main>
     </div>

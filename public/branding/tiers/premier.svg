@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">RLCA Premier tier</title>
+  <path fill="#111827" d="M32 2 43 15l16-5-6 32-21 20-21-20-6-32 16 5L32 2Z"/>
+  <path fill="#FFC928" d="m32 8 9 12 12-4-4 23-17 17-17-17-4-23 12 4 9-12Z"/>
+  <path fill="#F8FAFC" d="m32 18 14 15-14 15-14-15 14-15Z"/>
+  <path fill="#D8DEE9" d="m32 24 8 9-8 9-8-9 8-9Z"/>
+  <path fill="#111827" d="m32 28 4 5-4 5-4-5 4-5Z"/>
+  <path fill="#F8FAFC" d="M5 8 18 5l-3 9L5 8Zm54 0L46 5l3 9 10-6Z"/>
+</svg>

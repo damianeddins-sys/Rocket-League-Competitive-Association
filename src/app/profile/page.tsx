@@ -32,12 +32,20 @@ export default async function ProfilePage() {
           ].map(([label, value]) => <div key={label} className="panel p-6"><p className="eyebrow text-slate-400">{label}</p><p className="mt-2 text-xl font-black">{value}</p></div>)}
         </div>
         <section className="panel mt-7 p-7">
-          <h2 className="text-2xl font-black">Member tools</h2>
+          <p className="eyebrow text-[#168bff]">My RLCA</p>
+          <h2 className="mt-2 text-2xl font-black">Member tools</h2>
           <p className="mt-3 text-slate-600">Private application answers, staff notes, Discord IDs, and moderation records are never shown here.</p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/applications" className="rounded-lg bg-[#168bff] px-5 py-3 font-black text-white">Applications</Link>
-            <Link href="/dashboard" className="rounded-lg border border-slate-200 px-5 py-3 font-black">Player dashboard</Link>
-            <Link href="/coach" className="rounded-lg border border-slate-200 px-5 py-3 font-black">Coach & replays</Link>
+          <div className="mt-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              ["My profile", "/dashboard"],
+              ["My applications", "/applications"],
+              ["My team", "/teams"],
+              ["My matches", "/matches"],
+              ["My statistics", "/statistics"],
+              ["My MMR & coach", "/coach"],
+            ].map(([label, href], index) => (
+              <Link key={label} href={href} className={`border px-5 py-3 font-black ${index === 1 ? "border-[#168bff] bg-[#168bff] text-white" : "border-slate-200 bg-white text-[#061426] hover:border-blue-300"}`}>{label}</Link>
+            ))}
           </div>
         </section>
       </main>

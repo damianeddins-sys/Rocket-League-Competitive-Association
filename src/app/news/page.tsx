@@ -31,6 +31,7 @@ export default async function NewsPage() {
                   <p className="eyebrow text-[#168bff]">Official update</p>
                   <h2 className="mt-3 text-2xl font-black text-[#061426]">{article.title}</h2>
                   <p className="mt-4 line-clamp-6 whitespace-pre-line leading-7 text-slate-600">{article.body}</p>
+                  <Link href={`/news/${article.key}`} className="mt-5 inline-flex font-black text-[#0765c9]">Read story →</Link>
                 </div>
               </article>
             ))}
