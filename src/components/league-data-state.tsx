@@ -40,16 +40,32 @@ export function LeagueDataState({
   const isError = state.startsWith("DATABASE_");
 
   return (
-    <div className="panel mx-auto max-w-2xl p-8 text-center">
-      <p className="eyebrow text-[#1677ff]">Official data status</p>
-      <h2 className="mt-3 text-2xl font-black text-[#0b1f3a]">{copy.title}</h2>
-      <p className="mt-3 leading-7 text-slate-600">{copy.detail}</p>
-      <div className="mt-6 flex flex-wrap justify-center gap-3">
-        {isError && <a href="" className="inline-flex rounded-md bg-[#168bff] px-5 py-3 font-bold text-white">Retry</a>}
-        <Link href="/league" className="inline-flex rounded-md bg-[#0b1f3a] px-5 py-3 font-bold text-white">
-          {isError ? "Return to league" : "View league format"}
-        </Link>
+    <section className="empty-stage overflow-hidden p-0 text-left">
+      <div className="grid min-h-80 lg:grid-cols-[1.15fr_.85fr]">
+        <div className="flex flex-col justify-center p-8 sm:p-10 lg:p-12">
+          <p className="eyebrow text-[#1677ff]">Official league data status</p>
+          <h2 className="mt-3 max-w-2xl text-3xl font-black text-[#0b1f3a] sm:text-4xl">{copy.title}</h2>
+          <p className="mt-4 max-w-2xl leading-7 text-slate-600">{copy.detail}</p>
+          <div className="mt-7 flex flex-wrap gap-3">
+            {isError && <a href="" className="inline-flex rounded-md bg-[#168bff] px-5 py-3 font-bold text-white">Retry official data</a>}
+            <Link href="/league" className="inline-flex rounded-md bg-[#0b1f3a] px-5 py-3 font-bold text-white">
+              {isError ? "Return to league" : "View league format"}
+            </Link>
+          </div>
+        </div>
+        <div className="grid gap-px border-t border-slate-200 bg-slate-200 sm:grid-cols-3 lg:grid-cols-1 lg:border-l lg:border-t-0">
+          {[
+            ["Verified records", "Only official database records appear on RLCA league pages."],
+            ["No invented fallback", "Teams, players, scores, standings, and statistics are never fabricated."],
+            ["Published automatically", "This view fills with the correct structure when authorized league data is available."],
+          ].map(([title, detail]) => (
+            <div key={title} className="bg-white p-6">
+              <h3 className="font-black text-[#061426]">{title}</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{detail}</p>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
