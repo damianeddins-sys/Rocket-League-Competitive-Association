@@ -2,26 +2,46 @@ import Image from "next/image";
 import Link from "next/link";
 import { TIERS, type TierId, tierDefinition } from "@/services/tiers";
 
+export function TierIcon({
+  tier,
+  size = 40,
+  decorative = false,
+}: {
+  tier: TierId;
+  size?: number;
+  decorative?: boolean;
+}) {
+  const definition = tierDefinition(tier);
+  return (
+    <Image
+      src={definition.iconPath}
+      alt={decorative ? "" : `${definition.name} tier`}
+      width={size}
+      height={size}
+      className="shrink-0 object-contain"
+      style={{ width: size, height: size }}
+    />
+  );
+}
+
 export function TierBadge({
   tierId,
   compact = false,
+  dark = false,
 }: {
   tierId: TierId;
   compact?: boolean;
+  dark?: boolean;
 }) {
   const tier = tierDefinition(tierId);
   return (
     <span
-      className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-xs font-black uppercase tracking-wider text-[#05070C]"
-      style={{ borderColor: tier.color }}
+      className={`inline-flex items-center rounded-full border text-xs font-black uppercase tracking-[0.14em] ${
+        compact ? "gap-1.5 py-1 pl-1 pr-3" : "gap-2 py-1.5 pl-1.5 pr-4"
+      } ${dark ? "bg-slate-950/55 text-white" : "bg-white text-[#071426]"}`}
+      style={{ borderColor: `${tier.color}80`, boxShadow: `inset 0 0 0 1px ${tier.color}12` }}
     >
-      <Image
-        src={tier.iconPath}
-        alt=""
-        width={compact ? 30 : 42}
-        height={compact ? 30 : 42}
-        className="object-contain"
-      />
+      <TierIcon tier={tierId} size={compact ? 25 : 32} decorative />
       {tier.name}
     </span>
   );
@@ -51,7 +71,7 @@ export function TierNavigation({
               key={tier.id}
               href={`${pathname}?${query.toString()}`}
               aria-current={active ? "page" : undefined}
-              className="flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-black transition"
+              className="flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-black transition"
               style={{
                 borderColor: tier.color,
                 backgroundColor: active ? tier.color : "#FFFFFF",
@@ -59,7 +79,7 @@ export function TierNavigation({
                 boxShadow: active ? `0 8px 24px ${tier.color}33` : undefined,
               }}
             >
-              <Image src={tier.iconPath} alt="" width={48} height={48} className="object-contain" />
+              <TierIcon tier={tier.id} size={34} decorative />
               {tier.name}
             </Link>
           );

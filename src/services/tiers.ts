@@ -12,6 +12,8 @@ export type TierDefinition = {
   color: string;
   iconPath: string;
   ordinal: number;
+  description: string;
+  progression: string;
 };
 
 export const TIERS: readonly TierDefinition[] = Object.freeze([
@@ -20,32 +22,40 @@ export const TIERS: readonly TierDefinition[] = Object.freeze([
     code: "CONTENDER",
     name: "Contender",
     color: "#8A2BE2",
-    iconPath: "/branding/tiers/contender.png",
+    iconPath: "/branding/tiers/contender.svg",
     ordinal: 1,
+    description: "The competitive foundation for emerging RLCA rosters.",
+    progression: "Build your record",
   },
   {
     id: "challenger",
     code: "CHALLENGER",
     name: "Challenger",
     color: "#168BFF",
-    iconPath: "/branding/tiers/challenger.png",
+    iconPath: "/branding/tiers/challenger.svg",
     ordinal: 2,
+    description: "Proven teams pushing beyond the league foundation.",
+    progression: "Advance the standard",
   },
   {
     id: "master",
     code: "MASTER",
     name: "Master",
     color: "#FF2A2A",
-    iconPath: "/branding/tiers/master.png",
+    iconPath: "/branding/tiers/master.svg",
     ordinal: 3,
+    description: "High-level competition for established contenders.",
+    progression: "Master the field",
   },
   {
     id: "premier",
     code: "PREMIER",
     name: "Premier",
     color: "#FFC928",
-    iconPath: "/branding/tiers/premier.png",
+    iconPath: "/branding/tiers/premier.svg",
     ordinal: 4,
+    description: "RLCA's highest level and championship standard.",
+    progression: "Define the league",
   },
 ]);
 export const TIERS_HIGHEST_FIRST: readonly TierDefinition[] = Object.freeze([...TIERS].reverse());

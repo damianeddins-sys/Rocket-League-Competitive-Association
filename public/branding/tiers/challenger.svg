@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">RLCA Challenger tier</title>
+  <path fill="#111827" d="M32 2 58 18 50 50 32 62 14 50 6 18 32 2Z"/>
+  <path fill="#168BFF" d="m32 7 21 13-6.5 27L32 56.5 17.5 47 11 20 32 7Z"/>
+  <path fill="#F8FAFC" d="m32 12 12 8-12 8-12-8 12-8Z"/>
+  <path fill="#D8DEE9" d="m17 29 15 9 15-9-2 9-13 8-13-8-2-9Z"/>
+  <path fill="#111827" d="m27 29 5-3 5 3v7l-5 3-5-3v-7Z"/>
+  <path fill="#F8FAFC" d="m8 18 9 2 2 8-9-4-2-6Zm48 0-9 2-2 8 9-4 2-6Z"/>
+</svg>

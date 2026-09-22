@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">RLCA Contender tier</title>
+  <path fill="#111827" d="M32 3 56 12v19c0 14-9.7 24.6-24 30C17.7 55.6 8 45 8 31V12L32 3Z"/>
+  <path fill="#8A2BE2" d="m32 7 20 7.4V31c0 11.4-7.5 20.4-20 25.5C19.5 51.4 12 42.4 12 31V14.4L32 7Z"/>
+  <path fill="#F8FAFC" d="m32 13 13 5v7l-13-5-13 5v-7l13-5Z"/>
+  <path fill="#D8DEE9" d="m19 31 13-5 13 5v7L32 33l-13 5v-7Z"/>
+  <path fill="#111827" d="m27 38 5-2 5 2v8l-5 4-5-4v-8Z"/>
+</svg>

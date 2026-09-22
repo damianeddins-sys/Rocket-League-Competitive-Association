@@ -30,10 +30,10 @@ describe("four-tier competition isolation", () => {
     ]);
     expect(new Set(TIERS.map((tier) => tier.iconPath)).size).toBe(4);
     expect(TIERS.map((tier) => tier.iconPath)).toEqual([
-      "/branding/tiers/contender.png",
-      "/branding/tiers/challenger.png",
-      "/branding/tiers/master.png",
-      "/branding/tiers/premier.png",
+      "/branding/tiers/contender.svg",
+      "/branding/tiers/challenger.svg",
+      "/branding/tiers/master.svg",
+      "/branding/tiers/premier.svg",
     ]);
     expect(normalizeTierId("PREMIER")).toBe("premier");
     expect(normalizeTierId("tier1")).toBeNull();

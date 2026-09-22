@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { TierBadge, TierNavigation } from "@/components/tier-navigation";
 import { readApiResult } from "@/services/api-response";
-import type { TierId } from "@/services/tiers";
+import { normalizeTierId, tierDefinition, type TierId } from "@/services/tiers";
 
 function Feedback({ message }: { message?: string }) {
   return message
@@ -587,11 +587,14 @@ export function SettingsManager({
           {tiers.map((tier) => (
             <form key={tier.id} action={saveTier} className="rounded-xl border bg-white p-4" style={{ borderTop: `4px solid ${tier.color}` }}>
               <input type="hidden" name="id" value={tier.id} />
-              <p className="font-mono text-xs font-black uppercase text-slate-400">{tier.slug}</p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-mono text-xs font-black uppercase text-slate-400">{tier.slug}</p>
+                {normalizeTierId(tier.slug) && <TierBadge tierId={normalizeTierId(tier.slug)!} compact />}
+              </div>
               <input name="displayName" required defaultValue={tier.displayName} className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" aria-label="Tier display name" />
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <input name="color" required pattern="#[0-9a-fA-F]{6}" defaultValue={tier.color} className="rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm" aria-label="Tier color" />
-                <input name="iconPath" required defaultValue={tier.iconPath} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" aria-label="Tier icon path" />
+                <input name="iconPath" required readOnly value={normalizeTierId(tier.slug) ? tierDefinition(normalizeTierId(tier.slug)!).iconPath : tier.iconPath} className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" aria-label="Tier icon path" />
               </div>
               <input name="reason" required minLength={3} placeholder="Required audit reason" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
               <label className="mt-3 flex items-center gap-2 text-sm font-bold"><input name="active" type="checkbox" defaultChecked={tier.active} /> Active for season</label>

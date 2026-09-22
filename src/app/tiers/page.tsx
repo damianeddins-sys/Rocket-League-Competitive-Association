@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
+import { TierIcon } from "@/components/tier-navigation";
 import { loadPublicLeagueData } from "@/services/public-league-data";
 import { TIERS } from "@/services/tiers";
 
@@ -32,26 +33,24 @@ export default async function TiersPage() {
               <article key={tier.id} className="panel relative overflow-hidden">
                 <div className="absolute inset-y-0 left-0 w-1.5" style={{ backgroundColor: tier.color }} />
                 <div className="grid gap-7 p-7 sm:grid-cols-[7rem_1fr] sm:p-9">
-                  <div className="flex h-28 w-28 items-center justify-center rounded-2xl bg-slate-50">
-                    <Image src={tier.iconPath} alt={`${tier.name} tier badge`} width={104} height={104} className="h-24 w-24 object-contain" />
+                  <div className="flex h-28 w-28 items-center justify-center bg-slate-50">
+                    <TierIcon tier={tier.id} size={96} />
                   </div>
                   <div>
-                    <p className="eyebrow" style={{ color: tier.color }}>Level {tier.ordinal} of 4</p>
+                    <p className="eyebrow" style={{ color: tier.color }}>{tier.progression} · Level {tier.ordinal} of 4</p>
                     <h2 className="mt-2 text-3xl font-black text-[#061426]">{tier.code}</h2>
-                    <p className="mt-3 leading-7 text-slate-600">
-                      {tier.ordinal === 1
-                        ? "The starting competitive division for developing RLCA teams and players."
-                        : tier.ordinal === 4
-                          ? "RLCA's highest competitive division and top level of league play."
-                          : `The ${tier.name} division sits between ${TIERS[tier.ordinal - 2].name} and ${TIERS[tier.ordinal]?.name}.`}
-                    </p>
+                    <p className="mt-3 leading-7 text-slate-600">{tier.description}</p>
                     <dl className="mt-5 flex gap-8 border-t border-slate-100 pt-5">
                       <div><dt className="text-xs font-bold uppercase tracking-wider text-slate-400">Teams</dt><dd className="stat-number mt-1 text-2xl">{teams}</dd></div>
                       <div><dt className="text-xs font-bold uppercase tracking-wider text-slate-400">Players</dt><dd className="stat-number mt-1 text-2xl">{players}</dd></div>
                     </dl>
-                    <Link href={`/tiers/${tier.id}`} className="mt-6 inline-flex rounded-lg px-5 py-3 text-sm font-black text-white" style={{ backgroundColor: tier.color }}>
-                      View {tier.name}
-                    </Link>
+                    <div className="mt-6 flex flex-wrap gap-x-4 gap-y-3 text-sm font-black">
+                      <Link href={`/tiers/${tier.id}`} className="inline-flex items-center gap-1 text-[#061426]">Tier hub <ArrowUpRight size={15} /></Link>
+                      <Link href={`/standings?tier=${tier.id}`} className="text-slate-600 hover:text-[#061426]">Standings</Link>
+                      <Link href={`/teams?tier=${tier.id}`} className="text-slate-600 hover:text-[#061426]">Teams</Link>
+                      <Link href={`/matches?tier=${tier.id}`} className="text-slate-600 hover:text-[#061426]">Matches</Link>
+                      <Link href={`/statistics?tier=${tier.id}`} className="text-slate-600 hover:text-[#061426]">Statistics</Link>
+                    </div>
                   </div>
                 </div>
               </article>

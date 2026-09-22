@@ -28,10 +28,18 @@ export default async function PlayerDetailPage({
   return (
     <div className="min-h-screen bg-[#f4f7fb]">
       <section className="esports-surface px-5 py-16 text-white" style={{ borderBottom: `5px solid ${data.tier.color}` }}>
-        <div className="mx-auto max-w-6xl">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-6">
+          {player.avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={player.avatarUrl} alt="" className="h-24 w-24 rounded-full border-2 border-white/20 object-cover" />
+          ) : (
+            <span className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-white/20 bg-blue-400/15 text-3xl font-black">{player.handle.slice(0, 2).toUpperCase()}</span>
+          )}
+          <div>
           <p className="eyebrow text-blue-300">Public player profile</p>
           <h1 className="display-title mt-3 text-5xl sm:text-7xl">{player.handle}</h1>
           <div className="mt-5"><TierBadge tierId={tierId} /></div>
+          </div>
         </div>
       </section>
       <main className="mx-auto max-w-6xl px-5 py-12">
@@ -49,6 +57,16 @@ export default async function PlayerDetailPage({
           <div className="mt-6 flex flex-wrap gap-3">
             <Link href={`/rankings?tier=${tierId}`} className="rounded-lg bg-[#168bff] px-5 py-3 font-black text-white">Tier rankings</Link>
             <Link href={`/matches?tier=${tierId}`} className="rounded-lg border border-slate-200 px-5 py-3 font-black">Match history</Link>
+          </div>
+        </section>
+        <section className="panel mt-7 p-7">
+          <p className="eyebrow text-[#168bff]">Career record</p>
+          <h2 className="mt-2 text-2xl font-black">History and transactions</h2>
+          <p className="mt-3 leading-7 text-slate-600">
+            Public tier changes, roster movement, team history, and awards appear only when supported by an official published record. Private application and staff history is never exposed.
+          </p>
+          <div className="mt-6 border-y border-slate-200 py-6 text-sm font-semibold text-slate-500">
+            No published career-history events are available for this player.
           </div>
         </section>
       </main>

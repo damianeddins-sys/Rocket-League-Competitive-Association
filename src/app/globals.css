@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --rlca-background: #f4f7fb;
+  --rlca-background: #f2f5f8;
   --rlca-surface: #ffffff;
   --rlca-surface-2: #eef3f8;
   --rlca-primary: #168bff;
@@ -45,6 +45,13 @@ body {
   overflow-x: hidden;
 }
 
+h1,
+h2,
+h3,
+.display-font {
+  font-family: var(--font-rlca-display), var(--font-geist-sans), sans-serif;
+}
+
 a,
 button {
   transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease,
@@ -58,17 +65,17 @@ button:focus-visible {
 }
 
 .eyebrow {
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.18em;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
 }
 
 .panel {
   border: 1px solid var(--border);
-  border-radius: 1rem;
+  border-radius: 0.65rem;
   background: var(--rlca-surface);
-  box-shadow: 0 10px 35px rgb(6 20 38 / 0.055);
+  box-shadow: 0 8px 28px rgb(6 20 38 / 0.05);
 }
 
 a.panel {
@@ -82,10 +89,11 @@ a.panel:hover {
 
 .hero-grid {
   background-image:
-    radial-gradient(circle at 85% 15%, rgb(22 139 255 / 0.18), transparent 28rem),
+    linear-gradient(115deg, rgb(6 20 38 / 0.15), rgb(6 20 38 / 0.92)),
+    radial-gradient(circle at 84% 18%, rgb(22 139 255 / 0.25), transparent 26rem),
     linear-gradient(rgb(255 255 255 / 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgb(255 255 255 / 0.035) 1px, transparent 1px);
-  background-size: 40px 40px;
+  background-size: auto, auto, 48px 48px, 48px 48px;
 }
 
 .esports-surface {
@@ -103,9 +111,11 @@ a.panel:hover {
 }
 
 .display-title {
-  font-weight: 900;
-  letter-spacing: -0.045em;
-  line-height: 0.98;
+  font-family: var(--font-rlca-display), var(--font-geist-sans), sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 0.9;
+  text-transform: uppercase;
 }
 
 .stat-number {
@@ -138,12 +148,41 @@ a.panel:hover {
   list-style: none;
 }
 
+.nav-popover > summary {
+  list-style: none;
+}
+
+.nav-popover > summary::-webkit-details-marker,
 .mobile-menu > summary::-webkit-details-marker {
   display: none;
 }
 
 .mobile-menu[open] > summary {
   background: rgb(255 255 255 / 0.1);
+}
+
+.nav-popover[open] > summary {
+  background: rgb(255 255 255 / 0.08);
+  color: white;
+}
+
+.data-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.data-table tbody tr {
+  transition: background-color 150ms ease;
+}
+
+.data-table tbody tr:hover {
+  background: #f7faff;
+}
+
+.league-rule {
+  height: 1px;
+  background: linear-gradient(90deg, var(--rlca-primary), rgb(22 139 255 / 0));
 }
 
 .page-enter {

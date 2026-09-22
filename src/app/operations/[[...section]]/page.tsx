@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Activity, Bot, Database, FileClock, HardDrive, Image, Settings, ShieldAlert, UserRoundCheck, Users } from "lucide-react";
+import { Activity, Bot, CalendarDays, Database, FileClock, HardDrive, Image, Settings, ShieldAlert, UserRoundCheck, Users } from "lucide-react";
 import { ApplicationManager } from "@/components/application-manager";
 import { ContentManager } from "@/components/content-manager";
 import { MediaUploader } from "@/components/media-uploader";
@@ -54,6 +54,7 @@ const sections = {
   matches: { label: "Matches", portal: "PRODUCTION" as Portal, permission: "matches.manage" as Permission, icon: Activity },
   standings: { label: "Standings & Results", portal: "PRODUCTION" as Portal, permission: "matches.manage" as Permission, icon: Activity },
   tiers: { label: "Tier Management", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: Settings },
+  seasons: { label: "Seasons", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: CalendarDays },
   staff: { label: "Staff", portal: "LEAGUE_OPERATIONS" as Portal, permission: "users.manage" as Permission, icon: Users },
   documents: { label: "Documents", portal: "SIGN_UP_MANAGER" as Portal, permission: "applications.manage" as Permission, icon: FileClock },
   media: { label: "Photos & Media", portal: "LEAGUE_OPERATIONS" as Portal, permission: "media.manage" as Permission, icon: Image },
@@ -141,7 +142,9 @@ export default async function OperationsPage({
   const playerManagement = sectionKey === "players" || sectionKey === "mmr" ? await loadPlayerManagement() : null;
   const teamManagement = sectionKey === "teams" ? await loadTeamManagement() : null;
   const documentManagement = sectionKey === "documents" ? await loadDocumentManagement() : null;
-  const settingsManagement = sectionKey === "settings" || sectionKey === "tiers" ? await loadSettingsManagement() : null;
+  const settingsManagement = sectionKey === "settings" || sectionKey === "tiers" || sectionKey === "seasons"
+    ? await loadSettingsManagement()
+    : null;
   const auditManagement = sectionKey === "audit" ? await loadAuditManagement() : null;
   const franchiseWorkspace = sectionKey === "franchise" ? await loadFranchiseWorkspace(access.franchiseNumber) : null;
   const statisticsWorkspace = sectionKey === "statistics" ? await loadStatisticsWorkspace(tierId) : null;
@@ -174,7 +177,8 @@ export default async function OperationsPage({
         </div>
       </section>
       <main className="mx-auto grid max-w-7xl gap-7 px-5 py-10 lg:grid-cols-[16rem_1fr] lg:px-8">
-        <nav className="panel h-fit p-3" aria-label="Operations sections">
+        <nav className="h-fit border border-slate-200 bg-white p-2 lg:sticky lg:top-28" aria-label="Operations sections">
+          <p className="px-3 pb-3 pt-2 text-[10px] font-black uppercase tracking-[.18em] text-slate-400">League operations</p>
           {Object.entries(sections)
             .filter(([, item]) =>
               access.portals.includes(item.portal)
@@ -186,7 +190,7 @@ export default async function OperationsPage({
               <Link
                 key={key}
                 href={key === "overview" ? "/operations" : `/operations/${key}`}
-                className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-bold ${key === sectionKey ? "bg-[#1683ff] text-white" : "text-slate-600 hover:bg-slate-100"}`}
+                className={`flex items-center gap-3 border-l-2 px-4 py-3 text-sm font-bold ${key === sectionKey ? "border-[#1683ff] bg-blue-50 text-[#075fac]" : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-[#061426]"}`}
               >
                 <Icon size={17} /> {item.label}
               </Link>
