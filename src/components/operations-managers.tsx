@@ -6,7 +6,7 @@ import { useState } from "react";
 import { TierBadge, TierIcon, TierNavigation } from "@/components/tier-navigation";
 import { readApiResult } from "@/services/api-response";
 import { normalizeTierId, tierDefinition, type TierId } from "@/services/tiers";
-import { SEASON_ONE_RULES } from "@/services/rules";
+import { APPROVED_PLAYER_MMR_RULE } from "@/services/rulebook";
 
 function Feedback({ message }: { message?: string }) {
   return message
@@ -225,6 +225,22 @@ type PlayerRow = {
   status: string | null;
   division: string | null;
   currentMmr: string | null;
+  previousMmr: string | null;
+  verificationStatus: string;
+  verificationDate: string | null;
+  verificationData: {
+    opensAt: string;
+    closesAt: string;
+    rankedGamesPlayed: number;
+    acceptedSnapshots: number;
+  } | null;
+  ratingHistory: Array<{
+    previousMmr: string;
+    nextMmr: string;
+    delta: string;
+    reason: string;
+    createdAt: string;
+  }>;
   team: string | null;
 };
 
@@ -301,7 +317,7 @@ export function MmrManager({ players }: { players: PlayerRow[] }) {
         <p className="eyebrow text-blue-300">RLCA rating pathway</p>
         <div className="mt-5 grid gap-px overflow-hidden rounded-lg bg-white/10 sm:grid-cols-4">
           {[
-            ["01", "Verify", `${SEASON_ONE_RULES.verification.windowDays}-day window · ${SEASON_ONE_RULES.verification.rankedGamesRequired} ranked 2v2 games`],
+            ["01", "Verify", `${APPROVED_PLAYER_MMR_RULE.verificationDays}-day window · ${APPROVED_PLAYER_MMR_RULE.minimumRankedGames} ranked 2v2 games minimum`],
             ["02", "Calculate", "Verified Ranked 2v2 evidence"],
             ["03", "Rank", "1000 starting scale · higher means stronger"],
             ["04", "Tier", "Official placement in one RLCA division"],
@@ -322,13 +338,52 @@ export function MmrManager({ players }: { players: PlayerRow[] }) {
         Manual MMR corrections are restricted, append a rating event, and require an audit reason.
       </p>
       {eligible.map((player) => (
-        <form key={player.id} action={save} className="grid gap-3 rounded-xl border border-slate-200 bg-white p-5 md:grid-cols-[1fr_10rem_1.5fr_auto] md:items-end">
-          <input type="hidden" name="playerSeasonId" value={player.playerSeasonId!} />
-          <div><p className="font-black">{player.handle}</p><p className="mt-1 text-xs text-slate-500">{player.division ?? "Unplaced"} · {player.team ?? "No team"}</p></div>
-          <label className="text-sm font-bold">RLCA MMR<input name="currentMmr" type="number" min="0" max="5000" step="1" defaultValue={player.currentMmr ?? "1000"} required className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
-          <label className="text-sm font-bold">Audit reason<input name="reason" minLength={3} maxLength={2000} required className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
-          <button className="rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Update MMR</button>
-        </form>
+        <article key={player.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="grid gap-4 border-b border-slate-200 p-5 md:grid-cols-[1fr_auto]">
+            <div>
+              <p className="eyebrow text-[#168bff]">{player.verificationStatus.replaceAll("_", " ")}</p>
+              <h3 className="mt-2 text-xl font-black text-[#061426]">{player.handle}</h3>
+              <p className="mt-1 text-sm text-slate-500">{player.division ?? "Unplaced"} · {player.team ?? "No team"}</p>
+            </div>
+            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 text-center">
+              <div className="bg-slate-50 px-5 py-3"><dt className="text-[10px] font-black uppercase tracking-wider text-slate-400">Current MMR</dt><dd className="stat-number mt-1 text-2xl text-[#061426]">{player.currentMmr ?? "—"}</dd></div>
+              <div className="bg-slate-50 px-5 py-3"><dt className="text-[10px] font-black uppercase tracking-wider text-slate-400">Previous MMR</dt><dd className="stat-number mt-1 text-2xl text-[#061426]">{player.previousMmr ?? "—"}</dd></div>
+            </dl>
+          </div>
+          <div className="grid gap-5 p-5 lg:grid-cols-[.8fr_1.2fr]">
+            <section>
+              <h4 className="font-black text-[#061426]">Verification evidence</h4>
+              {player.verificationData ? (
+                <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+                  <div className="rounded-lg bg-slate-50 p-3"><dt className="text-xs text-slate-400">Verification date</dt><dd className="mt-1 font-bold">{new Date(player.verificationDate!).toLocaleDateString()}</dd></div>
+                  <div className="rounded-lg bg-slate-50 p-3"><dt className="text-xs text-slate-400">Ranked 2v2 games</dt><dd className="mt-1 font-bold">{player.verificationData.rankedGamesPlayed}</dd></div>
+                  <div className="rounded-lg bg-slate-50 p-3"><dt className="text-xs text-slate-400">Accepted snapshots</dt><dd className="mt-1 font-bold">{player.verificationData.acceptedSnapshots}</dd></div>
+                  <div className="rounded-lg bg-slate-50 p-3"><dt className="text-xs text-slate-400">Evidence window</dt><dd className="mt-1 font-bold">{new Date(player.verificationData.opensAt).toLocaleDateString()}–{new Date(player.verificationData.closesAt).toLocaleDateString()}</dd></div>
+                </dl>
+              ) : <p className="mt-3 rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">No verification window is stored for this player.</p>}
+            </section>
+            <section>
+              <h4 className="font-black text-[#061426]">Rating history and audit evidence</h4>
+              <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
+                {player.ratingHistory.map((event) => (
+                  <div key={`${event.createdAt}-${event.nextMmr}`} className="grid gap-2 rounded-lg bg-slate-50 p-3 text-sm sm:grid-cols-[auto_1fr_auto]">
+                    <span className="font-mono font-black">{event.previousMmr} → {event.nextMmr}</span>
+                    <span className="text-slate-600">{event.reason}</span>
+                    <span className="text-xs text-slate-400">{new Date(event.createdAt).toLocaleString()}</span>
+                  </div>
+                ))}
+                {!player.ratingHistory.length && <p className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">No rating changes are stored. Current MMR has no correction history.</p>}
+              </div>
+            </section>
+          </div>
+          <form action={save} className="grid gap-3 border-t border-slate-200 bg-slate-50 p-5 md:grid-cols-[1fr_10rem_1.5fr_auto] md:items-end">
+            <input type="hidden" name="playerSeasonId" value={player.playerSeasonId!} />
+            <div><p className="font-black">Audited correction</p><p className="mt-1 text-xs text-slate-500">Creates rating history and an audit-log entry.</p></div>
+            <label className="text-sm font-bold">New RLCA MMR<input name="currentMmr" type="number" min="0" max="5000" step="1" defaultValue={player.currentMmr ?? "1000"} required className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+            <label className="text-sm font-bold">Required audit reason<input name="reason" minLength={3} maxLength={2000} required className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+            <button className="rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Update MMR</button>
+          </form>
+        </article>
       ))}
       {!eligible.length && <Empty text="No active player-season records are available for MMR management." />}
     </div>

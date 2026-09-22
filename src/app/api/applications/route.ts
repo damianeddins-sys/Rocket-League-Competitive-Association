@@ -13,7 +13,11 @@ import {
 import { buildAuditLogRecord } from "@/services/audit";
 import { consumeAuthRateLimit } from "@/services/auth/rate-limit";
 import { getSession } from "@/services/auth/session";
-import { applicationReference, applicationSubmissionSchema } from "@/services/applications";
+import {
+  applicationAnswersForSubmission,
+  applicationReference,
+  applicationSubmissionSchema,
+} from "@/services/applications";
 import { notificationJob } from "@/services/discord/notifications";
 
 export const runtime = "nodejs";
@@ -53,6 +57,7 @@ export async function POST(request: Request) {
       error: parsed.error.issues[0]?.message ?? "Application details are invalid",
     }, { status: 400 });
   }
+  const applicationAnswers = applicationAnswersForSubmission(parsed.data);
   const limit = await consumeAuthRateLimit({
     key: `application-submit:${session.user.id}`,
     limit: 5,
@@ -104,6 +109,7 @@ export async function POST(request: Request) {
         experience: parsed.data.experience || null,
         availability: parsed.data.availability,
         notes: parsed.data.notes || null,
+        answersJson: applicationAnswers,
         agreementsAccepted: true,
         updatedAt: now,
       }).where(eq(applications.id, duplicate[0].id));
@@ -168,6 +174,7 @@ export async function POST(request: Request) {
         experience: parsed.data.experience || null,
         availability: parsed.data.availability,
         notes: parsed.data.notes || null,
+        answersJson: applicationAnswers,
         agreementsAccepted: true,
       })
       .returning({ id: applications.id, status: applications.status });

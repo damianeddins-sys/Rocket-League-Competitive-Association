@@ -98,9 +98,6 @@ export function ApplicationManager({
             <div className="mt-5 grid gap-3 rounded-lg bg-slate-50 p-4 text-sm sm:grid-cols-2">
               <p><strong>Availability:</strong> {application.availability}</p>
               {application.handle && <p><strong>Handle:</strong> {application.handle}</p>}
-              {application.platform && <p><strong>Platform:</strong> {application.platform}</p>}
-              {application.epicAccountId && <p><strong>Epic:</strong> {application.epicAccountId}</p>}
-              {application.trackerUrl && <p className="break-all"><strong>Tracker:</strong> <a href={application.trackerUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">Open profile</a></p>}
               {application.type === "PLAYER" && <p><strong>Alternate accounts declared:</strong> {application.alternateAccountsDeclared ? "Yes" : "No"}</p>}
               {application.preferredDepartment && <p><strong>Department:</strong> {application.preferredDepartment}</p>}
               {application.experience && <p className="sm:col-span-2"><strong>Experience:</strong> {application.experience}</p>}
@@ -113,6 +110,48 @@ export function ApplicationManager({
                   </p>
                 ))}
             </div>
+            {application.type === "PLAYER" && application.epicAccountId && (
+              <section className="mt-4 rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="eyebrow text-blue-700">Declared Rocket League accounts</p>
+                    <h4 className="mt-1 font-black text-blue-950">{1 + application.additionalAccounts.length} account record(s)</h4>
+                  </div>
+                  <span className="rounded-full bg-blue-700 px-3 py-1 text-[10px] font-black text-white">STAFF REVIEW</span>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {[{
+                    platform: application.platform ?? "EPIC",
+                    accountId: application.epicAccountId,
+                    trackerUrl: application.trackerUrl ?? "",
+                  }, ...application.additionalAccounts].map((account, index) => (
+                    <article key={`${account.platform}-${account.accountId}-${index}`} className="rounded-lg border border-blue-100 bg-white p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10px] font-black uppercase tracking-[.1em] text-blue-700">{index === 0 ? "Primary account" : `Additional account ${index}`}</p>
+                        <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600">{account.platform}</span>
+                      </div>
+                      <p className="mt-3 break-all font-mono text-sm font-bold text-[#061426]">{account.accountId}</p>
+                      {account.trackerUrl
+                        ? <a href={account.trackerUrl} target="_blank" rel="noreferrer" className="mt-2 block break-all text-xs font-bold text-blue-700 underline">Open tracker profile</a>
+                        : <p className="mt-2 text-xs text-slate-400">No tracker URL provided</p>}
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+            <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <summary className="cursor-pointer font-black text-[#061426]">Application review history · {application.reviewHistory.length} event(s)</summary>
+              <div className="mt-4 space-y-2">
+                {application.reviewHistory.map((event) => (
+                  <div key={`${event.createdAt}-${event.toStatus}`} className="grid gap-2 rounded-lg bg-white p-3 text-sm sm:grid-cols-[auto_1fr_auto]">
+                    <span className="font-black text-[#061426]">{event.fromStatus?.replaceAll("_", " ") ?? "Created"} → {event.toStatus.replaceAll("_", " ")}</span>
+                    <span className="text-slate-600">{event.reason ?? "No reason recorded"}</span>
+                    <span className="text-xs text-slate-400">{event.actor} · {new Date(event.createdAt).toLocaleString()}</span>
+                  </div>
+                ))}
+                {!application.reviewHistory.length && <p className="text-sm text-slate-500">No review-history events are stored for this application.</p>}
+              </div>
+            </details>
             {(owner || (normalTransitions[application.reviewStatus]?.length ?? 0) > 0) && (
             <form action={review} className="mt-5 grid gap-3 sm:grid-cols-[13rem_1fr_auto]">
               <input type="hidden" name="applicationId" value={application.id} />

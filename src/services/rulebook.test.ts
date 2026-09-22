@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  APPROVED_PLAYER_MMR_RULE,
   RULEBOOK_SECTIONS,
   RULEBOOK_TITLE,
   RULEBOOK_VERSION,
@@ -28,6 +29,25 @@ describe("official RLCA 2v2 season format", () => {
       "Last Chance Major",
       "Championship Major",
     ]);
+  });
+
+  it("publishes one approved player-facing MMR definition", () => {
+    expect(APPROVED_PLAYER_MMR_RULE).toMatchObject({
+      startingMmr: 1000,
+      verificationDays: 14,
+      minimumRankedGames: 50,
+      referencePlaylist: "Ranked Rocket League 2v2",
+      scrimmagesAffectMmr: false,
+      officialSeriesCanAffectMmr: true,
+    });
+    expect(ruleText["RLCA MMR"]).toEqual(expect.arrayContaining([
+      expect.stringContaining("1000 starting scale"),
+      expect.stringContaining("14 days"),
+      expect.stringContaining("at least 50"),
+      expect.stringContaining("Scrimmages do not affect"),
+      expect.stringContaining("Best-of-5 series can change"),
+    ]));
+    expect(ruleText["RLCA MMR"].join(" ")).not.toMatch(/21 days|75 completed/i);
   });
 
   it("publishes the specified regular-season weeks and BO5 schedule", () => {

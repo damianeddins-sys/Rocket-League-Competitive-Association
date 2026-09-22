@@ -1,6 +1,7 @@
-import { count, desc } from "drizzle-orm";
+import { count, desc, inArray } from "drizzle-orm";
 import { getDatabase } from "../db";
-import { applications } from "../db/schema";
+import { applications, applicationStatusHistory, users } from "../db/schema";
+import { parseDeclaredRocketLeagueAccounts, type DeclaredRocketLeagueAccount } from "./applications";
 
 export type ApplicationQueue =
   | { status: "DATABASE_NOT_CONFIGURED" | "DATABASE_UNAVAILABLE" }
@@ -25,7 +26,15 @@ export type ApplicationQueue =
         experience: string | null;
         availability: string;
         notes: string | null;
+        additionalAccounts: DeclaredRocketLeagueAccount[];
         answers: Record<string, string>;
+        reviewHistory: Array<{
+          fromStatus: string | null;
+          toStatus: string;
+          reason: string | null;
+          actor: string;
+          createdAt: string;
+        }>;
         submittedAt: string;
         updatedAt: string;
       }>;
@@ -44,6 +53,16 @@ export async function loadApplicationQueue(page = 1): Promise<ApplicationQueue> 
         .offset((page - 1) * pageSize),
       db.select({ value: count() }).from(applications),
     ]);
+    const historyRows = rows.length
+      ? await db.select().from(applicationStatusHistory)
+        .where(inArray(applicationStatusHistory.applicationId, rows.map((application) => application.id)))
+        .orderBy(desc(applicationStatusHistory.createdAt))
+      : [];
+    const actorIds = [...new Set(historyRows.map((history) => history.actorId))];
+    const actorRows = actorIds.length
+      ? await db.select({ id: users.id, name: users.displayName }).from(users).where(inArray(users.id, actorIds))
+      : [];
+    const actorNames = new Map(actorRows.map((actor) => [actor.id, actor.name]));
     return {
       status: "READY",
       page,
@@ -65,7 +84,22 @@ export async function loadApplicationQueue(page = 1): Promise<ApplicationQueue> 
         experience: application.experience,
         availability: application.availability,
         notes: application.notes,
-        answers: application.answersJson,
+        additionalAccounts: parseDeclaredRocketLeagueAccounts(
+          application.answersJson.additionalRocketLeagueAccounts,
+        ),
+        answers: Object.fromEntries(
+          Object.entries(application.answersJson)
+            .filter(([key]) => key !== "additionalRocketLeagueAccounts"),
+        ),
+        reviewHistory: historyRows
+          .filter((history) => history.applicationId === application.id)
+          .map((history) => ({
+            fromStatus: history.fromStatus,
+            toStatus: history.toStatus,
+            reason: history.reason,
+            actor: actorNames.get(history.actorId) ?? "Authorized RLCA staff",
+            createdAt: history.createdAt.toISOString(),
+          })),
         submittedAt: application.submittedAt.toISOString(),
         updatedAt: application.updatedAt.toISOString(),
       })),

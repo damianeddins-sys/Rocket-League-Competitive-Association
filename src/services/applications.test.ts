@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  applicationAnswersForSubmission,
   applicationReviewSchema,
   applicationReference,
   applicationSubmissionSchema,
   canReviewApplicationTransition,
+  parseDeclaredRocketLeagueAccounts,
 } from "./applications";
 
 describe("application review transitions", () => {
@@ -48,6 +50,50 @@ describe("application validation", () => {
       epicAccountId: "EpicPlayer123",
       trackerUrl: "https://rocketleague.tracker.network/profile/example",
     }).success).toBe(true);
+  });
+
+  it("validates and restores multiple declared Rocket League accounts", () => {
+    const additionalAccounts = [
+      { platform: "STEAM" as const, accountId: "SteamAccount", trackerUrl: "https://rocketleague.tracker.network/steam/example" },
+      { platform: "XBOX" as const, accountId: "XboxAccount", trackerUrl: "" },
+    ];
+    const parsed = applicationSubmissionSchema.safeParse({
+      ...base,
+      type: "PLAYER",
+      handle: "TestPlayer",
+      platform: "EPIC",
+      epicAccountId: "PrimaryEpic",
+      trackerUrl: "",
+      alternateAccountsDeclared: true,
+      additionalAccounts,
+    });
+    expect(parsed.success).toBe(true);
+    const answers = applicationAnswersForSubmission({
+      type: "PLAYER",
+      additionalAccounts,
+    });
+    expect(parseDeclaredRocketLeagueAccounts(answers.additionalRocketLeagueAccounts)).toEqual(additionalAccounts);
+  });
+
+  it("rejects undeclared, duplicate, or malformed additional accounts", () => {
+    const payload = {
+      ...base,
+      type: "PLAYER" as const,
+      handle: "TestPlayer",
+      platform: "EPIC" as const,
+      epicAccountId: "PrimaryEpic",
+      trackerUrl: "",
+      additionalAccounts: [
+        { platform: "STEAM" as const, accountId: "PrimaryEpic", trackerUrl: "http://insecure.example" },
+      ],
+    };
+    expect(applicationSubmissionSchema.safeParse(payload).success).toBe(false);
+    expect(applicationSubmissionSchema.safeParse({
+      ...payload,
+      additionalAccounts: [{ platform: "STEAM", accountId: "SecondAccount", trackerUrl: "" }],
+      alternateAccountsDeclared: false,
+    }).success).toBe(false);
+    expect(parseDeclaredRocketLeagueAccounts("not-json")).toEqual([]);
   });
 
   it("requires staff department and leadership experience", () => {

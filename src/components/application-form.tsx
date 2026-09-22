@@ -3,7 +3,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import { useState, type MouseEvent } from "react";
 import Link from "next/link";
-import type { ApplicationType } from "@/services/applications";
+import type { ApplicationType, DeclaredRocketLeagueAccount } from "@/services/applications";
 import { readApiResult } from "@/services/api-response";
 
 export function ApplicationForm({
@@ -16,11 +16,13 @@ export function ApplicationForm({
   defaultEmail: string;
 }) {
   const [step, setStep] = useState(1);
-  const [additionalAccounts, setAdditionalAccounts] = useState<Array<{
-    platform: string;
-    accountId: string;
-    trackerUrl: string;
-  }>>([]);
+  const [primaryAccount, setPrimaryAccount] = useState<DeclaredRocketLeagueAccount>({
+    platform: "EPIC",
+    accountId: "",
+    trackerUrl: "",
+  });
+  const [additionalAccounts, setAdditionalAccounts] = useState<DeclaredRocketLeagueAccount[]>([]);
+  const [accountsDeclared, setAccountsDeclared] = useState(false);
   const [state, setState] = useState<{
     status: "idle" | "submitting" | "success" | "error";
     message?: string;
@@ -30,15 +32,6 @@ export function ApplicationForm({
   async function submit(formData: FormData) {
     setState({ status: "submitting" });
     const payload = Object.fromEntries(formData.entries());
-    const accountDisclosure = additionalAccounts
-      .filter((account) => account.accountId.trim())
-      .map((account, index) =>
-        `Additional account ${index + 1}: ${account.platform || "Platform not selected"} · ${account.accountId.trim()}${account.trackerUrl.trim() ? ` · ${account.trackerUrl.trim()}` : ""}`,
-      )
-      .join("\n");
-    const notes = [String(payload.notes ?? "").trim(), accountDisclosure]
-      .filter(Boolean)
-      .join("\n\n");
     try {
       const response = await fetch("/api/applications", {
         method: "POST",
@@ -46,9 +39,12 @@ export function ApplicationForm({
         body: JSON.stringify({
           ...payload,
           type,
-          notes,
+          platform: primaryAccount.platform,
+          epicAccountId: primaryAccount.accountId,
+          trackerUrl: primaryAccount.trackerUrl,
+          additionalAccounts,
           agreementsAccepted: payload.agreementsAccepted === "on",
-          alternateAccountsDeclared: payload.alternateAccountsDeclared === "on" || additionalAccounts.length > 0,
+          alternateAccountsDeclared: additionalAccounts.length > 0 && accountsDeclared,
         }),
       });
       const result = await readApiResult<{ id?: string; reference?: string }>(response);
@@ -146,23 +142,40 @@ export function ApplicationForm({
               <div className="rounded-xl border-2 border-blue-200 bg-blue-50/60 p-5">
                 <div className="mb-4 flex items-center justify-between"><p className="text-sm font-black text-blue-950">PRIMARY ACCOUNT</p><span className="rounded-full bg-blue-600 px-3 py-1 text-[10px] font-black text-white">REQUIRED</span></div>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="text-sm font-bold text-slate-700">Primary platform<select name="platform" required className={fieldClass}><option value="">Select platform</option><option value="EPIC">Epic</option><option value="STEAM">Steam</option><option value="XBOX">Xbox</option><option value="PLAYSTATION">PlayStation</option><option value="SWITCH">Nintendo Switch</option></select></label>
-                  <label className="text-sm font-bold text-slate-700">Epic account ID<input name="epicAccountId" required maxLength={120} className={fieldClass} /></label>
-                  <label className="text-sm font-bold text-slate-700 sm:col-span-2">Tracker profile URL <span className="font-normal text-slate-400">(optional)</span><input name="trackerUrl" type="url" placeholder="https://rocketleague.tracker.network/..." className={fieldClass} /></label>
+                  <label className="text-sm font-bold text-slate-700">Primary platform<select name="platform" value={primaryAccount.platform} onChange={(event) => setPrimaryAccount((account) => ({ ...account, platform: event.target.value as DeclaredRocketLeagueAccount["platform"] }))} required className={fieldClass}><option value="EPIC">Epic</option><option value="STEAM">Steam</option><option value="XBOX">Xbox</option><option value="PLAYSTATION">PlayStation</option><option value="SWITCH">Nintendo Switch</option></select></label>
+                  <label className="text-sm font-bold text-slate-700">Account identifier<input name="epicAccountId" value={primaryAccount.accountId} onChange={(event) => setPrimaryAccount((account) => ({ ...account, accountId: event.target.value }))} required maxLength={120} className={fieldClass} /></label>
+                  <label className="text-sm font-bold text-slate-700 sm:col-span-2">Tracker profile URL <span className="font-normal text-slate-400">(optional)</span><input name="trackerUrl" value={primaryAccount.trackerUrl} onChange={(event) => setPrimaryAccount((account) => ({ ...account, trackerUrl: event.target.value }))} type="url" placeholder="https://rocketleague.tracker.network/..." className={fieldClass} /></label>
                 </div>
               </div>
               {additionalAccounts.map((account, index) => (
                 <div key={index} className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                  <div className="mb-4 flex items-center justify-between"><p className="text-sm font-black text-slate-700">ADDITIONAL ACCOUNT {index + 1}</p><button type="button" onClick={() => setAdditionalAccounts((accounts) => accounts.filter((_, itemIndex) => itemIndex !== index))} className="rounded-lg p-2 text-red-600 hover:bg-red-50" aria-label={`Remove additional account ${index + 1}`}><Trash2 size={17} /></button></div>
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-black text-slate-700">ADDITIONAL ACCOUNT {index + 1}</p>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => {
+                        setPrimaryAccount(account);
+                        setAdditionalAccounts((accounts) => accounts.map((item, itemIndex) => itemIndex === index ? primaryAccount : item));
+                      }} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-black text-blue-700">Make primary</button>
+                      <button type="button" onClick={() => {
+                        setAdditionalAccounts((accounts) => accounts.filter((_, itemIndex) => itemIndex !== index));
+                        if (additionalAccounts.length === 1) setAccountsDeclared(false);
+                      }} className="rounded-lg p-2 text-red-600 hover:bg-red-50" aria-label={`Remove additional account ${index + 1}`}><Trash2 size={17} /></button>
+                    </div>
+                  </div>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="text-sm font-bold text-slate-700">Platform<select value={account.platform} onChange={(event) => setAdditionalAccounts((accounts) => accounts.map((item, itemIndex) => itemIndex === index ? { ...item, platform: event.target.value } : item))} className={fieldClass}><option value="">Select platform</option><option value="EPIC">Epic</option><option value="STEAM">Steam</option><option value="XBOX">Xbox</option><option value="PLAYSTATION">PlayStation</option><option value="SWITCH">Nintendo Switch</option></select></label>
-                    <label className="text-sm font-bold text-slate-700">Account ID<input value={account.accountId} maxLength={120} onChange={(event) => setAdditionalAccounts((accounts) => accounts.map((item, itemIndex) => itemIndex === index ? { ...item, accountId: event.target.value } : item))} className={fieldClass} /></label>
+                    <label className="text-sm font-bold text-slate-700">Platform<select required value={account.platform} onChange={(event) => setAdditionalAccounts((accounts) => accounts.map((item, itemIndex) => itemIndex === index ? { ...item, platform: event.target.value as DeclaredRocketLeagueAccount["platform"] } : item))} className={fieldClass}><option value="EPIC">Epic</option><option value="STEAM">Steam</option><option value="XBOX">Xbox</option><option value="PLAYSTATION">PlayStation</option><option value="SWITCH">Nintendo Switch</option></select></label>
+                    <label className="text-sm font-bold text-slate-700">Account identifier<input required value={account.accountId} maxLength={120} onChange={(event) => setAdditionalAccounts((accounts) => accounts.map((item, itemIndex) => itemIndex === index ? { ...item, accountId: event.target.value } : item))} className={fieldClass} /></label>
                     <label className="text-sm font-bold text-slate-700 sm:col-span-2">Tracker URL <span className="font-normal text-slate-400">(optional)</span><input value={account.trackerUrl} type="url" onChange={(event) => setAdditionalAccounts((accounts) => accounts.map((item, itemIndex) => itemIndex === index ? { ...item, trackerUrl: event.target.value } : item))} className={fieldClass} /></label>
                   </div>
                 </div>
               ))}
-              <button type="button" onClick={() => setAdditionalAccounts((accounts) => [...accounts, { platform: "", accountId: "", trackerUrl: "" }])} className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-blue-300 bg-blue-50/50 px-5 py-4 text-sm font-black text-blue-800 hover:bg-blue-50"><Plus size={17} /> Add another account</button>
-              <input name="alternateAccountsDeclared" type="hidden" value={additionalAccounts.length ? "on" : ""} />
+              <button type="button" onClick={() => setAdditionalAccounts((accounts) => [...accounts, { platform: "EPIC", accountId: "", trackerUrl: "" }])} className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-blue-300 bg-blue-50/50 px-5 py-4 text-sm font-black text-blue-800 hover:bg-blue-50"><Plus size={17} /> Add another account</button>
+              {additionalAccounts.length > 0 && (
+                <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-950">
+                  <input name="alternateAccountsDeclared" type="checkbox" checked={accountsDeclared} onChange={(event) => setAccountsDeclared(event.target.checked)} required className="mt-1 h-4 w-4" />
+                  I confirm that every Rocket League account I use for competitive play is declared above.
+                </label>
+              )}
             </>
           ) : <div className="empty-stage"><p className="font-black text-[#061426]">No account details required at this stage</p><p className="mt-2 text-sm text-slate-600">Continue to the role-specific experience section.</p></div>}
         </fieldset>
@@ -195,6 +208,20 @@ export function ApplicationForm({
           <div className="grid gap-4 sm:grid-cols-3">
             {["Identity complete", type === "PLAYER" ? `${1 + additionalAccounts.length} account record(s)` : "Role details complete", "Availability complete"].map((label, index) => <div key={label} className="metric-tile"><p className="font-mono text-xs font-black text-[#168bff]">0{index + 1}</p><p className="mt-3 text-sm font-black text-[#061426]">{label}</p></div>)}
           </div>
+          {type === "PLAYER" && (
+            <div className="grid gap-3">
+              {[primaryAccount, ...additionalAccounts].map((account, index) => (
+                <div key={`${account.platform}-${account.accountId}-${index}`} className={`rounded-xl border p-4 ${index === 0 ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-white"}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-black uppercase tracking-[.1em] text-slate-500">{index === 0 ? "Primary account" : `Additional account ${index}`}</p>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">{account.platform}</span>
+                  </div>
+                  <p className="mt-2 font-mono text-sm font-bold text-[#061426]">{account.accountId}</p>
+                  <p className="mt-1 break-all text-xs text-slate-500">{account.trackerUrl || "No tracker URL provided"}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </fieldset>
 
         <fieldset data-step="7" className={step === 7 ? "grid gap-5" : "hidden"}>

@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRight, BriefcaseBusiness, ExternalLink, Gamepad2, ShieldCheck, Users } from "lucide-react";
 import { RLCA_FORMAT, RLCA_FULL_NAME } from "@/services/brand";
-import { SEASON_ONE_RULES } from "@/services/rules";
+import { APPROVED_PLAYER_MMR_RULE } from "@/services/rulebook";
 
 export const metadata: Metadata = { title: "Applications" };
 
@@ -21,7 +21,7 @@ const applicationPaths: Array<{
     title: "Player",
     label: "Apply as Player",
     description: "Competitive players seeking verified placement and an official RLCA roster path.",
-    details: "21-day verification · 75 ranked 2v2 games · 9 checkpoints",
+    details: "14-day verification · 50 ranked 2v2 games minimum",
     next: "Staff verify eligibility before placement and roster consideration.",
     href: "/applications/apply?type=player",
     discordHref: "/api/discord/channels/player-signups",
@@ -113,7 +113,7 @@ export default async function ApplicationsPage({
           </div>
           <ol className="mt-7 grid gap-px overflow-hidden rounded-lg bg-white/10 sm:grid-cols-4">
             {[
-              ["01", "Verify", `${SEASON_ONE_RULES.verification.windowDays} days · ${SEASON_ONE_RULES.verification.rankedGamesRequired} ranked 2v2 games`],
+              ["01", "Verify", `${APPROVED_PLAYER_MMR_RULE.verificationDays} days · ${APPROVED_PLAYER_MMR_RULE.minimumRankedGames} ranked 2v2 games minimum`],
               ["02", "Calculate", "Use verified Ranked Rocket League 2v2 evidence"],
               ["03", "Rank", "Establish an official RLCA MMR record"],
               ["04", "Tier", "Place the player into one competitive division"],
