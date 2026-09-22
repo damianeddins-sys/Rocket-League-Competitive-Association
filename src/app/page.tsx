@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -14,6 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import { LeagueDataState } from "@/components/league-data-state";
+import { RlcaLogo } from "@/components/rlca-logo";
 import { TierBadge, TierIcon } from "@/components/tier-navigation";
 import { RLCA_FORMAT, RLCA_FULL_NAME, RLCA_SHORT_NAME } from "@/services/brand";
 import { loadPublicLeagueData } from "@/services/public-league-data";
@@ -64,12 +64,9 @@ export default async function Home() {
   return (
     <>
       <section className="hero-grid relative overflow-hidden bg-[#061426] text-white">
-        <Image
-          src="/branding/rlca-logo-transparent.png"
-          alt=""
-          width={700}
-          height={700}
-          className="pointer-events-none absolute -right-24 top-1/2 w-[500px] -translate-y-1/2 opacity-[0.08] lg:right-4 lg:w-[680px]"
+        <RlcaLogo
+          decorative
+          className="pointer-events-none absolute -right-24 top-1/2 w-[500px] -translate-y-1/2 object-contain opacity-[0.1] lg:right-4 lg:w-[680px]"
           priority
         />
         <div className="relative mx-auto grid min-h-[700px] max-w-7xl items-center gap-12 px-5 py-20 lg:grid-cols-[1.12fr_.88fr] lg:px-8">

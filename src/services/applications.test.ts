@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  addDeclaredAccount,
   applicationAnswersForSubmission,
   applicationReviewSchema,
   applicationReference,
   applicationSubmissionSchema,
   canReviewApplicationTransition,
   parseDeclaredRocketLeagueAccounts,
+  promoteDeclaredAccount,
+  removeDeclaredAccount,
+  updateDeclaredAccount,
 } from "./applications";
 
 describe("application review transitions", () => {
@@ -73,6 +77,31 @@ describe("application validation", () => {
       additionalAccounts,
     });
     expect(parseDeclaredRocketLeagueAccounts(answers.additionalRocketLeagueAccounts)).toEqual(additionalAccounts);
+    const promoted = promoteDeclaredAccount(
+      { platform: "EPIC", accountId: "PrimaryEpic", trackerUrl: "" },
+      additionalAccounts,
+      1,
+    );
+    expect(promoted.primary).toEqual(additionalAccounts[1]);
+    expect(promoted.additionalAccounts[1]).toEqual({
+      platform: "EPIC",
+      accountId: "PrimaryEpic",
+      trackerUrl: "",
+    });
+
+    const added = addDeclaredAccount(additionalAccounts);
+    const edited = updateDeclaredAccount(added, 2, {
+      platform: "PLAYSTATION",
+      accountId: "EditedAccount",
+      trackerUrl: "https://rocketleague.tracker.network/psn/edited",
+    });
+    expect(edited[2]).toMatchObject({
+      platform: "PLAYSTATION",
+      accountId: "EditedAccount",
+    });
+    const removed = removeDeclaredAccount(edited, 2);
+    expect(removed).toEqual(additionalAccounts);
+    expect(addDeclaredAccount(removed)).toHaveLength(3);
   });
 
   it("rejects undeclared, duplicate, or malformed additional accounts", () => {

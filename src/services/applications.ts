@@ -52,6 +52,46 @@ export function applicationAnswersForSubmission(input: {
     : {};
 }
 
+export function promoteDeclaredAccount(
+  primary: DeclaredRocketLeagueAccount,
+  additionalAccounts: DeclaredRocketLeagueAccount[],
+  index: number,
+) {
+  const nextPrimary = additionalAccounts[index];
+  if (!nextPrimary) return { primary, additionalAccounts };
+  return {
+    primary: nextPrimary,
+    additionalAccounts: additionalAccounts.map((account, accountIndex) =>
+      accountIndex === index ? primary : account,
+    ),
+  };
+}
+
+export function addDeclaredAccount(additionalAccounts: DeclaredRocketLeagueAccount[]) {
+  return [...additionalAccounts, {
+    platform: "EPIC" as const,
+    accountId: "",
+    trackerUrl: "",
+  }];
+}
+
+export function updateDeclaredAccount(
+  additionalAccounts: DeclaredRocketLeagueAccount[],
+  index: number,
+  update: Partial<DeclaredRocketLeagueAccount>,
+) {
+  return additionalAccounts.map((account, accountIndex) =>
+    accountIndex === index ? { ...account, ...update } : account,
+  );
+}
+
+export function removeDeclaredAccount(
+  additionalAccounts: DeclaredRocketLeagueAccount[],
+  index: number,
+) {
+  return additionalAccounts.filter((_, accountIndex) => accountIndex !== index);
+}
+
 export const applicationSubmissionSchema = z
   .object({
     type: z.enum(applicationTypes),

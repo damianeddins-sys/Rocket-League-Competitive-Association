@@ -68,7 +68,7 @@ export default async function CoachPage() {
             </div>
 
             <div className="mt-6 grid gap-6 lg:grid-cols-[1.05fr_.95fr]">
-              <section id="replays" className="panel p-6 sm:p-8">
+              <section id="replays" className="panel scroll-mt-36 p-6 sm:p-8">
                 <p className="eyebrow text-[#1683ff]">Replay pipeline</p>
                 <h2 className="mt-2 text-3xl font-black text-[#081e3a]">Replay analysis</h2>
                 {coach?.status === "READY" ? (
@@ -106,7 +106,7 @@ export default async function CoachPage() {
                 )}
               </section>
 
-              <section id="progress" className="panel p-6 sm:p-8">
+              <section id="progress" className="panel scroll-mt-36 p-6 sm:p-8">
                 <p className="eyebrow text-[#1683ff]">Player development</p>
                 <h2 className="mt-2 text-3xl font-black text-[#081e3a]">Focus and progress</h2>
                 <div className="mt-6 space-y-4">

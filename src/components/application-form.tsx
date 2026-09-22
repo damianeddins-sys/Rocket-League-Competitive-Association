@@ -3,7 +3,14 @@
 import { Plus, Trash2 } from "lucide-react";
 import { useState, type MouseEvent } from "react";
 import Link from "next/link";
-import type { ApplicationType, DeclaredRocketLeagueAccount } from "@/services/applications";
+import {
+  addDeclaredAccount,
+  promoteDeclaredAccount,
+  removeDeclaredAccount,
+  updateDeclaredAccount,
+  type ApplicationType,
+  type DeclaredRocketLeagueAccount,
+} from "@/services/applications";
 import { readApiResult } from "@/services/api-response";
 
 export function ApplicationForm({
@@ -153,23 +160,24 @@ export function ApplicationForm({
                     <p className="text-sm font-black text-slate-700">ADDITIONAL ACCOUNT {index + 1}</p>
                     <div className="flex items-center gap-2">
                       <button type="button" onClick={() => {
-                        setPrimaryAccount(account);
-                        setAdditionalAccounts((accounts) => accounts.map((item, itemIndex) => itemIndex === index ? primaryAccount : item));
+                        const promoted = promoteDeclaredAccount(primaryAccount, additionalAccounts, index);
+                        setPrimaryAccount(promoted.primary);
+                        setAdditionalAccounts(promoted.additionalAccounts);
                       }} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-black text-blue-700">Make primary</button>
                       <button type="button" onClick={() => {
-                        setAdditionalAccounts((accounts) => accounts.filter((_, itemIndex) => itemIndex !== index));
+                        setAdditionalAccounts((accounts) => removeDeclaredAccount(accounts, index));
                         if (additionalAccounts.length === 1) setAccountsDeclared(false);
                       }} className="rounded-lg p-2 text-red-600 hover:bg-red-50" aria-label={`Remove additional account ${index + 1}`}><Trash2 size={17} /></button>
                     </div>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="text-sm font-bold text-slate-700">Platform<select required value={account.platform} onChange={(event) => setAdditionalAccounts((accounts) => accounts.map((item, itemIndex) => itemIndex === index ? { ...item, platform: event.target.value as DeclaredRocketLeagueAccount["platform"] } : item))} className={fieldClass}><option value="EPIC">Epic</option><option value="STEAM">Steam</option><option value="XBOX">Xbox</option><option value="PLAYSTATION">PlayStation</option><option value="SWITCH">Nintendo Switch</option></select></label>
-                    <label className="text-sm font-bold text-slate-700">Account identifier<input required value={account.accountId} maxLength={120} onChange={(event) => setAdditionalAccounts((accounts) => accounts.map((item, itemIndex) => itemIndex === index ? { ...item, accountId: event.target.value } : item))} className={fieldClass} /></label>
-                    <label className="text-sm font-bold text-slate-700 sm:col-span-2">Tracker URL <span className="font-normal text-slate-400">(optional)</span><input value={account.trackerUrl} type="url" onChange={(event) => setAdditionalAccounts((accounts) => accounts.map((item, itemIndex) => itemIndex === index ? { ...item, trackerUrl: event.target.value } : item))} className={fieldClass} /></label>
+                    <label className="text-sm font-bold text-slate-700">Platform<select required value={account.platform} onChange={(event) => setAdditionalAccounts((accounts) => updateDeclaredAccount(accounts, index, { platform: event.target.value as DeclaredRocketLeagueAccount["platform"] }))} className={fieldClass}><option value="EPIC">Epic</option><option value="STEAM">Steam</option><option value="XBOX">Xbox</option><option value="PLAYSTATION">PlayStation</option><option value="SWITCH">Nintendo Switch</option></select></label>
+                    <label className="text-sm font-bold text-slate-700">Account identifier<input required value={account.accountId} maxLength={120} onChange={(event) => setAdditionalAccounts((accounts) => updateDeclaredAccount(accounts, index, { accountId: event.target.value }))} className={fieldClass} /></label>
+                    <label className="text-sm font-bold text-slate-700 sm:col-span-2">Tracker URL <span className="font-normal text-slate-400">(optional)</span><input value={account.trackerUrl} type="url" onChange={(event) => setAdditionalAccounts((accounts) => updateDeclaredAccount(accounts, index, { trackerUrl: event.target.value }))} className={fieldClass} /></label>
                   </div>
                 </div>
               ))}
-              <button type="button" onClick={() => setAdditionalAccounts((accounts) => [...accounts, { platform: "EPIC", accountId: "", trackerUrl: "" }])} className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-blue-300 bg-blue-50/50 px-5 py-4 text-sm font-black text-blue-800 hover:bg-blue-50"><Plus size={17} /> Add another account</button>
+              <button type="button" onClick={() => setAdditionalAccounts(addDeclaredAccount)} className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-blue-300 bg-blue-50/50 px-5 py-4 text-sm font-black text-blue-800 hover:bg-blue-50"><Plus size={17} /> Add another account</button>
               {additionalAccounts.length > 0 && (
                 <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-950">
                   <input name="alternateAccountsDeclared" type="checkbox" checked={accountsDeclared} onChange={(event) => setAccountsDeclared(event.target.checked)} required className="mt-1 h-4 w-4" />

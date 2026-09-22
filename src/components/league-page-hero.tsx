@@ -1,5 +1,5 @@
-import Image from "next/image";
 import type { ReactNode } from "react";
+import { RlcaLogo } from "@/components/rlca-logo";
 
 export function LeaguePageHero({
   eyebrow,
@@ -18,11 +18,8 @@ export function LeaguePageHero({
 }) {
   return (
     <section className="league-page-hero text-white">
-      <Image
-        src="/branding/rlca-logo-transparent.png"
-        alt=""
-        width={520}
-        height={520}
+      <RlcaLogo
+        decorative
         className="pointer-events-none absolute -right-20 top-1/2 w-80 -translate-y-1/2 opacity-[0.055] sm:w-[28rem] lg:right-[6%]"
         aria-hidden
       />

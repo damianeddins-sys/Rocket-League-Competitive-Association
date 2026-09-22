@@ -71,8 +71,8 @@ export default async function DashboardPage() {
         </div>
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
           {[
-            [Users, "My Team", "Roster, franchise schedule, and recent form.", "/teams"],
-            [BarChart3, "My Stats", "Verified match and replay-derived performance.", "/players"],
+            [Users, "My Team", "Roster, franchise schedule, and recent form.", "/dashboard/team"],
+            [BarChart3, "My Stats", "Verified match and replay-derived performance.", "/dashboard/stats"],
             [BrainCircuit, "RLCA Coach", "Replay evidence, focus areas, and progress.", "/coach"],
             [CalendarDays, "Schedule", "This week's official series and event path.", "/schedule"],
           ].map(([Icon, title, description, href]) => {

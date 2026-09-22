@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, ShieldCheck, Trophy, Users } from "lucide-react";
+import { RlcaLogo } from "@/components/rlca-logo";
 import { getSession } from "@/services/auth/session";
 import { RLCA_FORMAT, RLCA_FULL_NAME } from "@/services/brand";
 
@@ -43,12 +43,8 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         <div className="relative overflow-hidden bg-[#081b33] p-8 text-white sm:p-12 lg:p-16">
           <div className="absolute -right-28 -top-24 h-80 w-80 rounded-full bg-blue-500/15 blur-3xl" />
           <div className="relative">
-            <Image
-              src="/branding/rlca-logo-transparent.png"
-              alt="RLCA"
-              width={260}
-              height={260}
-              className="h-40 w-auto object-contain sm:h-52"
+            <RlcaLogo
+              className="h-40 w-40 object-contain sm:h-52 sm:w-52"
               priority
             />
             <p className="eyebrow mt-8 text-blue-300">{RLCA_FULL_NAME} · {RLCA_FORMAT}</p>

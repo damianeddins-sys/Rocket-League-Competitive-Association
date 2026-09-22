@@ -15,12 +15,15 @@ export type PlayerDashboardData =
   | {
       status: "READY";
       player: {
+        id: string;
         handle: string;
         avatarUrl: string | null;
         tier: string | null;
         currentMmr: string | null;
         verificationStatus: string | null;
         team: string | null;
+        teamSlug: string | null;
+        roster: string[];
         season: string | null;
         applicationStatus: string | null;
       };
@@ -52,7 +55,10 @@ export async function loadPlayerDashboard(userId: string): Promise<PlayerDashboa
           .where(eq(divisions.id, playerSeason.divisionId)).limit(1)
         : Promise.resolve([]),
       season
-        ? db.select({ teamId: rosterMemberships.teamId }).from(rosterMemberships)
+        ? db.select({
+            teamId: rosterMemberships.teamId,
+            divisionId: rosterMemberships.divisionId,
+          }).from(rosterMemberships)
           .where(and(
             eq(rosterMemberships.playerId, player.id),
             eq(rosterMemberships.seasonId, season.id),
@@ -62,18 +68,32 @@ export async function loadPlayerDashboard(userId: string): Promise<PlayerDashboa
         : Promise.resolve([]),
     ]);
     const [team] = membership[0]
-      ? await db.select({ name: teams.name }).from(teams).where(eq(teams.id, membership[0].teamId)).limit(1)
+      ? await db.select({ name: teams.name, slug: teams.slug }).from(teams).where(eq(teams.id, membership[0].teamId)).limit(1)
+      : [];
+    const roster = membership[0] && season
+      ? await db.select({ handle: players.handle })
+        .from(rosterMemberships)
+        .innerJoin(players, eq(players.id, rosterMemberships.playerId))
+        .where(and(
+          eq(rosterMemberships.teamId, membership[0].teamId),
+          eq(rosterMemberships.seasonId, season.id),
+          eq(rosterMemberships.divisionId, membership[0].divisionId),
+          isNull(rosterMemberships.endsAt),
+        ))
       : [];
 
     return {
       status: "READY",
       player: {
+        id: player.id,
         handle: player.handle,
         avatarUrl: player.avatarUrl,
         tier: division[0]?.name ?? null,
         currentMmr: playerSeason?.currentMmr ?? null,
         verificationStatus: playerSeason?.status ?? null,
         team: team?.name ?? null,
+        teamSlug: team?.slug ?? null,
+        roster: roster.map((member) => member.handle),
         season: season?.name ?? null,
         applicationStatus: application?.status ?? null,
       },

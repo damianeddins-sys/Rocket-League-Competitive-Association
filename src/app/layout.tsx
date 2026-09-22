@@ -1,22 +1,15 @@
 import type { Metadata } from "next";
 import { Barlow_Condensed, Geist, Geist_Mono } from "next/font/google";
-import Image from "next/image";
 import Link from "next/link";
 import { PublicNavigation } from "@/components/public-navigation";
+import { RlcaLogo } from "@/components/rlca-logo";
 import { getSession } from "@/services/auth/session";
 import { getVerifiedAccess } from "@/services/auth/portal-access";
 import { RLCA_FORMAT, RLCA_FULL_NAME, RLCA_PRIMARY_IDENTITY } from "@/services/brand";
+import { OFFICIAL_RLCA_LOGO_PATH } from "@/services/brand-assets";
+import { PLAYER_NAVIGATION } from "@/services/player-navigation";
 import { PUBLIC_NAVIGATION_GROUPS } from "@/services/public-routes";
 import "./globals.css";
-
-const playerNavigation = [
-  ["Dashboard", "/dashboard"],
-  ["My Team", "/teams"],
-  ["My Stats", "/players"],
-  ["Coach", "/coach"],
-  ["Replays", "/coach#replays"],
-  ["Progress", "/coach#progress"],
-] as const;
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -49,13 +42,17 @@ export const metadata: Metadata = {
     title: `${RLCA_PRIMARY_IDENTITY} (RLCA)`,
     description: `Official RLCA ${RLCA_FORMAT} league competition and operations.`,
     url: "/",
-    images: [{ url: "/branding/rlca-logo-transparent.png", alt: `${RLCA_FULL_NAME} logo` }],
+    images: [{ url: OFFICIAL_RLCA_LOGO_PATH, alt: `${RLCA_FULL_NAME} logo` }],
   },
   twitter: {
     card: "summary_large_image",
     title: `${RLCA_PRIMARY_IDENTITY} (RLCA)`,
     description: `Official RLCA ${RLCA_FORMAT} league competition and operations.`,
-    images: ["/branding/rlca-logo-transparent.png"],
+    images: [OFFICIAL_RLCA_LOGO_PATH],
+  },
+  icons: {
+    icon: OFFICIAL_RLCA_LOGO_PATH,
+    apple: OFFICIAL_RLCA_LOGO_PATH,
   },
 };
 
@@ -79,16 +76,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${barlowCondensed.variable} h-full antialiased`}>
       <body className="min-h-full bg-white text-slate-900">
-        <header className="sticky top-0 z-50 border-b border-white/10 bg-[#061426]/95 text-white shadow-[0_14px_40px_rgba(0,0,0,.22)] backdrop-blur-xl">
+        <header className="rlca-site-header sticky top-0 z-50 border-b border-white/10 text-white shadow-[0_14px_40px_rgba(0,0,0,.22)] backdrop-blur-xl">
           <div className="h-[2px] bg-gradient-to-r from-transparent via-[#168bff] to-transparent" />
           <div className="mx-auto flex h-[4.9rem] max-w-[90rem] items-center gap-4 px-5 xl:px-8">
             <Link href="/" className="mr-auto flex min-w-0 items-center gap-3" aria-label={`${RLCA_PRIMARY_IDENTITY} home`}>
-              <Image
-                src="/branding/rlca-logo-transparent.png"
-                alt=""
-                width={92}
-                height={92}
-                className="h-11 w-auto shrink-0 object-contain sm:h-12"
+              <RlcaLogo
+                decorative
+                className="h-12 w-12 shrink-0 object-contain sm:h-14 sm:w-14"
                 priority
               />
               <span className="block max-w-36 border-l border-white/20 pl-3 text-[9px] font-bold uppercase leading-[1.25] tracking-[0.12em] text-slate-300 sm:max-w-none sm:text-[10px] sm:tracking-[0.17em]">
@@ -111,7 +105,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             <div className="hidden border-t border-white/10 bg-[#061426]/95 xl:block">
               <div className="mx-auto flex h-11 max-w-[90rem] items-center gap-1 px-5 lg:px-8">
                 <span className="mr-3 text-[10px] font-black uppercase tracking-[0.18em] text-blue-300">Player</span>
-                {playerNavigation.map(([label, href]) => (
+                {PLAYER_NAVIGATION.map(([label, href]) => (
                   <Link key={href} href={href} className="rounded-md px-3 py-2 text-xs font-bold text-slate-300 hover:bg-white/10 hover:text-white">
                     {label}
                   </Link>
@@ -126,10 +120,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           )}
         </header>
         <main className="page-enter">{children}</main>
-        <footer className="border-t-4 border-[#168bff] bg-[#061426] text-slate-300">
+        <footer className="rlca-site-footer border-t-4 border-[#168bff] text-slate-300">
           <div className="mx-auto grid max-w-[90rem] gap-10 px-5 py-14 lg:grid-cols-[1.1fr_1.9fr] lg:px-8">
             <div>
-              <Image src="/branding/rlca-logo-transparent.png" alt="" width={120} height={120} className="h-14 w-auto" />
+              <RlcaLogo decorative className="h-24 w-24 object-contain" />
               <p className="mt-4 font-black uppercase tracking-[.08em] text-white">
                 {RLCA_FULL_NAME}
                 <span className="ml-2 text-blue-300">{RLCA_FORMAT}</span>

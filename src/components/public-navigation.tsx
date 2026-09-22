@@ -4,18 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, Menu, Search } from "lucide-react";
 import { TierIcon } from "@/components/tier-navigation";
+import { PLAYER_NAVIGATION } from "@/services/player-navigation";
 import { PUBLIC_NAVIGATION } from "@/services/public-routes";
 import { TIERS } from "@/services/tiers";
 import { RLCA_FORMAT, RLCA_FULL_NAME } from "@/services/brand";
-
-const playerNavigation = [
-  ["Dashboard", "/dashboard"],
-  ["My Team", "/teams"],
-  ["My Stats", "/players"],
-  ["Coach", "/coach"],
-  ["Replays", "/coach#replays"],
-  ["Progress", "/coach#progress"],
-] as const;
 
 type PublicNavigationProps = {
   signedIn: boolean;
@@ -196,7 +188,7 @@ export function PublicNavigation({
               <>
                 <p className="px-4 py-2 text-sm font-semibold text-slate-300">{userName ?? "Discord member"}</p>
                 <div className="border-y border-white/10 py-2">
-                  {playerNavigation.map(([label, href]) => (
+                  {PLAYER_NAVIGATION.map(([label, href]) => (
                     <Link key={href} href={href} onClick={closeMobile} className="block rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/10">
                       {label}
                     </Link>
