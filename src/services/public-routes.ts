@@ -40,7 +40,19 @@ export const PUBLIC_NAVIGATION_GROUPS = [
   },
 ] as const;
 
-export const PUBLIC_NAVIGATION = PUBLIC_NAVIGATION_GROUPS.flatMap((group) => group.items);
+// Stable top-level route contract used by route validation and compact surfaces.
+// The grouped navigation above provides the richer desktop/mobile information architecture.
+export const PUBLIC_NAVIGATION = [
+  { label: "League", href: "/league" },
+  { label: "Tiers", href: "/tiers" },
+  { label: "Teams", href: "/teams" },
+  { label: "Players", href: "/players" },
+  { label: "Standings", href: "/standings" },
+  { label: "Matches", href: "/matches" },
+  { label: "Statistics", href: "/statistics" },
+  { label: "News", href: "/news" },
+  { label: "Rules", href: "/rules" },
+] as const;
 
 export const PUBLIC_ACTIONS = [
   { label: "Apply", href: "/apply" },
