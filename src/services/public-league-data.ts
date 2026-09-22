@@ -79,10 +79,10 @@ export type PublicPlayer = {
   avatarUrl: string | null;
   tierId: TierId;
   currentMmr: string | null;
-  protectedRosterValue: string | null;
+  protectedRosterValue?: string | null;
   status: string;
-  teamId: string | null;
-  teamSlug: string | null;
+  teamId?: string | null;
+  teamSlug?: string | null;
   team: string | null;
 };
 
