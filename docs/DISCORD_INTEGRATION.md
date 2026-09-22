@@ -19,16 +19,15 @@ Two processes are intentionally used:
    notification jobs.
 
 Vercel hosts the Next.js process only. The Discord Gateway worker must run as a
-separate persistent process. The production target is a Google Compute Engine
-`e2-micro` AMD64 Ubuntu VM managed by systemd. Render-style sleeping services are
-not suitable for a persistent Gateway connection.
+separate persistent process. The production target is one Railway service using
+the existing minimal Node.js container. Railway Serverless must remain disabled
+for this persistent Gateway connection, and the service must run exactly one
+replica.
 
-Google currently includes eligible `e2-micro` compute, limited `pd-standard`
-storage, and limited outbound transfer in its Free Tier in selected US regions.
-External IPv4 is billed separately, so the complete public-network deployment is
-not guaranteed to have a zero-dollar bill. Free limits, account eligibility, and
-provider terms can change. Use a paid persistent worker host if an uptime
-commitment is required.
+Railway Free has only $1 of monthly resource credit and limits failure recovery
+to 10 restarts. It is not the production target for a 24/7 worker. Railway Hobby
+supports the required `Always` restart policy and includes $5 of monthly resource
+usage in its $5 subscription.
 
 The Gateway worker never receives `DATABASE_URL`. It communicates through
 `/api/internal/discord/worker`, authenticated by `DISCORD_WORKER_SECRET`.
@@ -158,8 +157,8 @@ after its lease expires.
 
 ## Deployment and final verification
 
-The exact OCI procedure and restart configuration are in
-`deploy/discord-worker/README.md`.
+The exact Railway settings and verification procedure are in
+`deploy/railway/README.md`.
 
 1. Rotate any Discord bot token that has ever been copied into source, chat,
    screenshots, logs, or another untrusted location. Update the website and worker
@@ -171,8 +170,9 @@ The exact OCI procedure and restart configuration are in
 5. Set the Discord Interactions Endpoint URL and install the bot with the scopes and
    permissions above.
 6. Register commands with `npm run discord:register`.
-7. Build `Dockerfile.bot` on the OCI VM and start the Compose service. The worker
-   environment must contain only the four worker variables documented above.
+7. Deploy `Dockerfile.bot` as one non-serverless Railway service. The worker
+   environment must contain only the four runtime variables documented above,
+   plus Railway's `RAILWAY_DOCKERFILE_PATH=Dockerfile.bot` build setting.
 8. Confirm `/operations/bot` reports the Gateway heartbeat and target guild as
    connected.
 9. Test all registered commands and verify public responses expose no private data.
@@ -182,7 +182,7 @@ The exact OCI procedure and restart configuration are in
     applicant direct messages, database history, and audit records.
 12. Grant and revoke a test staff assignment and verify the audit record and staff
     log notification.
-13. Restart the container and then reboot the VM. After each operation, confirm
+13. Restart and redeploy the Railway service. After each operation, confirm
     Discord returns online, a new heartbeat is recorded, and queued jobs continue.
 14. Test a real Gateway disconnect/reconnect and confirm the SDK reconnects without
     creating duplicate notification deliveries.

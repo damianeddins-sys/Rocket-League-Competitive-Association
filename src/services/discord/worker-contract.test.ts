@@ -55,6 +55,25 @@ describe("Discord production worker contract", () => {
     expect(example).not.toContain("DISCORD_CLIENT_ID=");
   });
 
+  it("documents a single persistent Railway worker without embedding credentials", () => {
+    const runbook = repositoryFile("deploy/railway/README.md");
+    const example = repositoryFile("deploy/railway/.env.example");
+    expect(runbook).toContain("RAILWAY_DOCKERFILE_PATH");
+    expect(runbook).toContain("Dockerfile.bot");
+    expect(runbook).toContain("Serverless");
+    expect(runbook).toContain("Replicas");
+    expect(runbook).toContain("Restart policy");
+    expect(runbook).toContain("Healthcheck path");
+    expect(runbook).toContain("exactly `1`");
+    expect(example).toContain("RLCA_BACKEND_URL=https://rlcasystem.vercel.app");
+    expect(example).toContain("DISCORD_BOT_TOKEN=");
+    expect(example).toContain("DISCORD_GUILD_ID=");
+    expect(example).toContain("DISCORD_WORKER_SECRET=");
+    expect(example).not.toContain("DATABASE_URL=");
+    expect(runbook).not.toMatch(/DISCORD_BOT_TOKEN=[^\s`]+/);
+    expect(runbook).not.toMatch(/DISCORD_WORKER_SECRET=[^\s`]+/);
+  });
+
   it("builds a non-root AMD64 container from minimal dependencies", () => {
     const dockerfile = repositoryFile("Dockerfile.bot");
     const runtime = repositoryFile("deploy/discord-worker/package.json");
