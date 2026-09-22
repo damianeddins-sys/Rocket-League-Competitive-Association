@@ -121,6 +121,28 @@ export default async function OperationsPage({
   const quickActions = OPERATIONS_QUICK_ACTIONS.flatMap(([label, key, description]) => canSeeSection(key as keyof typeof sections)
     ? [{ label, href: `/operations/${key}`, description }]
     : []);
+  const navigationGroups = OPERATIONS_SECTION_GROUPS.map((group) => {
+    const visible = group.keys.filter((key) => canSeeSection(key as keyof typeof sections));
+    if (!visible.length) return null;
+    return (
+      <div key={group.label} className="border-b border-white/10 py-2 last:border-0">
+        <p className="px-3 pb-2 pt-1 text-[10px] font-black uppercase tracking-[.18em] text-slate-500">{group.label}</p>
+        {visible.map((key) => {
+          const item = sections[key];
+          const Icon = item.icon;
+          return (
+            <Link
+              key={key}
+              href={key === "overview" ? "/operations" : `/operations/${key}`}
+              className={`flex items-center gap-3 rounded-r-md border-l-2 px-4 py-2.5 text-sm font-bold ${key === sectionKey ? "border-[#1683ff] bg-blue-500/15 text-blue-200" : "border-transparent text-slate-400 hover:bg-white/[0.06] hover:text-white"}`}
+            >
+              <Icon size={17} /> {item.label}
+            </Link>
+          );
+        })}
+      </div>
+    );
+  });
   const botHealth = sectionKey === "bot"
     ? await getDiscordBotHealth()
     : null;
@@ -196,30 +218,15 @@ export default async function OperationsPage({
         </div>
       </section>
       <main className="mx-auto grid max-w-7xl gap-7 px-5 py-10 lg:grid-cols-[18rem_minmax(0,1fr)] lg:px-8">
-        <nav className="h-fit overflow-hidden rounded-xl border border-white/10 bg-[#07172b] p-2 text-white shadow-xl lg:sticky lg:top-28" aria-label="Operations sections">
-          {OPERATIONS_SECTION_GROUPS.map((group) => {
-            const visible = group.keys.filter((key) => canSeeSection(key as keyof typeof sections));
-            if (!visible.length) return null;
-            return (
-              <div key={group.label} className="border-b border-white/10 py-2 last:border-0">
-                <p className="px-3 pb-2 pt-1 text-[10px] font-black uppercase tracking-[.18em] text-slate-500">{group.label}</p>
-                {visible.map((key) => {
-                  const item = sections[key];
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={key}
-                      href={key === "overview" ? "/operations" : `/operations/${key}`}
-                      className={`flex items-center gap-3 rounded-r-md border-l-2 px-4 py-2.5 text-sm font-bold ${key === sectionKey ? "border-[#1683ff] bg-blue-500/15 text-blue-200" : "border-transparent text-slate-400 hover:bg-white/[0.06] hover:text-white"}`}
-                    >
-                      <Icon size={17} /> {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            );
-          })}
-        </nav>
+        <aside className="h-fit lg:sticky lg:top-28">
+          <details className="overflow-hidden rounded-xl border border-white/10 bg-[#07172b] text-white shadow-xl lg:hidden">
+            <summary className="cursor-pointer list-none px-5 py-4 font-black">Operations navigation · {current.label}</summary>
+            <nav className="max-h-[65vh] overflow-y-auto p-2" aria-label="Operations sections">{navigationGroups}</nav>
+          </details>
+          <nav className="hidden overflow-hidden rounded-xl border border-white/10 bg-[#07172b] p-2 text-white shadow-xl lg:block" aria-label="Operations sections">
+            {navigationGroups}
+          </nav>
+        </aside>
         <section className="min-w-0">
           <div className="operations-shell p-6 sm:p-8 xl:p-10">
             <div className="flex items-start justify-between gap-4">
