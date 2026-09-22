@@ -35,7 +35,7 @@ export default async function PlayersPage({
           <p className="eyebrow text-blue-300">Season 1 player directory</p>
           <h1 className="mt-3 text-4xl font-black">RLCA players</h1>
           <p className="mt-4 max-w-2xl text-slate-300">
-            Verified player profiles, tier placement, roster status, and replay-derived statistics.
+            Official player profiles, tier placement, roster status, and published competitive records.
           </p>
         </div>
       </section>
@@ -74,9 +74,10 @@ export default async function PlayersPage({
                     <div className="mt-2"><TierBadge tierId={tierId} compact /></div>
                   </div>
                 </div>
-                <div className="mt-5 grid grid-cols-3 gap-2 text-center">
+                <div className="mt-5 grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
                   <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-400">Tier</p><p className="mt-1 text-xs font-black">{result.tier.name}</p></div>
                   <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-400">MMR</p><p className="mt-1 font-black">{player.currentMmr ?? "—"}</p></div>
+                  <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-400">Roster value</p><p className="mt-1 font-black">{player.protectedRosterValue ?? "—"}</p></div>
                   <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-400">Status</p><p className="mt-1 text-xs font-black">{player.status?.replaceAll("_", " ") ?? "Pending"}</p></div>
                 </div>
               </Link>

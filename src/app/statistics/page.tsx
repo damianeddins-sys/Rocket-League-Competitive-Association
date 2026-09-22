@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { LeagueDataState } from "@/components/league-data-state";
 import { TierBadge, TierNavigation } from "@/components/tier-navigation";
 import { loadPublicLeagueData } from "@/services/public-league-data";
@@ -56,28 +57,30 @@ export default async function StatisticsPage({
             <div className="flex items-center gap-3"><TierBadge tierId={tierId} /><h2 className="text-2xl font-black">Team statistics</h2></div>
             <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               {teamRows.map((team) => (
-                <article key={team.id} className="panel p-5">
+                <Link href={`/teams/${team.slug}?tier=${tierId}`} key={team.id} className="panel p-5">
                   <h3 className="font-black">{team.name}</h3>
                   <dl className="mt-4 grid grid-cols-3 gap-2 text-center text-sm">
                     <div><dt className="text-xs text-slate-400">Series</dt><dd className="font-black">{team.seriesPlayed}</dd></div>
                     <div><dt className="text-xs text-slate-400">Win %</dt><dd className="font-black">{team.winPercentage.toFixed(1)}%</dd></div>
                     <div><dt className="text-xs text-slate-400">Diff</dt><dd className="font-black">{team.gameDifferential}</dd></div>
                   </dl>
-                </article>
+                </Link>
               ))}
             </div>
+            {!teamRows.length && <div className="mt-4 border border-slate-200 bg-white p-7 text-center text-slate-500">No team statistics are published for these filters.</div>}
           </section>
           <section className="mt-10">
             <h2 className="text-2xl font-black">Player statistics</h2>
             <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               {playerRows.map((player) => (
-                <article key={player.id} className="panel p-5">
+                <Link href={`/players/${player.id}?tier=${tierId}`} key={player.id} className="panel p-5">
                   <h3 className="font-black">{player.handle}</h3>
                   <p className="mt-2 text-sm text-slate-500">{player.team ?? "Free agent"} · {player.status.replaceAll("_", " ")}</p>
                   <p className="mt-4 text-2xl font-black">{player.currentMmr ?? "—"} <span className="text-xs text-slate-400">RLCA MMR</span></p>
-                </article>
+                </Link>
               ))}
             </div>
+            {!playerRows.length && <div className="mt-4 border border-slate-200 bg-white p-7 text-center text-slate-500">No player statistics are published for these filters.</div>}
           </section>
         </>}
       </section>

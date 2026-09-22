@@ -74,6 +74,14 @@ const sections = {
   production: { label: "Production", portal: "PRODUCTION" as Portal, permission: "production.view" as Permission, icon: Activity },
 } as const;
 
+const sectionGroups: Array<{ label: string; keys: Array<keyof typeof sections> }> = [
+  { label: "Overview", keys: ["overview"] },
+  { label: "People & rosters", keys: ["applications", "players", "mmr", "teams", "transactions", "franchise", "staff", "permissions", "documents"] },
+  { label: "Competition", keys: ["seasons", "tiers", "matches", "standings", "statistics", "production"] },
+  { label: "Content", keys: ["news", "content", "media", "site-info", "rules"] },
+  { label: "System", keys: ["settings", "health", "storage", "bot", "audit"] },
+];
+
 export default async function OperationsPage({
   params,
   searchParams,
@@ -179,22 +187,30 @@ export default async function OperationsPage({
       </section>
       <main className="mx-auto grid max-w-7xl gap-7 px-5 py-10 lg:grid-cols-[16rem_1fr] lg:px-8">
         <nav className="h-fit border border-slate-200 bg-white p-2 lg:sticky lg:top-28" aria-label="Operations sections">
-          <p className="px-3 pb-3 pt-2 text-[10px] font-black uppercase tracking-[.18em] text-slate-400">League operations</p>
-          {Object.entries(sections)
-            .filter(([, item]) =>
-              access.portals.includes(item.portal)
-              && (!("permission" in item) || access.permissions.includes(item.permission)),
-            )
-            .map(([key, item]) => {
-            const Icon = item.icon;
+          {sectionGroups.map((group) => {
+            const visible = group.keys.filter((key) => {
+              const item = sections[key];
+              return access.portals.includes(item.portal)
+                && (!("permission" in item) || access.permissions.includes(item.permission));
+            });
+            if (!visible.length) return null;
             return (
-              <Link
-                key={key}
-                href={key === "overview" ? "/operations" : `/operations/${key}`}
-                className={`flex items-center gap-3 border-l-2 px-4 py-3 text-sm font-bold ${key === sectionKey ? "border-[#1683ff] bg-blue-50 text-[#075fac]" : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-[#061426]"}`}
-              >
-                <Icon size={17} /> {item.label}
-              </Link>
+              <div key={group.label} className="border-b border-slate-100 py-2 last:border-0">
+                <p className="px-3 pb-2 pt-1 text-[10px] font-black uppercase tracking-[.18em] text-slate-400">{group.label}</p>
+                {visible.map((key) => {
+                  const item = sections[key];
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={key}
+                      href={key === "overview" ? "/operations" : `/operations/${key}`}
+                      className={`flex items-center gap-3 border-l-2 px-4 py-2.5 text-sm font-bold ${key === sectionKey ? "border-[#1683ff] bg-blue-50 text-[#075fac]" : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-[#061426]"}`}
+                    >
+                      <Icon size={17} /> {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
             );
           })}
         </nav>

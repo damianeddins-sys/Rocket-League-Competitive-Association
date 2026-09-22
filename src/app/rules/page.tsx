@@ -70,7 +70,7 @@ export default async function RulesPage({
           <aside className="h-fit border border-slate-200 bg-white p-5 lg:sticky lg:top-28">
             <p className="eyebrow text-[#168bff]">Rulebook contents</p>
             <nav className="mt-4 grid gap-2 text-sm" aria-label="Rulebook contents">
-              {publishedSections.map(([title], index) => (
+              {visibleSections.map(([title], index) => (
                 <Link key={title} href={`#${anchorFor(title)}`} className="flex gap-2 text-slate-600 hover:text-[#061426]">
                   <span className="font-mono text-xs text-slate-400">{String(index + 1).padStart(2, "0")}</span>{title}
                 </Link>

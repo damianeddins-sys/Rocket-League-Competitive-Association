@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Barlow_Condensed, Geist, Geist_Mono } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronDown, Menu, Search } from "lucide-react";
+import { PublicNavigation } from "@/components/public-navigation";
 import { getSession } from "@/services/auth/session";
 import { getVerifiedAccess } from "@/services/auth/portal-access";
 import { RLCA_FORMAT, RLCA_FULL_NAME, RLCA_PRIMARY_IDENTITY } from "@/services/brand";
@@ -97,110 +97,14 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 <strong className="mt-0.5 block text-blue-300">{RLCA_FORMAT}</strong>
               </span>
             </Link>
-            <nav className="hidden items-center gap-1 text-sm font-bold text-slate-200 xl:flex" aria-label="Primary navigation">
-              <Link href="/" className="rounded-md px-3 py-2 hover:bg-white/8 hover:text-white">Home</Link>
-              {PUBLIC_NAVIGATION_GROUPS.map((group) => (
-                <div key={group.label} className="nav-popover group relative">
-                  <Link href={group.href} aria-haspopup="true" className="flex items-center gap-1 rounded-md px-3 py-2 hover:bg-white/8 hover:text-white">
-                    {group.label}<ChevronDown size={14} className="transition-transform group-hover:rotate-180" />
-                  </Link>
-                  <div className="nav-popover-menu invisible absolute left-1/2 top-full w-80 -translate-x-1/2 pt-4 opacity-0">
-                    <div className="border border-white/10 bg-[#091b31] p-2 shadow-2xl">
-                      {group.items.map((item) => (
-                        <Link key={item.href + item.label} href={item.href} className="block border-l-2 border-transparent px-4 py-3 hover:border-blue-400 hover:bg-white/[0.06]">
-                          <span className="block font-black text-white">{item.label}</span>
-                          <span className="mt-1 block text-xs font-medium leading-5 text-slate-400">{item.description}</span>
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </nav>
-            <div className="hidden items-center gap-1.5 xl:flex">
-              <Link href="/apply" className="rounded-md bg-[#168bff] px-4 py-2.5 text-sm font-black text-white hover:bg-[#0765c9]">
-                Join RLCA
-              </Link>
-              <Link href="/search" className="rounded-md p-2.5 text-slate-300 hover:bg-white/10 hover:text-white" aria-label="Search RLCA">
-                <Search size={19} />
-              </Link>
-              {session?.user ? (
-                <Link href="/profile" className="rounded-md border border-white/20 px-4 py-2.5 text-sm font-bold">
-                  My RLCA
-                </Link>
-              ) : (
-                <Link href="/login" className="px-3 py-2.5 text-sm font-bold text-slate-200">
-                  Sign In
-                </Link>
-              )}
-            </div>
-            <details className="mobile-menu relative xl:hidden">
-              <summary className="flex cursor-pointer items-center justify-center rounded-lg border border-white/15 p-2.5 text-white">
-                <Menu size={22} />
-                <span className="sr-only">Open navigation</span>
-              </summary>
-              <div className="absolute right-0 top-[calc(100%+1rem)] w-72 overflow-hidden rounded-xl border border-white/10 bg-[#0a1b31] p-3 shadow-2xl">
-                <nav className="grid max-h-[58vh] overflow-y-auto" aria-label="Mobile navigation">
-                  <p className="px-4 pb-3 pt-2 text-[10px] font-black uppercase tracking-[.16em] text-white">
-                    {RLCA_FULL_NAME}
-                    <span className="ml-2 text-blue-300">{RLCA_FORMAT}</span>
-                  </p>
-                  <Link href="/" className="rounded-md px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/10 hover:text-white">
-                    Home
-                  </Link>
-                  {PUBLIC_NAVIGATION_GROUPS.map((group) => (
-                    <div key={group.label} className="border-b border-white/10 py-2 last:border-0">
-                      <p className="px-4 py-2 text-[10px] font-black uppercase tracking-[.2em] text-blue-300">{group.label}</p>
-                      {group.items.map((item) => (
-                        <Link key={item.href + item.label} href={item.href} className="block rounded-md px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/10 hover:text-white">
-                          {item.label}
-                        </Link>
-                      ))}
-                    </div>
-                  ))}
-                </nav>
-                <div className="mt-3 grid gap-2 border-t border-white/10 pt-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <Link href="/apply" className="rounded-lg bg-[#168bff] px-4 py-3 text-center text-sm font-black">Join RLCA</Link>
-                    <Link href={discordHref} className="rounded-lg border border-white/15 px-4 py-3 text-center text-sm font-bold">Discord</Link>
-                  </div>
-                  <Link href="/search" className="flex items-center justify-center gap-2 rounded-lg border border-white/15 px-4 py-3 text-sm font-bold"><Search size={16} /> Search</Link>
-                  {session?.user ? (
-                    <>
-                      <p className="px-4 py-2 text-sm font-semibold text-slate-300">
-                        {session.user.name ?? "Discord member"}
-                      </p>
-                      <div className="border-y border-white/10 py-2">
-                        {playerNavigation.map(([label, href]) => (
-                          <Link key={href} href={href} className="block rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/10">
-                            {label}
-                          </Link>
-                        ))}
-                        <Link href="/profile" className="block rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/10">
-                          Profile
-                        </Link>
-                        {hasOperations && (
-                          <Link href={operationsHref} className="mt-1 block rounded-lg bg-blue-500/15 px-4 py-2.5 text-sm font-black text-blue-200">
-                            Operations {isOwner ? "· Owner" : ""}
-                          </Link>
-                        )}
-                      </div>
-                      <form action="/api/auth/logout" method="post">
-                        <button className="w-full rounded-lg border border-white/15 px-4 py-3 text-sm font-bold">
-                          Sign out
-                        </button>
-                      </form>
-                    </>
-                  ) : (
-                    <>
-                      <Link href="/login" className="rounded-lg border border-white/15 px-4 py-3 text-center text-sm font-bold">
-                        Sign in
-                      </Link>
-                    </>
-                  )}
-                </div>
-              </div>
-            </details>
+            <PublicNavigation
+              signedIn={Boolean(session?.user)}
+              userName={session?.user?.name}
+              hasOperations={hasOperations}
+              isOwner={isOwner}
+              operationsHref={operationsHref}
+              discordHref={discordHref}
+            />
           </div>
           {session?.user && (
             <div className="hidden border-t border-white/10 bg-[#061426]/95 xl:block">

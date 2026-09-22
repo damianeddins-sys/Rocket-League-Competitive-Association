@@ -29,7 +29,7 @@ export default async function NewsArticlePage({
         <div className="panel mx-auto max-w-2xl p-9 text-center">
           <h1 className="text-3xl font-black">Official news is temporarily unavailable</h1>
           <p className="mt-3 text-slate-600">The database could not be read. No fallback article is being shown.</p>
-          <a href="" className="mt-6 inline-flex bg-[#168bff] px-5 py-3 font-black text-white">Retry</a>
+          <Link href={`/news/${slug}`} className="mt-6 inline-flex bg-[#168bff] px-5 py-3 font-black text-white">Retry</Link>
         </div>
       </main>
     );

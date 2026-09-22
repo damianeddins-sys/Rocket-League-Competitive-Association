@@ -74,7 +74,25 @@ export default async function StandingsPage({
                 <TierBadge tierId={tierId} />
                 <span className="text-xs font-bold text-slate-500">Season and tier isolated</span>
               </div>
-              <table className="data-table w-full min-w-[1050px] border-collapse text-left">
+              <div className="divide-y divide-slate-100 md:hidden">
+                {data.standings.map((team, index) => (
+                  <Link key={team.id} href={`/teams/${team.slug}?tier=${tierId}`} className="block p-5 hover:bg-slate-50">
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-xl font-black text-slate-400">{index + 1}</span>
+                      <span className="flex h-9 w-9 items-center justify-center rounded-md text-[10px] text-white" style={{ backgroundColor: team.color }}>{team.shortName}</span>
+                      <span className="min-w-0 flex-1 truncate font-black">{team.name}</span>
+                      <span className="font-mono text-lg font-black">{team.points} PTS</span>
+                    </div>
+                    <dl className="mt-4 grid grid-cols-4 gap-2 text-center text-xs">
+                      <div><dt className="text-slate-400">Series</dt><dd className="mt-1 font-black">{team.wins}–{team.losses}</dd></div>
+                      <div><dt className="text-slate-400">Games</dt><dd className="mt-1 font-black">{team.gamesWon}–{team.gamesLost}</dd></div>
+                      <div><dt className="text-slate-400">MMR</dt><dd className="mt-1 font-black">{team.averageMmr ?? "—"}</dd></div>
+                      <div><dt className="text-slate-400">Status</dt><dd className="mt-1 font-black">{team.status}</dd></div>
+                    </dl>
+                  </Link>
+                ))}
+              </div>
+              <table className="data-table hidden w-full min-w-[1050px] border-collapse text-left md:table">
                 <thead className="bg-[#061426] text-xs uppercase tracking-wider text-slate-300">
                   <tr>
                     {["Seed", "Franchise", "Series", "Played", "Games", "Diff", "Win %", "Streak", "MMR", "Total pts", "Status"].map(

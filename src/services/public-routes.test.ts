@@ -8,7 +8,7 @@ const appRoot = join(process.cwd(), "src", "app");
 describe("public route contract", () => {
   it("contains the required league information architecture in order", () => {
     expect(PUBLIC_NAVIGATION.map((item) => item.label)).toEqual([
-      "League",
+      "Home",
       "Tiers",
       "Teams",
       "Players",

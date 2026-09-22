@@ -156,6 +156,39 @@ export default async function Home() {
       </section>
 
       <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
+        <div className="grid gap-10 lg:grid-cols-[.8fr_1.2fr] lg:items-start">
+          <div>
+            <p className="eyebrow text-[#168bff]">How RLCA works</p>
+            <h2 className="display-title mt-3 text-5xl text-[#061426] sm:text-6xl">A complete 2v2 league system</h2>
+            <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">
+              Players enter through an official application, receive a tier placement, join a published roster, and compete in verified tier-specific series.
+            </p>
+            <div className="mt-7 flex flex-wrap gap-3">
+              <Link href="/league" className="rounded-md bg-[#061426] px-5 py-3 font-black text-white">League format</Link>
+              <Link href="/applications" className="rounded-md border border-slate-300 bg-white px-5 py-3 font-black text-[#061426]">Application paths</Link>
+            </div>
+          </div>
+          <div className="grid gap-px bg-slate-200 sm:grid-cols-2">
+            {[
+              [Users, "2v2 competition", "Two-player lineups compete in official series with roster rules enforced by the league."],
+              [Award, "Four independent tiers", "Contender through Premier each maintain separate teams, matches, standings, and statistics."],
+              [Shield, "Verified records", "Only approved applications, verified results, and authorized transactions alter league records."],
+              [BarChart3, "Track the season", "Follow real standings, match results, team records, player MMR, and published statistics."],
+            ].map(([Icon, title, text]) => {
+              const FeatureIcon = Icon as typeof Users;
+              return (
+                <article key={title as string} className="bg-white p-7">
+                  <FeatureIcon className="text-[#168bff]" size={24} />
+                  <h3 className="mt-5 text-2xl font-black text-[#061426]">{title as string}</h3>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">{text as string}</p>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="eyebrow text-[#168bff]">Competitive ladder</p>
@@ -186,6 +219,36 @@ export default async function Home() {
         </div>
       </section>
 
+      <section className="bg-[#061426] text-white">
+        <div className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
+          <p className="eyebrow text-blue-300">The player journey</p>
+          <h2 className="display-title mt-3 max-w-4xl text-5xl sm:text-6xl">Discover RLCA. Earn your place. Chase the title.</h2>
+          <div className="mt-10 grid gap-px bg-white/10 sm:grid-cols-2 lg:grid-cols-5">
+            {[
+              [Award, "01", "Discover", "Learn the format and four-tier pathway.", "/league"],
+              [UserPlus, "02", "Apply", "Submit the official application for your role.", "/applications"],
+              [ClipboardCheck, "03", "Review", "Staff verify eligibility and application details.", "/applications"],
+              [BarChart3, "04", "Placement", "Approved players receive an official tier record.", "/tiers"],
+              [Users, "05", "Roster", "Join a published team roster in that tier.", "/teams"],
+              [CalendarDays, "06", "Compete", "Play scheduled, tier-specific official series.", "/matches?status=upcoming"],
+              [CheckCircle2, "07", "Results", "Verified match reports become official records.", "/matches?status=completed"],
+              [BarChart3, "08", "Statistics", "Follow published player and team performance.", "/statistics"],
+              [Award, "09", "Standings", "Track the qualification race inside each tier.", "/standings"],
+              [Trophy, "10", "Championship", "Qualify through the official season structure.", "/events"],
+            ].map(([Icon, step, title, text, href]) => {
+              const JourneyIcon = Icon as typeof UserPlus;
+              return (
+                <Link key={step as string} href={href as string} className="group bg-[#091b31] p-6 hover:bg-[#0d2542]">
+                  <div className="flex items-center justify-between"><JourneyIcon className="text-blue-300" size={21} /><span className="font-mono text-xs text-slate-500">{step as string}</span></div>
+                  <h3 className="mt-8 text-xl font-black group-hover:text-blue-200">{title as string}</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">{text as string}</p>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       <section className="bg-[#eaf0f6]">
         <div className="mx-auto grid max-w-7xl gap-12 px-5 py-20 lg:grid-cols-2 lg:px-8">
           <MatchList title="Upcoming matches" eyebrow="Next on the pitch" matches={upcomingMatches} empty="No upcoming official matches." />
@@ -195,23 +258,29 @@ export default async function Home() {
 
       <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
         <div className="mb-8 flex items-end justify-between">
-          <div><p className="eyebrow text-[#168bff]">Qualification picture</p><h2 className="display-title mt-3 text-5xl text-[#061426]">Standings snapshot</h2></div>
-          <Link href="/standings" className="font-black text-[#0765c9]">Full standings →</Link>
+          <div><p className="eyebrow text-[#168bff]">Qualification and performance</p><h2 className="display-title mt-3 text-5xl text-[#061426]">Tier standings</h2><p className="mt-3 max-w-2xl text-slate-600">Every competitive record remains isolated by tier. Select a table for the complete standings and statistics.</p></div>
+          <div className="flex gap-4"><Link href="/standings" className="font-black text-[#0765c9]">Full standings →</Link><Link href="/statistics" className="font-black text-[#0765c9]">Statistics →</Link></div>
         </div>
-        {data.status !== "ready" ? (
-          <LeagueDataState state={data.reason} />
+        {!readySnapshots.length ? (
+          <LeagueDataState state={data.status === "ready" ? "NO_TIER_CONFIGURATION" : data.reason} />
         ) : (
-          <div className="panel overflow-hidden">
-            <div className="grid grid-cols-[3rem_1fr_auto] bg-[#061426] px-5 py-3 text-xs font-black uppercase tracking-wider text-slate-300 sm:grid-cols-[4rem_1fr_7rem_8rem]">
-              <span>Rank</span><span>Team</span><span className="hidden sm:block">Record</span><span>Points</span>
-            </div>
-            {data.standings.slice(0, 6).map((team, index) => (
-              <Link key={team.id} href={`/teams/${team.slug}?tier=${data.tier.id}`} className="grid grid-cols-[3rem_1fr_auto] items-center border-b border-slate-100 px-5 py-4 last:border-0 hover:bg-slate-50 sm:grid-cols-[4rem_1fr_7rem_8rem]">
-                <span className="font-mono text-lg font-black text-slate-400">{String(index + 1).padStart(2, "0")}</span>
-                <span className="font-black">{team.name}</span>
-                <span className="hidden font-mono text-sm sm:block">{team.wins}–{team.losses}</span>
-                <span className="font-mono font-black">{team.points} PTS</span>
-              </Link>
+          <div className="grid gap-5 lg:grid-cols-2">
+            {readySnapshots.map((snapshot) => snapshot.status === "ready" && (
+              <section key={snapshot.tier.id} className="overflow-hidden border border-slate-200 bg-white" style={{ borderTop: `4px solid ${snapshot.tier.color}` }}>
+                <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                  <TierBadge tierId={snapshot.tier.id} />
+                  <Link href={`/standings?tier=${snapshot.tier.id}`} className="text-xs font-black text-[#0765c9]">View table</Link>
+                </div>
+                {snapshot.standings.slice(0, 3).map((team, index) => (
+                  <Link key={team.id} href={`/teams/${team.slug}?tier=${snapshot.tier.id}`} className="grid grid-cols-[2rem_1fr_auto_auto] items-center gap-3 border-b border-slate-100 px-5 py-4 last:border-0 hover:bg-slate-50">
+                    <span className="font-mono font-black text-slate-400">{index + 1}</span>
+                    <span className="truncate font-black">{team.name}</span>
+                    <span className="hidden font-mono text-xs text-slate-500 sm:block">{team.wins}–{team.losses}</span>
+                    <span className="font-mono text-sm font-black">{team.points} PTS</span>
+                  </Link>
+                ))}
+                {!snapshot.standings.length && <p className="px-5 py-8 text-center text-sm text-slate-500">No published standings in this tier.</p>}
+              </section>
             ))}
           </div>
         )}
@@ -240,32 +309,6 @@ export default async function Home() {
         </section>
       )}
 
-      <section className="bg-[#061426] text-white">
-        <div className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
-          <p className="eyebrow text-blue-300">Your RLCA journey</p>
-          <h2 className="display-title mt-3 max-w-3xl text-5xl sm:text-6xl">From application to championship</h2>
-          <div className="mt-10 grid gap-px bg-white/10 sm:grid-cols-2 lg:grid-cols-6">
-            {[
-              [UserPlus, "01", "Apply", "Choose the path that fits your role."],
-              [ClipboardCheck, "02", "Get reviewed", "Staff verify the official application."],
-              [Users, "03", "Join your team", "Enter a published competitive roster."],
-              [CalendarDays, "04", "Compete", "Play verified tier-specific matches."],
-              [BarChart3, "05", "Climb", "Build MMR, record, and standing."],
-              [Trophy, "06", "Chase the title", "Qualify for the championship."],
-            ].map(([Icon, step, title, text]) => {
-              const JourneyIcon = Icon as typeof UserPlus;
-              return (
-                <article key={step as string} className="bg-[#091b31] p-6">
-                  <div className="flex items-center justify-between"><JourneyIcon className="text-blue-300" size={21} /><span className="font-mono text-xs text-slate-500">{step as string}</span></div>
-                  <h3 className="mt-8 text-xl font-black">{title as string}</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">{text as string}</p>
-                </article>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
       {(latestNews.length > 0 || mediaItems.length > 0) && (
         <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
           <div className="flex items-end justify-between"><div><p className="eyebrow text-[#168bff]">From the league</p><h2 className="display-title mt-3 text-5xl text-[#061426]">Latest news</h2></div><Link href="/news" className="font-black text-[#0765c9]">Newsroom →</Link></div>
@@ -278,9 +321,10 @@ export default async function Home() {
               </article>
             ))}
             {latestNews.slice(0, Math.max(0, 3 - mediaItems.length)).map((item) => (
-              <article key={item.id} className="border border-slate-200 bg-white p-6">
+              <Link key={item.id} href={`/news/${item.key}`} className="border border-slate-200 bg-white p-6 hover:-translate-y-1 hover:border-blue-300">
                 <p className="eyebrow text-[#168bff]">League update</p><h3 className="mt-2 text-2xl font-black">{item.title}</h3><p className="mt-3 line-clamp-5 whitespace-pre-line text-sm leading-6 text-slate-600">{item.body}</p>
-              </article>
+                <span className="mt-5 inline-flex text-sm font-black text-[#0765c9]">Read story →</span>
+              </Link>
             ))}
           </div>
         </section>

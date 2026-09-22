@@ -79,7 +79,10 @@ export type PublicPlayer = {
   avatarUrl: string | null;
   tierId: TierId;
   currentMmr: string | null;
+  protectedRosterValue: string | null;
   status: string;
+  teamId: string | null;
+  teamSlug: string | null;
   team: string | null;
 };
 
@@ -412,20 +415,27 @@ export async function loadPublicLeagueData(
     });
 
     const playersById = new Map(playerRows.map((player) => [player.id, player]));
-    const teamNames = new Map(teamRows.map((team) => [team.id, team.name]));
+    const teamIdentities = new Map(teamRows.map((team) => {
+      const franchise = team.franchiseNumber ? seasonOneFranchise(team.franchiseNumber) : null;
+      return [team.id, { name: team.name, slug: franchise?.slug ?? null }] as const;
+    }));
     const activeRosterByPlayer = new Map(activeRosterRows.map((entry) => [entry.playerId, entry]));
     const publicPlayers = seasonPlayerRows.flatMap((entry) => {
       const player = playersById.get(entry.playerId);
       if (!player) return [];
       const membership = activeRosterByPlayer.get(entry.playerId);
+      const team = membership ? teamIdentities.get(membership.teamId) : null;
       return [{
         id: player.id,
         handle: player.handle,
         avatarUrl: player.avatarUrl,
         tierId: selectedTierId,
         currentMmr: entry.currentMmr,
+        protectedRosterValue: entry.protectedRosterValue,
         status: entry.status,
-        team: membership ? teamNames.get(membership.teamId) ?? null : null,
+        teamId: membership?.teamId ?? null,
+        teamSlug: team?.slug ?? null,
+        team: team?.name ?? null,
       }];
     }).sort((a, b) => a.handle.localeCompare(b.handle));
     standings = standings.map((team) => {

@@ -43,7 +43,7 @@ export const PUBLIC_NAVIGATION_GROUPS = [
 // Stable top-level route contract used by route validation and compact surfaces.
 // The grouped navigation above provides the richer desktop/mobile information architecture.
 export const PUBLIC_NAVIGATION = [
-  { label: "League", href: "/league" },
+  { label: "Home", href: "/" },
   { label: "Tiers", href: "/tiers" },
   { label: "Teams", href: "/teams" },
   { label: "Players", href: "/players" },
@@ -56,5 +56,5 @@ export const PUBLIC_NAVIGATION = [
 
 export const PUBLIC_ACTIONS = [
   { label: "Apply", href: "/apply" },
-  { label: "Profile", href: "/profile" },
+  { label: "Sign In", href: "/login" },
 ] as const;

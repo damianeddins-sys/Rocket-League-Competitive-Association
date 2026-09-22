@@ -78,6 +78,28 @@ export default async function ApplicationsPage({
       </section>
 
       <main className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
+        <section className="mb-10 border-y border-slate-200 bg-white" aria-labelledby="application-journey">
+          <div className="px-6 py-6">
+            <p className="eyebrow text-[#168bff]">Official application journey</p>
+            <h2 id="application-journey" className="mt-2 text-2xl font-black text-[#061426]">From application to onboarding</h2>
+          </div>
+          <ol className="grid border-t border-slate-200 sm:grid-cols-3 lg:grid-cols-6">
+            {[
+              ["01", "Apply", "Choose and submit one official path."],
+              ["02", "Review", "Authorized staff verify the record."],
+              ["03", "Status", "Track the current decision state."],
+              ["04", "Follow-up", "Provide updates when requested."],
+              ["05", "Decision", "Receive the recorded outcome."],
+              ["06", "Onboarding", "Complete approved league next steps."],
+            ].map(([step, title, detail]) => (
+              <li key={step} className="border-b border-slate-200 p-5 last:border-b-0 sm:border-r lg:border-b-0">
+                <span className="font-mono text-xs font-black text-[#168bff]">{step}</span>
+                <h3 className="mt-4 font-black text-[#061426]">{title}</h3>
+                <p className="mt-2 text-xs leading-5 text-slate-500">{detail}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
         {error === "discord_channel_unavailable" && (
           <p className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900" role="alert">
             The Discord channel link is temporarily unavailable. You can still begin the website application.

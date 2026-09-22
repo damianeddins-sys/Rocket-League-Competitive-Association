@@ -44,12 +44,14 @@ export default async function TeamsPage({
               <Link href={`/teams/${team.slug}?tier=${tierId}`} key={team.id} className="panel overflow-hidden">
                 <div className="h-2" style={{ backgroundColor: data.tier.color }} />
                 <div className="p-6">
-                  <span
-                    className="flex h-14 w-14 items-center justify-center rounded-lg text-sm font-black text-white"
-                    style={{ backgroundColor: team.color }}
-                  >
-                    {team.shortName}
-                  </span>
+                  {team.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={team.logoUrl} alt="" className="h-14 w-14 rounded-lg bg-slate-50 object-contain p-1" />
+                  ) : (
+                    <span className="flex h-14 w-14 items-center justify-center rounded-lg text-sm font-black text-white" style={{ backgroundColor: team.color }}>
+                      {team.shortName}
+                    </span>
+                  )}
                   <p className="eyebrow mt-5 text-slate-400">Official franchise {team.franchiseNumber}</p>
                   <h2 className="mt-1 text-xl font-black text-[#0b1f3a]">{team.name}</h2>
                   <div className="mt-3"><TierBadge tierId={tierId} compact /></div>

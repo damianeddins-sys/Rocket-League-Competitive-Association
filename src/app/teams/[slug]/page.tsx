@@ -37,9 +37,14 @@ export default async function FranchiseDetailPage({
     <div className="min-h-screen bg-[#f4f7fa]">
       <section className="esports-surface border-b-4 px-5 py-16 text-white" style={{ borderColor: team.color }}>
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-6">
-          <span className="flex h-24 w-24 items-center justify-center border border-white/20 text-2xl font-black text-white" style={{ backgroundColor: team.color }}>
-            {team.shortName}
-          </span>
+          {team.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={team.logoUrl} alt={`${team.name} logo`} className="h-24 w-24 border border-white/20 bg-white/10 object-contain p-2" />
+          ) : (
+            <span className="flex h-24 w-24 items-center justify-center border border-white/20 text-2xl font-black text-white" style={{ backgroundColor: team.color }}>
+              {team.shortName}
+            </span>
+          )}
           <div>
           <p className="eyebrow">{data.season.name} franchise</p>
           <h1 className="display-title mt-3 text-5xl sm:text-6xl">{team.name}</h1>

@@ -24,6 +24,12 @@ export default async function PlayerDetailPage({
   }
   const player = data.players.find((entry) => entry.id === id);
   if (!player) notFound();
+  const teamMatches = player.teamId
+    ? data.matches
+      .filter((match) => match.teamA.id === player.teamId || match.teamB.id === player.teamId)
+      .sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime())
+      .slice(0, 6)
+    : [];
 
   return (
     <div className="min-h-screen bg-[#f4f7fb]">
@@ -43,10 +49,16 @@ export default async function PlayerDetailPage({
         </div>
       </section>
       <main className="mx-auto max-w-6xl px-5 py-12">
-        <div className="grid gap-5 sm:grid-cols-3">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <div className="panel p-6"><p className="eyebrow text-slate-400">RLCA MMR</p><p className="stat-number mt-2 text-4xl">{player.currentMmr ? Math.round(Number(player.currentMmr)) : "—"}</p></div>
-          <div className="panel p-6"><p className="eyebrow text-slate-400">Team</p><p className="mt-2 text-2xl font-black">{player.team ?? "Free Agent"}</p></div>
+          <div className="panel p-6"><p className="eyebrow text-slate-400">Roster value</p><p className="stat-number mt-2 text-4xl">{player.protectedRosterValue ? Math.round(Number(player.protectedRosterValue)) : "—"}</p></div>
+          <div className="panel p-6"><p className="eyebrow text-slate-400">Team</p>{player.teamSlug ? <Link href={`/teams/${player.teamSlug}?tier=${tierId}`} className="mt-2 block text-2xl font-black text-[#0765c9]">{player.team}</Link> : <p className="mt-2 text-2xl font-black">Free Agent</p>}</div>
           <div className="panel p-6"><p className="eyebrow text-slate-400">Status</p><p className="mt-2 text-2xl font-black">{player.status.replaceAll("_", " ")}</p></div>
+        </div>
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-y border-slate-200 bg-white px-5 py-4 text-sm">
+          <span><strong>Season:</strong> {data.season.name}</span>
+          <span><strong>Tier:</strong> {data.tier.name}</span>
+          <span className="text-slate-500">Official published player record</span>
         </div>
         <section className="panel mt-7 p-7">
           <h2 className="text-2xl font-black">Public statistics</h2>
@@ -57,6 +69,24 @@ export default async function PlayerDetailPage({
           <div className="mt-6 flex flex-wrap gap-3">
             <Link href={`/rankings?tier=${tierId}`} className="rounded-lg bg-[#168bff] px-5 py-3 font-black text-white">Tier rankings</Link>
             <Link href={`/matches?tier=${tierId}`} className="rounded-lg border border-slate-200 px-5 py-3 font-black">Match history</Link>
+          </div>
+        </section>
+        <section className="panel mt-7 p-7">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div><p className="eyebrow text-[#168bff]">Current roster context</p><h2 className="mt-2 text-2xl font-black">Recent team matches</h2></div>
+            <Link href={`/matches?tier=${tierId}${player.teamId ? `&team=${player.teamId}` : ""}`} className="text-sm font-black text-[#0765c9]">Match center →</Link>
+          </div>
+          <p className="mt-3 text-sm leading-6 text-slate-500">
+            These are official matches for the player&apos;s current team. Individual participation is shown only when a verified participant record is published.
+          </p>
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            {teamMatches.map((match) => (
+              <Link key={match.id} href={`/matches/${match.id}?tier=${tierId}`} className="border border-slate-200 p-4 hover:border-blue-300">
+                <p className="font-black">{match.teamA.shortName} {match.teamAScore ?? "–"} : {match.teamBScore ?? "–"} {match.teamB.shortName}</p>
+                <p className="mt-2 text-xs text-slate-500">Week {match.week} · {match.status.replaceAll("_", " ")}</p>
+              </Link>
+            ))}
+            {!teamMatches.length && <p className="text-sm text-slate-500">No official matches are published for the current roster.</p>}
           </div>
         </section>
         <section className="panel mt-7 p-7">
