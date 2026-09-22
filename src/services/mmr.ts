@@ -2,7 +2,7 @@ import { SEASON_ONE_RULES } from "./rules";
 
 export const VERIFICATION_DAYS = SEASON_ONE_RULES.verification.windowDays;
 export const MINIMUM_RANKED_GAMES = SEASON_ONE_RULES.verification.rankedGamesRequired;
-export const MINIMUM_CHECKPOINTS = SEASON_ONE_RULES.verification.snapshotsRequired;
+export const EVIDENCE_SNAPSHOTS_REQUIRED = SEASON_ONE_RULES.verification.evidenceSnapshotsRequired;
 export const COMBINE_SERIES_REQUIRED = SEASON_ONE_RULES.verification.combineSeriesRequired;
 
 export type Division = "CONTENDER" | "CHALLENGER" | "MASTER" | "PREMIER";
@@ -34,8 +34,8 @@ export interface CombineResult extends CombinePerformance {
 }
 
 export function calculateRankedEvidence(checkpoints: number[]) {
-  if (checkpoints.length !== MINIMUM_CHECKPOINTS) {
-    throw new Error(`Exactly ${MINIMUM_CHECKPOINTS} accepted checkpoints are required`);
+  if (checkpoints.length !== EVIDENCE_SNAPSHOTS_REQUIRED) {
+    throw new Error(`Exactly ${EVIDENCE_SNAPSHOTS_REQUIRED} accepted snapshots are required to calculate ranked evidence`);
   }
   if (checkpoints.some((value) => !Number.isFinite(value) || value < 0)) {
     throw new Error("MMR checkpoints must be finite non-negative numbers");
@@ -55,16 +55,25 @@ export function calculateRankedEvidence(checkpoints: number[]) {
 
 export function isVerificationComplete(input: {
   opensAt: Date;
-  closesAt: Date;
+  evaluatedAt: Date;
   rankedGamesPlayed: number;
-  acceptedCheckpoints: number;
 }) {
-  const durationDays = (input.closesAt.getTime() - input.opensAt.getTime()) / 86_400_000;
+  const elapsedMilliseconds = input.evaluatedAt.getTime() - input.opensAt.getTime();
   return (
-    durationDays === VERIFICATION_DAYS &&
-    input.rankedGamesPlayed >= MINIMUM_RANKED_GAMES &&
-    input.acceptedCheckpoints === MINIMUM_CHECKPOINTS
+    Number.isFinite(elapsedMilliseconds) &&
+    elapsedMilliseconds >= VERIFICATION_DAYS * 86_400_000 &&
+    input.rankedGamesPlayed >= MINIMUM_RANKED_GAMES
   );
+}
+
+export function verificationRankedGameCountAfter(
+  currentRankedGames: number,
+  activity: "RANKED_2V2" | "SCRIMMAGE" | "OFFICIAL_BO5",
+) {
+  if (!Number.isInteger(currentRankedGames) || currentRankedGames < 0) {
+    throw new Error("Ranked 2v2 game count must be a non-negative integer");
+  }
+  return activity === "RANKED_2V2" ? currentRankedGames + 1 : currentRankedGames;
 }
 
 export function placementScore(rankedEvidence: number, combineRating: number) {
@@ -156,6 +165,24 @@ export function ratingDelta(input: {
 }) {
   const k = input.tournament ? 12 : input.officialSeriesPlayed < 8 ? 24 : input.officialSeriesPlayed < 16 ? 18 : 14;
   return k * (input.result - expectedResult(input.teamRating, input.opponentRating));
+}
+
+export function rlcaMmrDelta(input: {
+  source: "SCRIMMAGE" | "OFFICIAL_BO5";
+  seasonStarted: boolean;
+  teamRating: number;
+  opponentRating: number;
+  result: 0 | 0.5 | 1;
+  officialSeriesPlayed: number;
+}) {
+  if (input.source === "SCRIMMAGE" || !input.seasonStarted) return 0;
+  return ratingDelta({
+    teamRating: input.teamRating,
+    opponentRating: input.opponentRating,
+    result: input.result,
+    officialSeriesPlayed: input.officialSeriesPlayed,
+    tournament: false,
+  });
 }
 
 export function protectedRosterValue(starting: number, previousPeak: number, current: number) {

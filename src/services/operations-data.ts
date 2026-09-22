@@ -28,6 +28,7 @@ import {
   users,
 } from "../db/schema";
 import { DISCORD_NOTIFICATION_EVENTS } from "./discord/notifications";
+import { isVerificationComplete } from "./mmr";
 import { DEFAULT_TIER_ID, normalizeTierId, TIERS } from "./tiers";
 
 export type OperationsData<T> =
@@ -180,6 +181,7 @@ export function loadPlayerManagement() {
       : [];
     const divisionNames = new Map(divisionRows.map((division) => [division.id, division.name]));
     const teamNames = new Map(teamRows.map((team) => [team.id, team.name]));
+    const evaluatedAt = new Date();
     return {
       activeSeason: season,
       players: playerRows.map((player) => {
@@ -218,9 +220,13 @@ export function loadPlayerManagement() {
           previousMmr: history[0]?.previousMmr ?? null,
           verificationStatus: !verification
             ? "NOT_STARTED"
-            : verification.closesAt.getTime() > Date.now()
-              ? "IN_PROGRESS"
-              : "WINDOW_CLOSED",
+            : isVerificationComplete({
+                opensAt: verification.opensAt,
+                evaluatedAt,
+                rankedGamesPlayed: verification.rankedGamesPlayed,
+              })
+              ? "COMPLETE"
+              : "IN_PROGRESS",
           verificationDate: verification?.closesAt.toISOString() ?? null,
           verificationData: verification
             ? {

@@ -105,9 +105,9 @@ There are three distinct values:
 2. **RLCA Combine Rating** — controlled league-specific signal.
 3. **Starting RLCA MMR** — final custom league rating used for initial division placement.
 
-### E1. 21-day verification window
+### E1. 14-day verification window
 
-The player must complete at least **75 completed Ranked 2v2 games** during a 21-day verification window.
+The player must complete at least **50 completed Ranked 2v2 games** during a 14-day verification window.
 
 Do not use:
 - 1v1
@@ -119,9 +119,9 @@ Do not use:
 
 The player must declare all known alternate accounts before placement is finalized.
 
-### E2. Nine independent MMR snapshots
+### E2. Ranked-evidence snapshots
 
-Staff/system capture **9 MMR snapshots** at unannounced checkpoints during the 21-day window. Store:
+Staff/system capture the evidence snapshots required by the unchanged ranked-evidence calculation. Snapshot collection supports evidence quality and does not add another verification-eligibility gate beyond 14 days and 50 completed Ranked 2v2 games. Store:
 - timestamp
 - account identifier
 - displayed Ranked 2v2 MMR
@@ -214,9 +214,9 @@ When an admin starts a **Reverification / Re-Placement**:
 
 1. Preserve the player's existing career history.
 2. Create a new evaluation cycle with a unique evaluation ID.
-3. Capture a new 21-day Ranked 2v2 evidence window.
-4. Require a new minimum of 75 verified Ranked 2v2 games.
-5. Capture 9 new MMR snapshots.
+3. Capture a new 14-day Ranked 2v2 evidence window.
+4. Require a new minimum of 50 verified Ranked 2v2 games.
+5. Capture the evidence snapshots required by the unchanged ranked-evidence calculation.
 6. Run the same evidence formula.
 7. Run a new 6-series Combine if the season/league configuration requires it.
 8. Recalculate the Final Placement Score.

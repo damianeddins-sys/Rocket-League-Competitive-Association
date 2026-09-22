@@ -138,9 +138,8 @@ describe("MMR placement", () => {
   it("requires the full verification evidence", () => {
     expect(isVerificationComplete({
       opensAt: new Date("2026-01-01T00:00:00Z"),
-      closesAt: new Date("2026-01-22T00:00:00Z"),
-      rankedGamesPlayed: 75,
-      acceptedCheckpoints: 9,
+      evaluatedAt: new Date("2026-01-15T00:00:00Z"),
+      rankedGamesPlayed: 50,
     })).toBe(true);
   });
 

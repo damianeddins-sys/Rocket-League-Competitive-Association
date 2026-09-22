@@ -281,9 +281,9 @@ Never allow a client-only UI action to change status. The server must validate t
 The custom MMR is for league placement. Rocket League's own 2v2 rating is evidence, not the final RLCA number.
 
 Season 1 verification window:
-- 21 days
-- minimum 75 completed ranked 2v2 games
-- 9 staff-captured MMR checkpoints
+- 14 days
+- minimum 50 completed ranked 2v2 games
+- staff-captured MMR snapshots support the evidence calculation but do not add another verification-eligibility requirement
 - a 6-series RLCA Combine
 
 Do not accept a player-submitted screenshot as the sole source of truth. Use official/verified data sources and recorded checkpoints.

@@ -6,7 +6,7 @@ import { useState } from "react";
 import { TierBadge, TierIcon, TierNavigation } from "@/components/tier-navigation";
 import { readApiResult } from "@/services/api-response";
 import { normalizeTierId, tierDefinition, type TierId } from "@/services/tiers";
-import { APPROVED_PLAYER_MMR_RULE } from "@/services/rulebook";
+import { SEASON_ONE_RULES } from "@/services/rules";
 
 function Feedback({ message }: { message?: string }) {
   return message
@@ -317,7 +317,7 @@ export function MmrManager({ players }: { players: PlayerRow[] }) {
         <p className="eyebrow text-blue-300">RLCA rating pathway</p>
         <div className="mt-5 grid gap-px overflow-hidden rounded-lg bg-white/10 sm:grid-cols-4">
           {[
-            ["01", "Verify", `${APPROVED_PLAYER_MMR_RULE.verificationDays}-day window · ${APPROVED_PLAYER_MMR_RULE.minimumRankedGames} ranked 2v2 games minimum`],
+            ["01", "Verify", `${SEASON_ONE_RULES.verification.windowDays}-day window · ${SEASON_ONE_RULES.verification.rankedGamesRequired} ranked 2v2 games minimum`],
             ["02", "Calculate", "Verified Ranked 2v2 evidence"],
             ["03", "Rank", "1000 starting scale · higher means stronger"],
             ["04", "Tier", "Official placement in one RLCA division"],

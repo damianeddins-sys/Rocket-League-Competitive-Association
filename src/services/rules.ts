@@ -5,9 +5,11 @@
  */
 export const SEASON_ONE_RULES = Object.freeze({
   verification: Object.freeze({
-    windowDays: 21,
-    rankedGamesRequired: 75,
-    snapshotsRequired: 9,
+    windowDays: 14,
+    rankedGamesRequired: 50,
+    // Snapshot collection supports the unchanged evidence formula. It is not
+    // an additional eligibility gate for completing verification.
+    evidenceSnapshotsRequired: 9,
     combineSeriesRequired: 6,
     medianWeight: 0.5,
     peakWeight: 0.25,

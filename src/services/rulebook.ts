@@ -1,3 +1,5 @@
+import { SEASON_ONE_RULES } from "./rules";
+
 export type RulebookSection = readonly [
   title: string,
   paragraphs: readonly string[],
@@ -5,15 +7,6 @@ export type RulebookSection = readonly [
 
 export const RULEBOOK_TITLE = "RLCA Season 1 Rule Book";
 export const RULEBOOK_VERSION = "Season 1 | Version 5.4";
-
-export const APPROVED_PLAYER_MMR_RULE = Object.freeze({
-  startingMmr: 1000,
-  verificationDays: 14,
-  minimumRankedGames: 50,
-  referencePlaylist: "Ranked Rocket League 2v2",
-  scrimmagesAffectMmr: false,
-  officialSeriesCanAffectMmr: true,
-});
 
 export const SEASON_ONE_TIMELINE = [
   { label: "Week 1", detail: "Regular Season", format: "1 Hour Scrimmage Window + 2 Official BO5 Matches" },
@@ -33,8 +26,8 @@ export const RULEBOOK_SECTIONS: readonly RulebookSection[] = [
   [
     "RLCA MMR",
     [
-      "RLCA MMR uses a 1000 starting scale. A higher RLCA MMR represents a higher verified skill level.",
-      "Player verification runs for 14 days and requires at least 50 completed Ranked Rocket League 2v2 games. Ranked Rocket League 2v2 is the competitive reference.",
+      `RLCA MMR uses a ${SEASON_ONE_RULES.verification.startingMmrMinimum} starting scale. A higher RLCA MMR represents a higher verified skill level.`,
+      `Player verification runs for ${SEASON_ONE_RULES.verification.windowDays} days and requires at least ${SEASON_ONE_RULES.verification.rankedGamesRequired} completed Ranked Rocket League 2v2 games. Ranked Rocket League 2v2 is the competitive reference.`,
       "Scrimmages do not affect RLCA MMR. Official Best-of-5 series can change a player's current RLCA MMR after the season begins.",
     ],
   ],
