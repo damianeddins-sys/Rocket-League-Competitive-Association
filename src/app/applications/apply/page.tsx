@@ -5,6 +5,7 @@ import { ApplicationForm } from "@/components/application-form";
 import { getSession } from "@/services/auth/session";
 import { applicationReference, type ApplicationType } from "@/services/applications";
 import { loadApplicantStatus } from "@/services/application-status";
+import { RLCA_FORMAT, RLCA_FULL_NAME } from "@/services/brand";
 
 export const metadata: Metadata = { title: "Apply" };
 
@@ -41,7 +42,7 @@ export default async function ApplyPage({
       <section className="bg-[#061426] px-5 py-14 text-white">
         <div className="mx-auto max-w-4xl">
           <Link href="/applications" className="text-sm font-bold text-blue-200">← All applications</Link>
-          <p className="eyebrow mt-8 text-blue-300">Official RLCA intake</p>
+          <p className="eyebrow mt-8 text-blue-300">{RLCA_FULL_NAME} · {RLCA_FORMAT}</p>
           <h1 className="mt-3 text-4xl font-black tracking-tight">{applicationNames[type]}</h1>
           <p className="mt-4 max-w-2xl text-slate-300">
             Submit once. Your application is stored in the official database with a complete review history.

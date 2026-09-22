@@ -27,6 +27,7 @@ import { loadUserManagement } from "@/services/user-management";
 import { getDiscordBotHealth } from "@/services/discord/bot-health";
 import { getSystemHealth } from "@/services/system-health";
 import { loadStorageHealth } from "@/services/storage-health";
+import { RLCA_FORMAT, RLCA_FULL_NAME } from "@/services/brand";
 import {
   loadAuditManagement,
   loadDocumentManagement,
@@ -171,7 +172,7 @@ export default async function OperationsPage({
     <div className="min-h-screen bg-[#f3f6fa]">
       <section className="bg-[#061426] px-5 py-12 text-white">
         <div className="mx-auto max-w-7xl lg:px-3">
-          <p className="eyebrow text-blue-300">Role-verified administration</p>
+          <p className="eyebrow text-blue-300">{RLCA_FULL_NAME} · {RLCA_FORMAT} operations</p>
           <h1 className="mt-3 text-4xl font-black tracking-tight">{current.label}</h1>
           <p className="mt-3 text-slate-300">Protected actions re-check live Discord roles on the server.</p>
         </div>

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { LeagueDataState } from "@/components/league-data-state";
 import { TierBadge, TierIcon } from "@/components/tier-navigation";
+import { RLCA_FORMAT, RLCA_FULL_NAME, RLCA_SHORT_NAME } from "@/services/brand";
 import { loadPublicLeagueData } from "@/services/public-league-data";
 import { loadSiteContent } from "@/services/site-content";
 import { TIERS } from "@/services/tiers";
@@ -77,10 +78,11 @@ export default async function Home() {
               <span className={`h-2 w-2 rounded-full ${data.status === "ready" ? "bg-emerald-400" : "bg-amber-300"}`} />
               {data.status === "ready" ? `${data.season.name} · Official competition` : "Season information not announced"}
             </div>
-            <p className="eyebrow text-blue-300">Rocket League Competitive Association</p>
-            <h1 className="display-title mt-4 max-w-4xl text-6xl sm:text-7xl lg:text-[6.5rem]">
-              RLCA <span className="text-[#168bff]">2v2</span>
+            <p className="eyebrow text-blue-300">{RLCA_SHORT_NAME} · Official competitive league</p>
+            <h1 className="display-title mt-4 max-w-4xl text-5xl sm:text-6xl lg:text-7xl">
+              {RLCA_FULL_NAME}
             </h1>
+            <p className="mt-5 font-mono text-2xl font-black uppercase tracking-[.2em] text-[#168bff]">{RLCA_FORMAT}</p>
             <p className="mt-6 max-w-2xl text-xl font-semibold leading-8 text-slate-200">
               Structured competition. Verified results. One official path from application to championship.
             </p>

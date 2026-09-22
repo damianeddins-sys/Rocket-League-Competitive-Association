@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BriefcaseBusiness, Gamepad2, ShieldCheck, Users } from "lucide-react";
+import { RLCA_FORMAT, RLCA_FULL_NAME } from "@/services/brand";
 
 export const metadata: Metadata = { title: "Apply" };
 
@@ -15,7 +16,7 @@ export default function ApplyLandingPage() {
   return (
     <div className="min-h-screen bg-[#f4f7fb]">
       <section className="esports-surface px-5 py-20 text-white">
-        <div className="mx-auto max-w-7xl"><p className="eyebrow text-blue-300">Your path into RLCA</p><h1 className="display-title mt-4 text-5xl sm:text-7xl">Join RLCA</h1><p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">Choose the application that matches how you want to compete, lead, or support the league.</p></div>
+        <div className="mx-auto max-w-7xl"><p className="eyebrow text-blue-300">{RLCA_FULL_NAME} · {RLCA_FORMAT}</p><h1 className="display-title mt-4 text-5xl sm:text-7xl">Join RLCA {RLCA_FORMAT}</h1><p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">Choose the application that matches how you want to compete, lead, or support the league.</p></div>
       </section>
       <main className="mx-auto max-w-7xl px-5 py-14 lg:px-8">
         <div className="grid gap-6 sm:grid-cols-2">
