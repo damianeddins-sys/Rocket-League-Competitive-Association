@@ -19,16 +19,16 @@ Two processes are intentionally used:
    notification jobs.
 
 Vercel hosts the Next.js process only. The Discord Gateway worker must run as a
-separate persistent process. The recommended cost-minimizing target is an Oracle
-Cloud Infrastructure Always Free Ampere A1 Flex VM running Docker. Render Free
-services can sleep and Railway's free usage credit is not a durable capacity
-guarantee, so neither is the default production target.
+separate persistent process. The production target is a Google Compute Engine
+`e2-micro` AMD64 Ubuntu VM managed by systemd. Render-style sleeping services are
+not suitable for a persistent Gateway connection.
 
-As of September 2026, Oracle documents 2 A1 OCPUs and 12 GB of memory total for an
-Always Free tenancy. Start with 1 OCPU and 4 GB RAM. Free limits, regional capacity,
-account eligibility, and provider terms can change. Oracle may reclaim instances
-that satisfy its idle criteria, so this deployment has no contractual 24/7 SLA.
-Use a paid persistent worker host if an uptime commitment is required.
+Google currently includes eligible `e2-micro` compute, limited `pd-standard`
+storage, and limited outbound transfer in its Free Tier in selected US regions.
+External IPv4 is billed separately, so the complete public-network deployment is
+not guaranteed to have a zero-dollar bill. Free limits, account eligibility, and
+provider terms can change. Use a paid persistent worker host if an uptime
+commitment is required.
 
 The Gateway worker never receives `DATABASE_URL`. It communicates through
 `/api/internal/discord/worker`, authenticated by `DISCORD_WORKER_SECRET`.
