@@ -60,9 +60,9 @@ export default async function StatisticsPage({
                   <p className="eyebrow text-slate-400">Team performance</p>
                   <h3 className="mt-2 text-xl font-black">{team.name}</h3>
                   <dl className="mt-5 grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 text-center text-sm">
-                    <div><dt className="text-xs text-slate-400">Series</dt><dd className="font-black">{team.seriesPlayed}</dd></div>
-                    <div><dt className="text-xs text-slate-400">Win %</dt><dd className="font-black">{team.winPercentage.toFixed(1)}%</dd></div>
-                    <div><dt className="text-xs text-slate-400">Diff</dt><dd className="font-black">{team.gameDifferential}</dd></div>
+                    <div className="bg-slate-50 p-3"><dt className="text-xs text-slate-400">Series</dt><dd className="mt-1 font-black">{team.seriesPlayed}</dd></div>
+                    <div className="bg-slate-50 p-3"><dt className="text-xs text-slate-400">Win %</dt><dd className="mt-1 font-black">{team.winPercentage.toFixed(1)}%</dd></div>
+                    <div className="bg-slate-50 p-3"><dt className="text-xs text-slate-400">Diff</dt><dd className="mt-1 font-black">{team.gameDifferential}</dd></div>
                   </dl>
                 </Link>
               ))}
