@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Search } from "lucide-react";
+import { RULEBOOK_SECTIONS, type RulebookSection } from "@/services/rulebook";
 import { loadSiteContent } from "@/services/site-content";
 
 export const dynamic = "force-dynamic";
@@ -9,19 +10,6 @@ export const metadata: Metadata = {
   title: "Rules",
   description: "Official RLCA 2v2 competition, roster, eligibility, points, event, and transaction rules.",
 };
-
-const sections = [
-  ["Roster construction", "Each franchise fields a separate three-player roster in Contender, Challenger, Master, and Premier. Every rostered player must match that season entry's tier. Two players start each game; substitutions happen only between games."],
-  ["Regular season", "Two four-week splits produce 16 BO5 series per franchise. Every regular-season Sunday has Match Block A and Match Block B, giving each franchise exactly two official series."],
-  ["Qualification Points", "A regular-season win awards 5 points. An official staff-recorded tie awards 2.5 points to each franchise. Verified Major and Last Chance placement points join the same season total."],
-  ["Major 1 and Major 2", "All eight franchises enter each Major. The seeded bracket awards 240 Qualification Points to the winner. Normal roster transactions close during these events unless a documented exception is approved."],
-  ["Last Chance", "Immediately after Major 2, the top two permanently lock Championship Seeds #1 and #2. The remaining six compete for half-value Major points and four remaining Championship places."],
-  ["RLCA Championship", "The final field contains six franchises. Locked Seeds #1 and #2 receive byes; opening rounds are BO5 and the semifinals and Final are BO7."],
-  ["Player eligibility", "A player must participate in at least one game in two official regular-season series before entering a Major, Last Chance, or Championship, unless an audited staff exception is approved."],
-  ["Waivers and free agency", "A released player completes a full 168-hour waiver period based on server time before unrestricted movement, unless a rules-authorized and audited exception applies."],
-  ["Official records", "Only verified match reports, approved transactions, and server-side league decisions alter standings, rosters, eligibility, or qualification. Discord and the website use the same backend record."],
-  ["Conduct and integrity", "Impersonation, alternate-account concealment, replay manipulation, bypassing holds, or attempting unauthorized staff actions may result in restriction, suspension, or removal."],
-] as const;
 
 const anchorFor = (title: string) =>
   title.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/(^-|-$)/g, "");
@@ -33,11 +21,13 @@ export default async function RulesPage({
 }) {
   const query = (await searchParams).q?.trim().toLowerCase() ?? "";
   const managedRules = await loadSiteContent("RULES");
-  const publishedSections = managedRules.status === "READY" && managedRules.items.length
-    ? managedRules.items.map((rule) => [rule.title, rule.body] as const)
-    : sections;
+  const publishedSections: readonly RulebookSection[] =
+    managedRules.status === "READY" && managedRules.items.length
+      ? managedRules.items.map((rule) => [rule.title, [rule.body]] as const)
+      : RULEBOOK_SECTIONS;
   const visibleSections = query
-    ? publishedSections.filter(([title, text]) => `${title} ${text}`.toLowerCase().includes(query))
+    ? publishedSections.filter(([title, paragraphs]) =>
+        `${title} ${paragraphs.join(" ")}`.toLowerCase().includes(query))
     : publishedSections;
 
   return (
@@ -78,13 +68,17 @@ export default async function RulesPage({
             </nav>
           </aside>
           <div className="grid gap-4">
-          {visibleSections.map(([title, text], index) => (
+          {visibleSections.map(([title, paragraphs], index) => (
             <details id={anchorFor(title)} key={title} className="panel group scroll-mt-28 p-6" open={index === 0}>
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
                 <span className="flex items-center gap-4"><span className="font-mono text-sm font-black text-[#1683ff]">{String(index + 1).padStart(2, "0")}</span><span className="text-xl font-black text-[#081e3a]">{title}</span></span>
                 <span className="text-2xl font-light text-slate-400 group-open:rotate-45" aria-hidden>+</span>
               </summary>
-              <p className="mt-5 border-t border-slate-100 pt-5 leading-7 text-slate-600">{text}</p>
+              <div className="mt-5 grid gap-3 border-t border-slate-100 pt-5">
+                {paragraphs.map((paragraph) => (
+                  <p key={paragraph} className="leading-7 text-slate-600">{paragraph}</p>
+                ))}
+              </div>
             </details>
           ))}
           {!visibleSections.length && <div className="panel p-8 text-center"><h2 className="text-2xl font-black">No matching rules</h2><p className="mt-2 text-slate-600">Try a broader term or clear the search.</p></div>}
