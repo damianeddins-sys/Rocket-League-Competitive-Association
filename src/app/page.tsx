@@ -157,7 +157,7 @@ export default async function Home() {
       <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
         <div className="grid gap-10 lg:grid-cols-[.8fr_1.2fr] lg:items-start">
           <div>
-            <p className="eyebrow text-[#168bff]">How RLCA works</p>
+            <p className="eyebrow text-[#0765c9]">How RLCA works</p>
             <h2 className="display-title mt-3 text-5xl text-[#061426] sm:text-6xl">A complete 2v2 league system</h2>
             <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">
               Players enter through an official application, receive a tier placement, join a published roster, and compete in verified tier-specific series.
@@ -190,7 +190,7 @@ export default async function Home() {
       <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="eyebrow text-[#168bff]">Competitive ladder</p>
+            <p className="eyebrow text-[#0765c9]">Competitive ladder</p>
             <h2 className="display-title mt-3 text-5xl text-[#061426] sm:text-6xl">The four tiers</h2>
             <p className="mt-4 max-w-2xl text-slate-600">Four distinct divisions. Four isolated competitive records. One path upward.</p>
           </div>
@@ -264,7 +264,7 @@ export default async function Home() {
 
       <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-          <div><p className="eyebrow text-[#168bff]">Qualification and performance</p><h2 className="display-title mt-3 text-5xl text-[#061426]">Tier standings</h2><p className="mt-3 max-w-2xl text-slate-600">Every competitive record remains isolated by tier. Select a table for the complete standings and statistics.</p></div>
+          <div><p className="eyebrow text-[#0765c9]">Qualification and performance</p><h2 className="display-title mt-3 text-5xl text-[#061426]">Tier standings</h2><p className="mt-3 max-w-2xl text-slate-600">Every competitive record remains isolated by tier. Select a table for the complete standings and statistics.</p></div>
           <div className="flex flex-wrap gap-4"><Link href="/standings" className="font-black text-[#0765c9]">Full standings →</Link><Link href="/statistics" className="font-black text-[#0765c9]">Statistics →</Link></div>
         </div>
         {!readySnapshots.length ? (
@@ -317,18 +317,18 @@ export default async function Home() {
 
       {(latestNews.length > 0 || mediaItems.length > 0) && (
         <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
-          <div className="flex items-end justify-between"><div><p className="eyebrow text-[#168bff]">From the league</p><h2 className="display-title mt-3 text-5xl text-[#061426]">Latest news</h2></div><Link href="/news" className="font-black text-[#0765c9]">Newsroom →</Link></div>
+          <div className="flex items-end justify-between"><div><p className="eyebrow text-[#0765c9]">From the league</p><h2 className="display-title mt-3 text-5xl text-[#061426]">Latest news</h2></div><Link href="/news" className="font-black text-[#0765c9]">Newsroom →</Link></div>
           <div className="mt-9 grid gap-5 md:grid-cols-3">
             {mediaItems.map((item) => (
               <article key={item.id} className="border border-slate-200 bg-white">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={item.mediaUrl!} alt={item.title} className="aspect-video w-full object-cover" />
-                <div className="p-6"><p className="eyebrow text-[#168bff]">Media</p><h3 className="mt-2 text-2xl font-black">{item.title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p></div>
+                <div className="p-6"><p className="eyebrow text-[#0765c9]">Media</p><h3 className="mt-2 text-2xl font-black">{item.title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p></div>
               </article>
             ))}
             {latestNews.slice(0, Math.max(0, 3 - mediaItems.length)).map((item) => (
               <Link key={item.id} href={`/news/${item.key}`} className="border border-slate-200 bg-white p-6 hover:-translate-y-1 hover:border-blue-300">
-                <p className="eyebrow text-[#168bff]">League update</p><h3 className="mt-2 text-2xl font-black">{item.title}</h3><p className="mt-3 line-clamp-5 whitespace-pre-line text-sm leading-6 text-slate-600">{item.body}</p>
+                <p className="eyebrow text-[#0765c9]">League update</p><h3 className="mt-2 text-2xl font-black">{item.title}</h3><p className="mt-3 line-clamp-5 whitespace-pre-line text-sm leading-6 text-slate-600">{item.body}</p>
                 <span className="mt-5 inline-flex text-sm font-black text-[#0765c9]">Read story →</span>
               </Link>
             ))}
@@ -336,7 +336,7 @@ export default async function Home() {
         </section>
       )}
 
-      <section className="bg-[#168bff] px-5 py-16 text-white">
+      <section className="bg-[#0765c9] px-5 py-16 text-white">
         <div className="mx-auto flex max-w-7xl flex-col justify-between gap-8 lg:flex-row lg:items-center">
           <div><p className="eyebrow text-blue-100">The next roster starts here</p><h2 className="display-title mt-3 text-5xl sm:text-6xl">Ready to join RLCA?</h2><p className="mt-3 max-w-2xl text-blue-50">Choose your application path, connect Discord, and enter the official review process.</p></div>
           <div className="flex flex-wrap gap-3"><Link href="/applications" className="rounded-md bg-white px-6 py-3.5 font-black text-[#061426]">Start application</Link><Link href={discordHref} className="rounded-md border border-white/40 px-6 py-3.5 font-black">Join Discord</Link></div>
@@ -369,7 +369,7 @@ function MatchList({
 }) {
   return (
     <div>
-      <div className="flex items-end justify-between"><div><p className="eyebrow text-[#168bff]">{eyebrow}</p><h2 className="mt-2 text-4xl font-black text-[#061426]">{title}</h2></div><Link href={results ? "/matches?status=completed" : "/matches?status=upcoming"} className="text-sm font-black text-[#0765c9]">View all</Link></div>
+      <div className="flex items-end justify-between"><div><p className="eyebrow text-[#0765c9]">{eyebrow}</p><h2 className="mt-2 text-4xl font-black text-[#061426]">{title}</h2></div><Link href={results ? "/matches?status=completed" : "/matches?status=upcoming"} className="text-sm font-black text-[#0765c9]">View all</Link></div>
       <div className="mt-6 border-y border-slate-300 bg-white">
         {matches.map((match) => (
           <Link key={match.id} href={`/matches/${match.id}?tier=${match.tierId}`} className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b border-slate-100 px-5 py-5 last:border-0 hover:bg-slate-50">
