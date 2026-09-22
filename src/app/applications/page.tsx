@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRight, BriefcaseBusiness, ExternalLink, Gamepad2, ShieldCheck, Users } from "lucide-react";
+import { RLCA_FORMAT, RLCA_FULL_NAME } from "@/services/brand";
 
 export const metadata: Metadata = { title: "Applications" };
 
@@ -68,7 +69,7 @@ export default async function ApplicationsPage({
     <div className="min-h-screen bg-[#f4f7fa]">
       <section className="hero-grid bg-[#07172b] px-5 py-16 text-white">
         <div className="mx-auto max-w-7xl lg:px-3">
-          <p className="eyebrow text-blue-300">Official applications</p>
+          <p className="eyebrow text-blue-300">{RLCA_FULL_NAME} · {RLCA_FORMAT}</p>
           <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">What are you applying for?</h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
             Choose one path. The website stores the official application record while Discord keeps you connected to the right staff team.

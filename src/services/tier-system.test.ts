@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { assignPlacement } from "./mmr";
 import { validateRoster } from "./rosters";
@@ -37,6 +38,20 @@ describe("four-tier competition isolation", () => {
     ]);
     expect(normalizeTierId("PREMIER")).toBe("premier");
     expect(normalizeTierId("tier1")).toBeNull();
+  });
+
+  it("ships four valid, distinct SVG assets with their official colors", () => {
+    const assets = TIERS.map((tier) => {
+      const svg = readFileSync(
+        new URL(`../../public${tier.iconPath}`, import.meta.url),
+        "utf8",
+      );
+      expect(svg).toMatch(/^<svg[\s>]/);
+      expect(svg).toContain(tier.color);
+      expect(svg).toContain(`${tier.name} tier`);
+      return svg;
+    });
+    expect(new Set(assets).size).toBe(TIERS.length);
   });
 
   it("uses the explicit promotion and relegation hierarchy", () => {

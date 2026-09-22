@@ -148,11 +148,6 @@ a.panel:hover {
   list-style: none;
 }
 
-.nav-popover > summary {
-  list-style: none;
-}
-
-.nav-popover > summary::-webkit-details-marker,
 .mobile-menu > summary::-webkit-details-marker {
   display: none;
 }
@@ -161,9 +156,20 @@ a.panel:hover {
   background: rgb(255 255 255 / 0.1);
 }
 
-.nav-popover[open] > summary {
+.nav-popover:hover > a,
+.nav-popover:focus-within > a {
   background: rgb(255 255 255 / 0.08);
   color: white;
+}
+
+.nav-popover:hover .nav-popover-menu,
+.nav-popover:focus-within .nav-popover-menu {
+  visibility: visible;
+  opacity: 1;
+}
+
+.nav-popover-menu {
+  transition: visibility 120ms ease, opacity 120ms ease;
 }
 
 .data-table thead {

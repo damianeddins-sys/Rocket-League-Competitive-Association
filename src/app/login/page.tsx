@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, ShieldCheck, Trophy, Users } from "lucide-react";
 import { getSession } from "@/services/auth/session";
+import { RLCA_FORMAT, RLCA_FULL_NAME } from "@/services/brand";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -50,9 +51,9 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
               className="h-40 w-auto object-contain sm:h-52"
               priority
             />
-            <p className="eyebrow mt-8 text-blue-300">Season 1 · Official league system</p>
+            <p className="eyebrow mt-8 text-blue-300">{RLCA_FULL_NAME} · {RLCA_FORMAT}</p>
             <h1 className="mt-4 max-w-lg text-4xl font-black leading-tight tracking-[-0.035em] sm:text-5xl">
-              One identity for every RLCA competition tool.
+              One identity for every RLCA {RLCA_FORMAT} competition tool.
             </h1>
             <p className="mt-5 max-w-xl text-lg leading-8 text-slate-300">
               Your verified Discord account connects you to the correct player, franchise,
@@ -86,10 +87,10 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
             </Link>
             <p className="eyebrow mt-12 text-[#1677ff]">Secure Discord sign-in</p>
             <h2 className="mt-3 text-3xl font-black tracking-tight text-[#0b1f3a]">
-              Welcome to RLCA
+              {RLCA_FULL_NAME}
             </h2>
             <p className="mt-3 leading-7 text-slate-600">
-              Continue with the Discord account you use in the official RLCA server.
+              Continue with the Discord account you use in the official RLCA {RLCA_FORMAT} server.
             </p>
             {errorCode && (
               <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
