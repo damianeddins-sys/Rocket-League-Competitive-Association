@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { LeaguePageHero } from "@/components/league-page-hero";
 import { LeagueDataState } from "@/components/league-data-state";
 import { TierBadge, TierNavigation } from "@/components/tier-navigation";
 import { loadPublicLeagueData } from "@/services/public-league-data";
@@ -25,13 +26,11 @@ export default async function StatisticsPage({
 
   return (
     <div className="min-h-screen bg-[#f4f7fa]">
-      <section className="bg-[#0b1f3a] px-5 py-14 text-white">
-        <div className="mx-auto max-w-7xl lg:px-3">
-          <p className="eyebrow text-blue-300">{data.status === "ready" ? data.season.name : "RLCA"}</p>
-          <h1 className="mt-3 text-4xl font-black">League statistics</h1>
-          <p className="mt-4 max-w-2xl text-slate-300">Season, tier, team, and player filters are applied by the server.</p>
-        </div>
-      </section>
+      <LeaguePageHero
+        eyebrow={`${data.status === "ready" ? data.season.name : "RLCA"} · Performance center`}
+        title="League statistics"
+        description="Explore official player and team performance across season and tier filters. Every published value comes from the league database."
+      />
       <section className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
         {data.status !== "ready" ? <LeagueDataState state={data.reason} /> : <>
           <TierNavigation
@@ -55,11 +54,12 @@ export default async function StatisticsPage({
 
           <section className="mt-8">
             <div className="flex items-center gap-3"><TierBadge tierId={tierId} /><h2 className="text-2xl font-black">Team statistics</h2></div>
-            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {teamRows.map((team) => (
-                <Link href={`/teams/${team.slug}?tier=${tierId}`} key={team.id} className="panel p-5">
-                  <h3 className="font-black">{team.name}</h3>
-                  <dl className="mt-4 grid grid-cols-3 gap-2 text-center text-sm">
+                <Link href={`/teams/${team.slug}?tier=${tierId}`} key={team.id} className="panel p-6">
+                  <p className="eyebrow text-slate-400">Team performance</p>
+                  <h3 className="mt-2 text-xl font-black">{team.name}</h3>
+                  <dl className="mt-5 grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 text-center text-sm">
                     <div><dt className="text-xs text-slate-400">Series</dt><dd className="font-black">{team.seriesPlayed}</dd></div>
                     <div><dt className="text-xs text-slate-400">Win %</dt><dd className="font-black">{team.winPercentage.toFixed(1)}%</dd></div>
                     <div><dt className="text-xs text-slate-400">Diff</dt><dd className="font-black">{team.gameDifferential}</dd></div>
@@ -67,20 +67,21 @@ export default async function StatisticsPage({
                 </Link>
               ))}
             </div>
-            {!teamRows.length && <div className="mt-4 border border-slate-200 bg-white p-7 text-center text-slate-500">No team statistics are published for these filters.</div>}
+            {!teamRows.length && <div className="empty-stage mt-4 text-slate-500">No team statistics are published for these filters.</div>}
           </section>
           <section className="mt-10">
             <h2 className="text-2xl font-black">Player statistics</h2>
-            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {playerRows.map((player) => (
-                <Link href={`/players/${player.id}?tier=${tierId}`} key={player.id} className="panel p-5">
-                  <h3 className="font-black">{player.handle}</h3>
+                <Link href={`/players/${player.id}?tier=${tierId}`} key={player.id} className="panel p-6">
+                  <p className="eyebrow text-[#168bff]">Player performance</p>
+                  <h3 className="mt-2 text-xl font-black">{player.handle}</h3>
                   <p className="mt-2 text-sm text-slate-500">{player.team ?? "Free agent"} · {player.status.replaceAll("_", " ")}</p>
                   <p className="mt-4 text-2xl font-black">{player.currentMmr ?? "—"} <span className="text-xs text-slate-400">RLCA MMR</span></p>
                 </Link>
               ))}
             </div>
-            {!playerRows.length && <div className="mt-4 border border-slate-200 bg-white p-7 text-center text-slate-500">No player statistics are published for these filters.</div>}
+            {!playerRows.length && <div className="empty-stage mt-4 text-slate-500">No player statistics are published for these filters.</div>}
           </section>
         </>}
       </section>

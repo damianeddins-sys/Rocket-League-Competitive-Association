@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LockKeyhole } from "lucide-react";
+import { LeaguePageHero } from "@/components/league-page-hero";
 import { LeagueDataState } from "@/components/league-data-state";
 import { TierBadge, TierNavigation } from "@/components/tier-navigation";
 import { loadPublicLeagueData } from "@/services/public-league-data";
@@ -23,18 +24,11 @@ export default async function StandingsPage({
 
   return (
     <div className="min-h-screen bg-[#f4f7fa]">
-      <section className="bg-[#0b1f3a] px-5 py-14 text-white">
-        <div className="mx-auto max-w-7xl lg:px-3">
-          <p className="eyebrow text-blue-300">{seasonName}</p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
-            Qualification standings
-          </h1>
-          <p className="mt-4 max-w-2xl text-slate-300">
-            Qualification Points come only from official match and event records. Unverified
-            results never change this table.
-          </p>
-        </div>
-      </section>
+      <LeaguePageHero
+        eyebrow={`${seasonName} · Official qualification race`}
+        title="Qualification standings"
+        description="Track every franchise position, series record, game differential, RLCA MMR, and Qualification Point total—always separated by competitive tier."
+      />
       <section className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
         {data.status !== "ready" ? (
           <LeagueDataState state={data.reason} />
@@ -48,8 +42,8 @@ export default async function StandingsPage({
               <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Regular season · Tier isolated</p>
             </div>
             <TierNavigation current={tierId} pathname="/standings" searchParams={{ season: query.season }} />
-            <div className="mb-6 mt-6 grid gap-4 sm:grid-cols-2">
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-5">
+            <div className="mb-6 mt-6 grid gap-4 lg:grid-cols-[1.25fr_.75fr]">
+              <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-6">
                 <p className="eyebrow text-emerald-700">Championship lock</p>
                 <p className="mt-2 font-bold text-emerald-950">
                   {championshipLocked
@@ -60,7 +54,7 @@ export default async function StandingsPage({
                   The teams ranked #1 and #2 at that point retain those Championship Major seeds.
                 </p>
               </div>
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-5">
+              <div className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-6">
                 <p className="eyebrow text-amber-700">Current context</p>
                 <p className="mt-2 font-bold text-amber-950">
                   {data.currentWeek
@@ -69,7 +63,7 @@ export default async function StandingsPage({
                 </p>
               </div>
             </div>
-            <div className="panel overflow-x-auto" style={{ borderTop: `4px solid ${data.tier.color}` }}>
+            <div className="panel overflow-x-auto shadow-[0_18px_45px_rgba(6,20,38,.08)]" style={{ borderTop: `4px solid ${data.tier.color}` }}>
               <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                 <TierBadge tierId={tierId} />
                 <span className="text-xs font-bold text-slate-500">Season and tier isolated</span>

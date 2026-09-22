@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { LeaguePageHero } from "@/components/league-page-hero";
 import { LeagueDataState } from "@/components/league-data-state";
 import { TierBadge, TierNavigation } from "@/components/tier-navigation";
 import { loadPublicLeagueData } from "@/services/public-league-data";
@@ -30,15 +31,11 @@ export default async function PlayersPage({
     : [];
   return (
     <div className="min-h-screen bg-[#f4f7fa]">
-      <section className="bg-[#0b1f3a] px-5 py-14 text-white">
-        <div className="mx-auto max-w-7xl lg:px-3">
-          <p className="eyebrow text-blue-300">Season 1 player directory</p>
-          <h1 className="mt-3 text-4xl font-black">RLCA players</h1>
-          <p className="mt-4 max-w-2xl text-slate-300">
-            Official player profiles, tier placement, roster status, and published competitive records.
-          </p>
-        </div>
-      </section>
+      <LeaguePageHero
+        eyebrow="Season 1 · Competitive player directory"
+        title="RLCA players"
+        description="Follow verified competitors through tier placement, official rosters, RLCA MMR, match history, and published performance."
+      />
       <section className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
         {result.status !== "ready" ? (
           <LeagueDataState state={result.reason} />
@@ -58,15 +55,15 @@ export default async function PlayersPage({
             <button className="rounded-lg bg-[#168bff] px-5 py-2.5 font-black text-white">Filter</button>
           </form>
         {players.length ? (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {players.map((player) => (
-              <Link href={`/players/${player.id}?tier=${tierId}`} key={player.id} className="panel p-6">
+              <Link href={`/players/${player.id}?tier=${tierId}`} key={player.id} className="panel group overflow-hidden p-6 sm:p-7">
                 <div className="flex items-center gap-4">
                   {player.avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={player.avatarUrl} alt="" className="h-14 w-14 rounded-full object-cover" />
                   ) : (
-                    <span className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 text-lg font-black text-blue-700">{player.handle.slice(0, 2).toUpperCase()}</span>
+                    <span className="flex h-16 w-16 items-center justify-center rounded-xl bg-[#061426] text-lg font-black text-white shadow-lg">{player.handle.slice(0, 2).toUpperCase()}</span>
                   )}
                   <div>
                     <h2 className="text-xl font-black text-[#0b1f3a]">{player.handle}</h2>
@@ -74,17 +71,18 @@ export default async function PlayersPage({
                     <div className="mt-2"><TierBadge tierId={tierId} compact /></div>
                   </div>
                 </div>
-                <div className="mt-5 grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
+                <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-4">
                   <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-400">Tier</p><p className="mt-1 text-xs font-black">{result.tier.name}</p></div>
                   <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-400">MMR</p><p className="mt-1 font-black">{player.currentMmr ?? "—"}</p></div>
                   <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-400">Roster value</p><p className="mt-1 font-black">{player.protectedRosterValue ?? "—"}</p></div>
                   <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-400">Status</p><p className="mt-1 text-xs font-black">{player.status?.replaceAll("_", " ") ?? "Pending"}</p></div>
                 </div>
+                <p className="mt-5 border-t border-slate-100 pt-4 text-xs font-black uppercase tracking-[.1em] text-[#168bff]">Open competitive profile →</p>
               </Link>
             ))}
           </div>
         ) : (
-          <div className="panel p-8 text-center">
+          <div className="empty-stage">
             <p className="eyebrow text-[#1677ff]">Official data only</p>
             <h2 className="mt-3 text-2xl font-black text-[#0b1f3a]">No published player records</h2>
             <p className="mt-3 leading-7 text-slate-600">

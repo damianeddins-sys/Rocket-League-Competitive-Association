@@ -59,7 +59,7 @@ export function PublicNavigation({
 
   return (
     <>
-      <nav className="hidden items-center gap-0.5 text-xs font-bold text-slate-200 xl:flex 2xl:text-sm" aria-label="Primary navigation">
+      <nav className="hidden items-center gap-0.5 text-[11px] font-bold text-slate-200 xl:flex 2xl:text-sm" aria-label="Primary navigation">
         {PUBLIC_NAVIGATION.map((item) => item.label === "Tiers" ? (
           <div
             key={item.href}
@@ -80,7 +80,7 @@ export function PublicNavigation({
               type="button"
               aria-expanded={desktopTiersOpen}
               aria-controls="desktop-tier-menu"
-              className="flex items-center gap-1 rounded-md px-2 py-2 hover:bg-white/8 hover:text-white 2xl:px-2.5"
+              className="flex items-center gap-1 rounded-md px-2 py-2.5 uppercase tracking-[.04em] hover:bg-white/8 hover:text-white 2xl:px-2.5"
               onClick={() => setDesktopTiersOpen((open) => !open)}
               onFocus={() => setDesktopTiersOpen(true)}
             >
@@ -93,9 +93,9 @@ export function PublicNavigation({
                 desktopTiersOpen ? "visible opacity-100" : "invisible opacity-0"
               }`}
             >
-              <div className="border border-white/10 bg-[#091b31] p-2 shadow-2xl">
-                <Link href="/tiers" className="block border-l-2 border-transparent px-4 py-3 font-black text-white hover:border-blue-400 hover:bg-white/[0.06]">
-                  All competitive tiers
+              <div className="overflow-hidden rounded-xl border border-white/10 bg-[#091b31] p-2 shadow-2xl shadow-black/30">
+                <Link href="/tiers" className="block border-l-2 border-transparent px-4 py-3 font-black uppercase tracking-[.06em] text-white hover:border-blue-400 hover:bg-white/[0.06]">
+                  Competitive tier system
                 </Link>
                 {TIERS.map((tier) => (
                   <Link key={tier.id} href={`/tiers/${tier.id}`} className="flex items-center gap-3 border-l-2 border-transparent px-4 py-2.5 hover:border-blue-400 hover:bg-white/[0.06]">
@@ -112,14 +112,14 @@ export function PublicNavigation({
             </div>
           </div>
         ) : (
-          <Link key={item.href} href={item.href} className="rounded-md px-2 py-2 hover:bg-white/8 hover:text-white 2xl:px-2.5">
+          <Link key={item.href} href={item.href} className="rounded-md px-2 py-2.5 uppercase tracking-[.04em] hover:bg-white/8 hover:text-white 2xl:px-2.5">
             {item.label}
           </Link>
         ))}
       </nav>
 
       <div className="hidden items-center gap-1 xl:flex">
-        <Link href="/apply" className="rounded-md bg-[#168bff] px-3 py-2.5 text-xs font-black text-white hover:bg-[#0765c9] 2xl:px-4 2xl:text-sm">
+        <Link href="/apply" className="rounded-md bg-[#168bff] px-3 py-2.5 text-xs font-black uppercase tracking-[.05em] text-white shadow-[0_8px_24px_rgba(22,139,255,.22)] hover:bg-[#0765c9] 2xl:px-4 2xl:text-sm">
           Apply
         </Link>
         <Link href="/search" className="rounded-md p-2.5 text-slate-300 hover:bg-white/10 hover:text-white" aria-label="Search RLCA">
@@ -146,12 +146,12 @@ export function PublicNavigation({
           }
         }}
       >
-        <summary className="flex cursor-pointer items-center justify-center rounded-lg border border-white/15 p-2.5 text-white">
+        <summary className="flex cursor-pointer items-center justify-center rounded-lg border border-white/20 bg-white/[0.04] p-2.5 text-white">
           <Menu size={22} />
           <span className="sr-only">Open navigation</span>
         </summary>
-        <div className="absolute right-0 top-[calc(100%+1rem)] w-[min(21rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-white/10 bg-[#0a1b31] p-3 shadow-2xl">
-          <p className="px-3 pb-3 pt-2 text-[10px] font-black uppercase tracking-[.16em] text-white">
+        <div className="absolute right-0 top-[calc(100%+1rem)] w-[min(23rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-white/10 bg-[#0a1b31] p-3 shadow-2xl shadow-black/40">
+          <p className="border-b border-white/10 px-3 pb-4 pt-2 text-[11px] font-black uppercase tracking-[.14em] text-white">
             {RLCA_FULL_NAME}
             <span className="ml-2 text-blue-300">{RLCA_FORMAT}</span>
           </p>

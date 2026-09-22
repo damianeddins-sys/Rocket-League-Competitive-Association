@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BrainCircuit, CheckCircle2, Clock3, Goal, LineChart, LockKeyhole, Video } from "lucide-react";
 import { CoachReplayUploader } from "@/components/coach-replay-uploader";
+import { LeaguePageHero } from "@/components/league-page-hero";
 import { getSession } from "@/services/auth/session";
 import { loadCoachData } from "@/services/coach-data";
 
@@ -20,36 +21,29 @@ export default async function CoachPage() {
 
   return (
     <div className="min-h-screen bg-[#f4f7fa]">
-      <section className="bg-[#0b1f3a] px-5 py-16 text-white">
-        <div className="mx-auto max-w-6xl">
-          <p className="eyebrow text-blue-300">Replay evidence · Player progress</p>
-          <h1 className="mt-3 max-w-3xl text-5xl font-black tracking-tight">RLCA Coach</h1>
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
-            Evidence-based coaching built from your analyzed Rocket League replays—not generic promises or invented statistics.
-          </p>
-          {session?.user && (
-            <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-4 py-2 text-xs font-black text-emerald-200">
-              <CheckCircle2 size={15} /> Player workspace active for {session.user.name}
-            </div>
-          )}
-        </div>
-      </section>
+      <LeaguePageHero
+        eyebrow="Replay analysis · Performance development"
+        title="RLCA Coach"
+        description="A private performance-analysis workspace built from verified replay evidence—not generic promises, invented trends, or unsupported coaching claims."
+        meta={session?.user ? <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-4 py-2 text-xs font-black text-emerald-200"><CheckCircle2 size={15} /> Player workspace active for {session.user.name}</span> : undefined}
+      />
       <section className="mx-auto max-w-7xl px-5 py-14 lg:px-8">
         {!session?.user ? (
           <>
-            <div className="grid gap-5 md:grid-cols-2">
+            <div className="mb-8"><p className="section-kicker">Performance system</p><h2 className="mt-3 text-3xl font-black text-[#061426]">Turn replay evidence into focused development</h2></div>
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
               {features.map(([Icon, title, text]) => {
                 const FeatureIcon = Icon as typeof Video;
                 return (
-                  <article key={title} className="panel p-7">
-                    <FeatureIcon className="text-[#1683ff]" />
-                    <h2 className="mt-5 text-xl font-black text-[#081e3a]">{title}</h2>
+                  <article key={title} className="panel min-h-60 p-7">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#061426] text-blue-300"><FeatureIcon /></span>
+                    <h2 className="mt-7 text-xl font-black text-[#081e3a]">{title}</h2>
                     <p className="mt-3 leading-7 text-slate-600">{text}</p>
                   </article>
                 );
               })}
             </div>
-            <div className="panel mt-5 p-8 text-center">
+            <div className="empty-stage mt-6">
               <LockKeyhole className="mx-auto text-[#1683ff]" />
               <h2 className="mt-4 text-2xl font-black text-[#081e3a]">Your private development workspace</h2>
               <p className="mt-2 text-slate-600">Sign in to view your own replays, evidence, goals, and progress.</p>
@@ -66,7 +60,7 @@ export default async function CoachPage() {
                 ["Current goal", "Set after player profile activation"],
                 ["Replays analyzed", coach?.status === "READY" ? String(coach.replays.filter((replay) => replay.status === "COMPLETE").length) : "—"],
               ].map(([label, value]) => (
-                <div key={label} className="panel p-6">
+                <div key={label} className="metric-tile">
                   <p className="eyebrow text-slate-400">{label}</p>
                   <p className="mt-3 text-lg font-black text-[#081e3a]">{value}</p>
                 </div>
@@ -76,7 +70,7 @@ export default async function CoachPage() {
             <div className="mt-6 grid gap-6 lg:grid-cols-[1.05fr_.95fr]">
               <section id="replays" className="panel p-6 sm:p-8">
                 <p className="eyebrow text-[#1683ff]">Replay pipeline</p>
-                <h2 className="mt-2 text-2xl font-black text-[#081e3a]">Evidence library</h2>
+                <h2 className="mt-2 text-3xl font-black text-[#081e3a]">Replay analysis</h2>
                 {coach?.status === "READY" ? (
                   <>
                     <div className="mt-6"><CoachReplayUploader /></div>
@@ -91,7 +85,10 @@ export default async function CoachPage() {
                         </div>
                       ))}
                       {coach.replays.length === 0 && (
-                        <p className="rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-500">No replay evidence submitted yet.</p>
+                        <div className="empty-stage">
+                          <p className="font-black text-[#061426]">No replay evidence submitted yet</p>
+                          <p className="mt-2 text-sm leading-6 text-slate-500">Upload a supported replay so the system can establish evidence. Focus areas, trends, insights, and progress remain unavailable until analysis completes.</p>
+                        </div>
                       )}
                     </div>
                   </>
@@ -111,7 +108,7 @@ export default async function CoachPage() {
 
               <section id="progress" className="panel p-6 sm:p-8">
                 <p className="eyebrow text-[#1683ff]">Player development</p>
-                <h2 className="mt-2 text-2xl font-black text-[#081e3a]">Focus and progress</h2>
+                <h2 className="mt-2 text-3xl font-black text-[#081e3a]">Focus and progress</h2>
                 <div className="mt-6 space-y-4">
                   {features.slice(1).map(([Icon, title, text]) => {
           const FeatureIcon = Icon as typeof Video;

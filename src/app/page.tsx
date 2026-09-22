@@ -72,7 +72,7 @@ export default async function Home() {
           className="pointer-events-none absolute -right-24 top-1/2 w-[500px] -translate-y-1/2 opacity-[0.08] lg:right-4 lg:w-[680px]"
           priority
         />
-        <div className="relative mx-auto grid min-h-[640px] max-w-7xl items-center gap-12 px-5 py-20 lg:grid-cols-[1.15fr_.85fr] lg:px-8">
+        <div className="relative mx-auto grid min-h-[700px] max-w-7xl items-center gap-12 px-5 py-20 lg:grid-cols-[1.12fr_.88fr] lg:px-8">
           <div>
             <div className="mb-6 inline-flex items-center gap-2 border border-blue-300/25 bg-blue-400/10 px-3 py-2 text-xs font-black uppercase tracking-[.18em] text-blue-200">
               <span className={`h-2 w-2 rounded-full ${data.status === "ready" ? "bg-emerald-400" : "bg-amber-300"}`} />
@@ -97,7 +97,7 @@ export default async function Home() {
               <Link href={discordHref} className="inline-flex items-center rounded-md px-4 py-3.5 font-bold text-slate-200 hover:text-white">Join Discord</Link>
             </div>
           </div>
-          <div className="border border-white/15 bg-[#091b31]/85 shadow-2xl">
+          <div className="competition-panel">
             <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
               <div>
                 <p className="eyebrow text-blue-300">Match center</p>
@@ -201,19 +201,26 @@ export default async function Home() {
           {TIERS.map((tier, index) => {
             const snapshot = tierSnapshots[index];
             return (
-              <Link key={tier.id} href={`/tiers/${tier.id}`} className="group border border-slate-200 bg-white p-6 shadow-[0_8px_28px_rgba(6,20,38,.05)] hover:-translate-y-1 hover:border-slate-300">
+              <article key={tier.id} className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-6 shadow-[0_12px_34px_rgba(6,20,38,.07)] transition hover:-translate-y-1 hover:border-slate-300 hover:shadow-[0_20px_48px_rgba(6,20,38,.12)]">
+                <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: tier.color }} />
+                <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-10 blur-2xl" style={{ backgroundColor: tier.color }} />
                 <div className="flex items-start justify-between">
                   <TierIcon tier={tier.id} size={68} />
                   <span className="font-mono text-xs font-bold text-slate-400">0{tier.ordinal}</span>
                 </div>
                 <p className="eyebrow mt-7" style={{ color: tier.color }}>{tier.progression}</p>
-                <h3 className="mt-2 text-3xl font-black text-[#061426]">{tier.name}</h3>
+                <h3 className="mt-2 text-3xl font-black text-[#061426]"><Link href={`/tiers/${tier.id}`}>{tier.name}</Link></h3>
                 <p className="mt-3 min-h-12 text-sm leading-6 text-slate-600">{tier.description}</p>
                 <div className="mt-6 flex gap-6 border-t border-slate-100 pt-4 text-sm">
                   <span><strong className="stat-number">{snapshot.status === "ready" ? snapshot.standings.length : 0}</strong> teams</span>
                   <span><strong className="stat-number">{snapshot.status === "ready" ? snapshot.players.length : 0}</strong> players</span>
                 </div>
-              </Link>
+                <div className="mt-5 flex flex-wrap gap-x-3 gap-y-2 text-xs font-black uppercase tracking-[.06em] text-slate-500">
+                  <Link href={`/standings?tier=${tier.id}`} className="hover:text-[#061426]">Standings</Link>
+                  <Link href={`/matches?tier=${tier.id}`} className="hover:text-[#061426]">Matches</Link>
+                  <Link href={`/statistics?tier=${tier.id}`} className="hover:text-[#061426]">Statistics</Link>
+                </div>
+              </article>
             );
           })}
         </div>

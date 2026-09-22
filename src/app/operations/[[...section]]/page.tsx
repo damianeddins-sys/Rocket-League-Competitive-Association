@@ -178,15 +178,24 @@ export default async function OperationsPage({
 
   return (
     <div className="min-h-screen bg-[#f3f6fa]">
-      <section className="bg-[#061426] px-5 py-12 text-white">
+      <section className="hero-grid bg-[#061426] px-5 py-12 text-white">
         <div className="mx-auto max-w-7xl lg:px-3">
-          <p className="eyebrow text-blue-300">{RLCA_FULL_NAME} · {RLCA_FORMAT} operations</p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight">{current.label}</h1>
-          <p className="mt-3 text-slate-300">Protected actions re-check live Discord roles on the server.</p>
+          <div className="flex flex-wrap items-end justify-between gap-6">
+            <div>
+              <p className="eyebrow text-blue-300">{RLCA_FULL_NAME} · {RLCA_FORMAT}</p>
+              <h1 className="display-title mt-3 text-5xl sm:text-6xl">RLCA Operations</h1>
+              <p className="mt-4 text-lg font-bold text-white">{current.label}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-4 py-2 text-xs font-black text-emerald-200">AUTHORIZED</span>
+              <span className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-bold text-slate-200">LIVE ROLE VERIFICATION</span>
+            </div>
+          </div>
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-400">Protected actions re-check current Discord roles on the server and write auditable league records.</p>
         </div>
       </section>
-      <main className="mx-auto grid max-w-7xl gap-7 px-5 py-10 lg:grid-cols-[16rem_1fr] lg:px-8">
-        <nav className="h-fit border border-slate-200 bg-white p-2 lg:sticky lg:top-28" aria-label="Operations sections">
+      <main className="mx-auto grid max-w-7xl gap-7 px-5 py-10 lg:grid-cols-[18rem_minmax(0,1fr)] lg:px-8">
+        <nav className="h-fit overflow-hidden rounded-xl border border-white/10 bg-[#07172b] p-2 text-white shadow-xl lg:sticky lg:top-28" aria-label="Operations sections">
           {sectionGroups.map((group) => {
             const visible = group.keys.filter((key) => {
               const item = sections[key];
@@ -195,8 +204,8 @@ export default async function OperationsPage({
             });
             if (!visible.length) return null;
             return (
-              <div key={group.label} className="border-b border-slate-100 py-2 last:border-0">
-                <p className="px-3 pb-2 pt-1 text-[10px] font-black uppercase tracking-[.18em] text-slate-400">{group.label}</p>
+              <div key={group.label} className="border-b border-white/10 py-2 last:border-0">
+                <p className="px-3 pb-2 pt-1 text-[10px] font-black uppercase tracking-[.18em] text-slate-500">{group.label}</p>
                 {visible.map((key) => {
                   const item = sections[key];
                   const Icon = item.icon;
@@ -204,7 +213,7 @@ export default async function OperationsPage({
                     <Link
                       key={key}
                       href={key === "overview" ? "/operations" : `/operations/${key}`}
-                      className={`flex items-center gap-3 border-l-2 px-4 py-2.5 text-sm font-bold ${key === sectionKey ? "border-[#1683ff] bg-blue-50 text-[#075fac]" : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-[#061426]"}`}
+                      className={`flex items-center gap-3 rounded-r-md border-l-2 px-4 py-2.5 text-sm font-bold ${key === sectionKey ? "border-[#1683ff] bg-blue-500/15 text-blue-200" : "border-transparent text-slate-400 hover:bg-white/[0.06] hover:text-white"}`}
                     >
                       <Icon size={17} /> {item.label}
                     </Link>
@@ -214,14 +223,14 @@ export default async function OperationsPage({
             );
           })}
         </nav>
-        <section>
-          <div className="panel p-7 sm:p-9">
+        <section className="min-w-0">
+          <div className="operations-shell p-6 sm:p-8 xl:p-10">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="eyebrow text-[#1683ff]">Secure workspace</p>
                 <h2 className="mt-2 text-2xl font-black text-[#081e3a]">{current.label}</h2>
               </div>
-              <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700">AUTHORIZED</span>
+              <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-600">OFFICIAL DATABASE</span>
             </div>
             {storageHealth ? (
               <div className="mt-7 space-y-6">

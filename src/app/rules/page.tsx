@@ -45,10 +45,10 @@ export default async function RulesPage({
 
   return (
     <>
-      <section className="hero-grid bg-[#061426] px-5 py-16 text-white">
+      <section className="hero-grid border-b border-white/10 bg-[#061426] px-5 py-20 text-white">
         <div className="mx-auto max-w-6xl">
           <p className="eyebrow text-blue-300">{RLCA_FULL_NAME.toUpperCase()} · {RLCA_FORMAT}</p>
-          <h1 className="mt-3 max-w-4xl text-4xl font-black tracking-tight sm:text-6xl">
+          <h1 className="display-title mt-4 max-w-4xl text-5xl sm:text-7xl">
             {RULEBOOK_TITLE}
           </h1>
           <p className="mt-4 text-sm font-black uppercase tracking-[0.18em] text-blue-200">{RULEBOOK_VERSION}</p>
@@ -71,28 +71,28 @@ export default async function RulesPage({
           </div>
         )}
         <div className="grid min-w-0 gap-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
-          <aside className="h-fit border border-slate-200 bg-white p-5 lg:sticky lg:top-28">
-            <p className="eyebrow text-[#168bff]">Rulebook contents</p>
+          <aside className="h-fit rounded-xl border border-white/10 bg-[#07172b] p-5 text-white shadow-xl lg:sticky lg:top-28">
+            <p className="eyebrow text-blue-300">Rulebook contents</p>
             <nav className="mt-4 grid gap-2 text-sm" aria-label="Rulebook contents">
               {showFormatVisuals && (
                 <>
-                  <Link href="#season-1-timeline" className="flex gap-2 text-slate-600 hover:text-[#061426]">
-                    <span className="font-mono text-xs text-slate-400">A</span>Season 1 timeline
+                  <Link href="#season-1-timeline" className="flex gap-2 text-slate-300 hover:text-white">
+                    <span className="font-mono text-xs text-blue-300">A</span>Season 1 timeline
                   </Link>
-                  <Link href="#major-bracket" className="flex gap-2 text-slate-600 hover:text-[#061426]">
-                    <span className="font-mono text-xs text-slate-400">B</span>8-team Major bracket
+                  <Link href="#major-bracket" className="flex gap-2 text-slate-300 hover:text-white">
+                    <span className="font-mono text-xs text-blue-300">B</span>8-team Major bracket
                   </Link>
-                  <Link href="#last-chance-bracket" className="flex gap-2 text-slate-600 hover:text-[#061426]">
-                    <span className="font-mono text-xs text-slate-400">C</span>Last Chance bracket
+                  <Link href="#last-chance-bracket" className="flex gap-2 text-slate-300 hover:text-white">
+                    <span className="font-mono text-xs text-blue-300">C</span>Last Chance bracket
                   </Link>
-                  <Link href="#championship-bracket" className="flex gap-2 text-slate-600 hover:text-[#061426]">
-                    <span className="font-mono text-xs text-slate-400">D</span>Championship bracket
+                  <Link href="#championship-bracket" className="flex gap-2 text-slate-300 hover:text-white">
+                    <span className="font-mono text-xs text-blue-300">D</span>Championship bracket
                   </Link>
                 </>
               )}
               {visibleSections.map(([title], index) => (
-                <Link key={title} href={`#${anchorFor(title)}`} className="flex gap-2 text-slate-600 hover:text-[#061426]">
-                  <span className="font-mono text-xs text-slate-400">{String(index + 1).padStart(2, "0")}</span>{title}
+                <Link key={title} href={`#${anchorFor(title)}`} className="flex gap-2 text-slate-400 hover:text-white">
+                  <span className="font-mono text-xs text-slate-600">{String(index + 1).padStart(2, "0")}</span>{title}
                 </Link>
               ))}
             </nav>
@@ -108,7 +108,7 @@ export default async function RulesPage({
                 </p>
                 <ol className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {SEASON_ONE_TIMELINE.map((stage, index) => (
-                    <li key={stage.label} className="relative border border-slate-200 bg-slate-50 p-5">
+                    <li key={stage.label} className="relative overflow-hidden rounded-lg border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm after:absolute after:inset-x-0 after:top-0 after:h-1 after:bg-[#168bff] after:content-['']">
                       <span className="font-mono text-xs font-black text-blue-500">{String(index + 1).padStart(2, "0")}</span>
                       <h3 className="mt-2 text-xl font-black text-[#081e3a]">{stage.label}</h3>
                       <p className="mt-1 text-sm font-bold text-slate-600">{stage.detail}</p>

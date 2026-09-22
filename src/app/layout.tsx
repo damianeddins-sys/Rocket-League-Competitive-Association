@@ -79,22 +79,23 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${barlowCondensed.variable} h-full antialiased`}>
       <body className="min-h-full bg-white text-slate-900">
-        <header className="sticky top-0 z-50 border-b border-white/10 bg-[#061426]/95 text-white shadow-[0_10px_35px_rgba(0,0,0,.18)] backdrop-blur-xl">
-          <div className="mx-auto flex h-[4.5rem] max-w-[90rem] items-center gap-5 px-5 xl:px-8">
-            <Link href="/" className="mr-auto flex min-w-0 items-center gap-2.5 sm:gap-3" aria-label={`${RLCA_PRIMARY_IDENTITY} home`}>
+        <header className="sticky top-0 z-50 border-b border-white/10 bg-[#061426]/95 text-white shadow-[0_14px_40px_rgba(0,0,0,.22)] backdrop-blur-xl">
+          <div className="h-[2px] bg-gradient-to-r from-transparent via-[#168bff] to-transparent" />
+          <div className="mx-auto flex h-[4.9rem] max-w-[90rem] items-center gap-4 px-5 xl:px-8">
+            <Link href="/" className="mr-auto flex min-w-0 items-center gap-3" aria-label={`${RLCA_PRIMARY_IDENTITY} home`}>
               <Image
                 src="/branding/rlca-logo-transparent.png"
                 alt=""
                 width={92}
                 height={92}
-                className="h-10 w-auto shrink-0 object-contain sm:h-11"
+                className="h-11 w-auto shrink-0 object-contain sm:h-12"
                 priority
               />
-              <span className="block max-w-32 border-l border-white/20 pl-2.5 text-[8px] font-semibold uppercase leading-tight tracking-[0.14em] text-slate-300 sm:max-w-none sm:pl-3 sm:text-[10px] sm:tracking-[0.2em]">
+              <span className="block max-w-36 border-l border-white/20 pl-3 text-[9px] font-bold uppercase leading-[1.25] tracking-[0.12em] text-slate-300 sm:max-w-none sm:text-[10px] sm:tracking-[0.17em]">
                 Rocket League
                 <br />
                 Competitive Association
-                <strong className="mt-0.5 block text-blue-300">{RLCA_FORMAT}</strong>
+                <strong className="mt-1 block font-mono text-[10px] tracking-[0.22em] text-blue-300">{RLCA_FORMAT}</strong>
               </span>
             </Link>
             <PublicNavigation
@@ -108,7 +109,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           </div>
           {session?.user && (
             <div className="hidden border-t border-white/10 bg-[#061426]/95 xl:block">
-              <div className="mx-auto flex h-11 max-w-7xl items-center gap-1 px-5 lg:px-8">
+              <div className="mx-auto flex h-11 max-w-[90rem] items-center gap-1 px-5 lg:px-8">
                 <span className="mr-3 text-[10px] font-black uppercase tracking-[0.18em] text-blue-300">Player</span>
                 {playerNavigation.map(([label, href]) => (
                   <Link key={href} href={href} className="rounded-md px-3 py-2 text-xs font-bold text-slate-300 hover:bg-white/10 hover:text-white">
@@ -126,7 +127,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         </header>
         <main className="page-enter">{children}</main>
         <footer className="border-t-4 border-[#168bff] bg-[#061426] text-slate-300">
-          <div className="mx-auto grid max-w-7xl gap-10 px-5 py-14 lg:grid-cols-[1.1fr_1.9fr] lg:px-8">
+          <div className="mx-auto grid max-w-[90rem] gap-10 px-5 py-14 lg:grid-cols-[1.1fr_1.9fr] lg:px-8">
             <div>
               <Image src="/branding/rlca-logo-transparent.png" alt="" width={120} height={120} className="h-14 w-auto" />
               <p className="mt-4 font-black uppercase tracking-[.08em] text-white">
@@ -148,7 +149,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               ))}
             </nav>
           </div>
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-5 border-t border-white/10 px-5 py-5 text-xs lg:px-8">
+          <div className="mx-auto flex max-w-[90rem] flex-wrap items-center gap-5 border-t border-white/10 px-5 py-5 text-xs lg:px-8">
             <Link href="/apply" className="font-black text-white">Join RLCA</Link>
             <Link href={discordHref}>Discord</Link>
             <Link href="/rules">Rules</Link>

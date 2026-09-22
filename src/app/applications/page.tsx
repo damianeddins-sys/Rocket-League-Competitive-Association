@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRight, BriefcaseBusiness, ExternalLink, Gamepad2, ShieldCheck, Users } from "lucide-react";
 import { RLCA_FORMAT, RLCA_FULL_NAME } from "@/services/brand";
+import { SEASON_ONE_RULES } from "@/services/rules";
 
 export const metadata: Metadata = { title: "Applications" };
 
@@ -105,6 +106,30 @@ export default async function ApplicationsPage({
             The Discord channel link is temporarily unavailable. You can still begin the website application.
           </p>
         )}
+        <section className="mb-10 overflow-hidden rounded-xl bg-[#061426] p-6 text-white sm:p-8" aria-labelledby="mmr-pathway">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div><p className="eyebrow text-blue-300">RLCA MMR</p><h2 id="mmr-pathway" className="mt-2 text-3xl font-black">From verification to tier placement</h2></div>
+            <p className="max-w-xl text-sm leading-6 text-slate-400">The scale starts at 1000. Higher values indicate stronger verified competitive performance; the league does not publish an invented shortcut formula.</p>
+          </div>
+          <ol className="mt-7 grid gap-px overflow-hidden rounded-lg bg-white/10 sm:grid-cols-4">
+            {[
+              ["01", "Verify", `${SEASON_ONE_RULES.verification.windowDays} days · ${SEASON_ONE_RULES.verification.rankedGamesRequired} ranked 2v2 games`],
+              ["02", "Calculate", "Use verified Ranked Rocket League 2v2 evidence"],
+              ["03", "Rank", "Establish an official RLCA MMR record"],
+              ["04", "Tier", "Place the player into one competitive division"],
+            ].map(([step, title, detail]) => (
+              <li key={step} className="bg-[#091b31] p-5">
+                <span className="font-mono text-xs font-black text-blue-300">{step}</span>
+                <h3 className="mt-4 text-xl font-black">{title}</h3>
+                <p className="mt-2 text-xs leading-5 text-slate-400">{detail}</p>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-5 grid gap-3 text-sm text-slate-300 sm:grid-cols-2">
+            <p><strong className="text-white">Scrimmages:</strong> do not affect RLCA MMR.</p>
+            <p><strong className="text-white">Official BO5 series:</strong> can affect current MMR after the season begins.</p>
+          </div>
+        </section>
         <div className="grid gap-6 md:grid-cols-2">
           {applicationPaths.map((application) => {
             const Icon = application.icon;

@@ -1,15 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --rlca-background: #f2f5f8;
+  --rlca-background: #edf2f7;
   --rlca-surface: #ffffff;
   --rlca-surface-2: #eef3f8;
   --rlca-primary: #168bff;
   --rlca-primary-dark: #0765c9;
   --rlca-ink: #061426;
+  --rlca-ink-2: #091d35;
   --rlca-text: #122033;
   --rlca-muted: #607086;
-  --rlca-border: #d7e0ea;
+  --rlca-border: #d3dde8;
   --background: var(--rlca-background);
   --foreground: var(--rlca-text);
   --navy: #081e3a;
@@ -35,7 +36,11 @@
 }
 
 body {
-  background: var(--background);
+  background:
+    linear-gradient(rgb(6 20 38 / 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(6 20 38 / 0.018) 1px, transparent 1px),
+    var(--background);
+  background-size: 64px 64px;
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   overflow-x: hidden;
@@ -61,17 +66,19 @@ button:focus-visible {
 }
 
 .eyebrow {
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   font-weight: 900;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.19em;
   text-transform: uppercase;
 }
 
 .panel {
   border: 1px solid var(--border);
-  border-radius: 0.65rem;
+  border-radius: 0.85rem;
   background: var(--rlca-surface);
-  box-shadow: 0 8px 28px rgb(6 20 38 / 0.05);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.85) inset,
+    0 12px 34px rgb(6 20 38 / 0.065);
 }
 
 a.panel {
@@ -81,29 +88,123 @@ a.panel {
 a.panel:hover {
   border-color: rgb(22 131 255 / 0.45);
   box-shadow: 0 18px 45px rgb(6 20 38 / 0.11);
+  transform: translateY(-2px);
 }
 
 .hero-grid {
   background-image:
-    linear-gradient(115deg, rgb(6 20 38 / 0.15), rgb(6 20 38 / 0.92)),
-    radial-gradient(circle at 84% 18%, rgb(22 139 255 / 0.25), transparent 26rem),
+    linear-gradient(115deg, rgb(6 20 38 / 0.05), rgb(6 20 38 / 0.9)),
+    radial-gradient(circle at 84% 18%, rgb(22 139 255 / 0.3), transparent 29rem),
+    radial-gradient(circle at 18% 110%, rgb(130 168 208 / 0.16), transparent 32rem),
     linear-gradient(rgb(255 255 255 / 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgb(255 255 255 / 0.035) 1px, transparent 1px);
-  background-size: auto, auto, 48px 48px, 48px 48px;
+  background-size: auto, auto, auto, 48px 48px, 48px 48px;
 }
 
 .esports-surface {
   background:
-    radial-gradient(circle at 15% 15%, rgb(22 139 255 / 0.18), transparent 32rem),
-    radial-gradient(circle at 90% 75%, rgb(138 43 226 / 0.13), transparent 30rem),
+    linear-gradient(115deg, rgb(255 255 255 / 0.018), transparent 42%),
+    radial-gradient(circle at 15% 15%, rgb(22 139 255 / 0.24), transparent 32rem),
+    radial-gradient(circle at 90% 75%, rgb(138 43 226 / 0.1), transparent 30rem),
     var(--rlca-ink);
 }
 
 .section-shell {
   margin-inline: auto;
   width: 100%;
-  max-width: 80rem;
+  max-width: 90rem;
   padding-inline: 1.25rem;
+}
+
+.league-shell {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 90rem;
+  padding-inline: 1.25rem;
+}
+
+.league-page-hero {
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid rgb(255 255 255 / 0.12);
+  background:
+    linear-gradient(105deg, rgb(6 20 38 / 0.98) 20%, rgb(8 31 57 / 0.92) 70%, rgb(13 69 119 / 0.78)),
+    radial-gradient(circle at 78% 15%, rgb(22 139 255 / 0.45), transparent 30rem);
+}
+
+.league-page-hero::before {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.038) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.038) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(90deg, black, transparent 72%);
+  content: "";
+}
+
+.section-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--rlca-primary-dark);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.section-kicker::before {
+  width: 1.75rem;
+  height: 2px;
+  background: var(--rlca-primary);
+  content: "";
+}
+
+.competition-panel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 0.85rem;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 0.055), transparent 62%),
+    var(--rlca-ink-2);
+  box-shadow: 0 24px 65px rgb(0 0 0 / 0.24);
+}
+
+.metric-tile {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--rlca-border);
+  border-radius: 0.75rem;
+  background: linear-gradient(145deg, #fff, #f7fafe);
+  padding: 1.25rem;
+  box-shadow: 0 10px 26px rgb(6 20 38 / 0.055);
+}
+
+.metric-tile::after {
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--rlca-primary), transparent 72%);
+  content: "";
+}
+
+.empty-stage {
+  border: 1px dashed #b8c7d8;
+  border-radius: 0.85rem;
+  background:
+    radial-gradient(circle at 50% 0, rgb(22 139 255 / 0.09), transparent 15rem),
+    linear-gradient(145deg, #fff, #f3f7fb);
+  padding: clamp(2rem, 5vw, 4rem);
+  text-align: center;
+}
+
+.operations-shell {
+  border: 1px solid #cbd7e4;
+  border-radius: 0.9rem;
+  background: #fff;
+  box-shadow: 0 22px 55px rgb(6 20 38 / 0.09);
 }
 
 .display-title {
@@ -166,6 +267,37 @@ a.panel:hover {
   background: #f7faff;
 }
 
+.data-table th {
+  white-space: nowrap;
+}
+
+.data-table td {
+  vertical-align: middle;
+}
+
+input,
+select,
+textarea {
+  min-height: 2.75rem;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--rlca-primary);
+  box-shadow: 0 0 0 3px rgb(22 139 255 / 0.12);
+  outline: none;
+}
+
+/* League data screens use the same broadcast-width canvas as the header. */
+.max-w-7xl {
+  max-width: 90rem;
+}
+
+.max-w-6xl {
+  max-width: 82rem;
+}
+
 .league-rule {
   height: 1px;
   background: linear-gradient(90deg, var(--rlca-primary), rgb(22 139 255 / 0));
@@ -203,6 +335,10 @@ a.panel:hover {
 
 @media (min-width: 64rem) {
   .section-shell {
+    padding-inline: 2rem;
+  }
+
+  .league-shell {
     padding-inline: 2rem;
   }
 }

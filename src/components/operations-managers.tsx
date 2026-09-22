@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { TierBadge, TierNavigation } from "@/components/tier-navigation";
+import { TierBadge, TierIcon, TierNavigation } from "@/components/tier-navigation";
 import { readApiResult } from "@/services/api-response";
 import { normalizeTierId, tierDefinition, type TierId } from "@/services/tiers";
+import { SEASON_ONE_RULES } from "@/services/rules";
 
 function Feedback({ message }: { message?: string }) {
   return message
@@ -73,26 +74,51 @@ export function OperationsOverview({
   };
   return (
     <div className="mt-7">
+    <div className="mb-6 rounded-xl bg-[#061426] p-6 text-white">
+      <p className="eyebrow text-blue-300">Season operations snapshot</p>
+      <h3 className="mt-2 text-3xl font-black">League control center</h3>
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Live totals from the official database. Select a metric to open its protected management workspace.</p>
+    </div>
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
       {Object.entries(summary).map(([label, value]) => (
-        <Link key={label} href={links[label as keyof typeof links]} className="rounded-xl border border-slate-200 bg-white p-5 hover:border-blue-300">
-          <p className="text-3xl font-black text-[#081e3a]">{value}</p>
+        <Link key={label} href={links[label as keyof typeof links]} className="metric-tile hover:border-blue-300">
+          <p className="stat-number text-4xl text-[#081e3a]">{value}</p>
           <p className="mt-1 text-xs font-black uppercase tracking-wider text-slate-500">{label}</p>
+          <p className="mt-4 text-[10px] font-black uppercase tracking-[.1em] text-[#168bff]">Manage →</p>
         </Link>
       ))}
     </div>
     <section className="mt-7">
-      <h3 className="text-lg font-black text-[#081e3a]">Active season by tier</h3>
+      <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="section-kicker">Competition structure</p><h3 className="mt-2 text-2xl font-black text-[#081e3a]">Active season by tier</h3></div><Link href="/operations/tiers" className="text-sm font-black text-[#0765c9]">Manage tiers →</Link></div>
       <div className="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {counts.tiers.map((tier) => (
-          <article key={tier.id} className="rounded-xl border bg-white p-5" style={{ borderTop: `4px solid ${tier.color}` }}>
-            <TierBadge tierId={tier.id} compact />
+          <article key={tier.id} className="relative overflow-hidden rounded-xl border bg-white p-5 shadow-[0_10px_28px_rgba(6,20,38,.06)]" style={{ borderTop: `4px solid ${tier.color}` }}>
+            <div className="flex items-center justify-between gap-3"><TierBadge tierId={tier.id} compact /><TierIcon tier={tier.id} size={42} /></div>
             <dl className="mt-5 grid grid-cols-3 gap-2 text-center">
               <div><dt className="text-[10px] font-bold uppercase text-slate-400">Teams</dt><dd className="mt-1 text-xl font-black">{tier.teams}</dd></div>
               <div><dt className="text-[10px] font-bold uppercase text-slate-400">Matches</dt><dd className="mt-1 text-xl font-black">{tier.matches}</dd></div>
               <div><dt className="text-[10px] font-bold uppercase text-slate-400">Complete</dt><dd className="mt-1 text-xl font-black">{tier.completed}</dd></div>
             </dl>
           </article>
+        ))}
+      </div>
+    </section>
+    <section className="mt-8">
+      <p className="section-kicker">Operational workspaces</p>
+      <h3 className="mt-2 text-2xl font-black text-[#081e3a]">Run the league</h3>
+      <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        {[
+          ["Application queue", "/operations/applications", "Review submitted player, team, staff, and franchise records."],
+          ["Recent transactions", "/operations/transactions", "Inspect roster requests and audited decisions."],
+          ["Upcoming matches", "/operations/matches", "Manage scheduled competition and verified results."],
+          ["System status", "/operations/health", "Review production services and database health."],
+          ["Audit activity", "/operations/audit", "Trace protected actions and official record changes."],
+        ].map(([title, href, description]) => (
+          <Link key={href} href={href} className="panel min-h-44 p-5">
+            <h4 className="font-black text-[#061426]">{title}</h4>
+            <p className="mt-3 text-sm leading-6 text-slate-600">{description}</p>
+            <p className="mt-5 text-[10px] font-black uppercase tracking-[.1em] text-[#168bff]">Open workspace →</p>
+          </Link>
         ))}
       </div>
     </section>
@@ -271,6 +297,27 @@ export function MmrManager({ players }: { players: PlayerRow[] }) {
   return (
     <div className="mt-7 space-y-4">
       <Feedback message={message} />
+      <section className="overflow-hidden rounded-xl bg-[#061426] p-6 text-white">
+        <p className="eyebrow text-blue-300">RLCA rating pathway</p>
+        <div className="mt-5 grid gap-px overflow-hidden rounded-lg bg-white/10 sm:grid-cols-4">
+          {[
+            ["01", "Verify", `${SEASON_ONE_RULES.verification.windowDays}-day window · ${SEASON_ONE_RULES.verification.rankedGamesRequired} ranked 2v2 games`],
+            ["02", "Calculate", "Verified Ranked 2v2 evidence"],
+            ["03", "Rank", "1000 starting scale · higher means stronger"],
+            ["04", "Tier", "Official placement in one RLCA division"],
+          ].map(([number, title, detail]) => (
+            <div key={number} className="bg-[#091b31] p-5">
+              <p className="font-mono text-xs font-black text-blue-300">{number}</p>
+              <h3 className="mt-3 text-xl font-black">{title}</h3>
+              <p className="mt-2 text-xs leading-5 text-slate-400">{detail}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 grid gap-3 text-sm text-slate-300 sm:grid-cols-2">
+          <p><strong className="text-white">Scrimmages:</strong> do not alter RLCA MMR.</p>
+          <p><strong className="text-white">Official BO5:</strong> may affect current MMR after the season begins.</p>
+        </div>
+      </section>
       <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
         Manual MMR corrections are restricted, append a rating event, and require an audit reason.
       </p>

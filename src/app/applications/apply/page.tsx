@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ApplicationForm } from "@/components/application-form";
+import { LeaguePageHero } from "@/components/league-page-hero";
 import { getSession } from "@/services/auth/session";
 import { applicationReference, type ApplicationType } from "@/services/applications";
 import { loadApplicantStatus } from "@/services/application-status";
@@ -39,17 +40,14 @@ export default async function ApplyPage({
 
   return (
     <div className="min-h-screen bg-[#f3f6fa]">
-      <section className="bg-[#061426] px-5 py-14 text-white">
-        <div className="mx-auto max-w-4xl">
-          <Link href="/applications" className="text-sm font-bold text-blue-200">← All applications</Link>
-          <p className="eyebrow mt-8 text-blue-300">{RLCA_FULL_NAME} · {RLCA_FORMAT}</p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight">{applicationNames[type]}</h1>
-          <p className="mt-4 max-w-2xl text-slate-300">
-            Submit once. Your application is stored in the official database with a complete review history.
-          </p>
-        </div>
-      </section>
-      <main className="mx-auto max-w-4xl px-5 py-12">
+      <LeaguePageHero
+        eyebrow={`${RLCA_FULL_NAME} · ${RLCA_FORMAT}`}
+        title={applicationNames[type]}
+        description="A guided seven-step registration workflow. Submit once, track the official record, and keep a complete review history."
+        compact
+        actions={<Link href="/applications" className="rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-sm font-black text-blue-100">← All applications</Link>}
+      />
+      <main className="mx-auto max-w-6xl px-5 py-12">
         {!session?.user ? (
           <div className="panel p-8 text-center">
             <h2 className="text-2xl font-black text-[#081e3a]">Connect Discord to continue</h2>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BarChart3, BrainCircuit, CalendarDays, ShieldCheck, Users } from "lucide-react";
 import { redirect } from "next/navigation";
+import { LeaguePageHero } from "@/components/league-page-hero";
 import { getSession } from "@/services/auth/session";
 
 export const metadata: Metadata = { title: "Player Dashboard" };
@@ -16,31 +17,22 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#f3f6fa]">
-      <section className="hero-grid bg-[#061426] px-5 py-14 text-white">
-        <div className="mx-auto max-w-7xl lg:px-3">
-          <p className="eyebrow text-blue-300">Authenticated player workspace</p>
-          <div className="mt-3 flex flex-wrap items-end justify-between gap-5">
-            <div>
-              <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
-                Welcome, {session.user.name}
-              </h1>
-              <p className="mt-4 text-slate-300">Your competition, development, and replay tools stay together.</p>
-            </div>
-            <div className="flex gap-2">
-              <span className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-bold">
-                Participation: {statusLabel}
-              </span>
-              {isOwner && (
-                <span className="rounded-full bg-blue-500/20 px-4 py-2 text-xs font-black text-blue-200">
-                  Authorization: League Owner
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
+      <LeaguePageHero
+        eyebrow="Authenticated competitive workspace"
+        title={`Welcome, ${session.user.name}`}
+        description="Your official competition identity, roster path, schedule, statistics, and evidence-based development tools stay together."
+        compact
+        meta={<>
+          <span className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-bold">Participation: {statusLabel}</span>
+          {isOwner && <span className="rounded-full bg-blue-500/20 px-4 py-2 text-xs font-black text-blue-200">Authorization: League Owner</span>}
+        </>}
+      />
       <main className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
+          <div><p className="section-kicker">Player command center</p><h2 className="mt-3 text-3xl font-black text-[#061426]">Your RLCA competition hub</h2></div>
+          <p className="max-w-lg text-sm leading-6 text-slate-600">Only verified league records appear here. Unpublished tier, MMR, team, or match values are never estimated.</p>
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
           {[
             [Users, "My Team", "Roster, franchise schedule, and recent form.", "/teams"],
             [BarChart3, "My Stats", "Verified match and replay-derived performance.", "/players"],
@@ -49,10 +41,11 @@ export default async function DashboardPage() {
           ].map(([Icon, title, description, href]) => {
             const CardIcon = Icon as typeof Users;
             return (
-              <Link key={title as string} href={href as string} className="panel group p-6 hover:-translate-y-1 hover:border-blue-300 hover:shadow-xl">
-                <CardIcon className="text-[#1683ff]" />
-                <h2 className="mt-5 text-xl font-black text-[#081e3a]">{title as string}</h2>
+              <Link key={title as string} href={href as string} className="panel group min-h-56 p-7 hover:border-blue-300 hover:shadow-xl">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#061426] text-blue-300"><CardIcon /></span>
+                <h2 className="mt-8 text-2xl font-black text-[#081e3a]">{title as string}</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-600">{description as string}</p>
+                <p className="mt-5 text-xs font-black uppercase tracking-[.1em] text-[#168bff]">Open workspace →</p>
               </Link>
             );
           })}

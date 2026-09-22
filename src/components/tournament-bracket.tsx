@@ -126,7 +126,7 @@ export function TournamentBracket({
       )}
 
       <div className="-mx-5 mt-6 overflow-x-auto px-5 pb-3 sm:-mx-7 sm:px-7" tabIndex={0} aria-label={`${title} bracket`}>
-        <div className="grid min-w-[880px] grid-cols-3 gap-7">
+        <div className="grid min-w-[920px] grid-cols-3 gap-9">
           {rounds.map((round, roundIndex) => (
             <section key={round.name} className="flex flex-col">
               <p className="border-b border-white/15 pb-3 text-xs font-black uppercase tracking-[0.16em] text-blue-200">
@@ -138,7 +138,7 @@ export function TournamentBracket({
                 }`}
               >
                 {round.matchups.map((matchup) => (
-                  <article key={matchup.label} className="overflow-hidden rounded-lg border border-white/15 bg-white text-slate-900 shadow-xl">
+                  <article key={matchup.label} className={`relative overflow-visible rounded-lg border border-white/15 bg-white text-slate-900 shadow-xl ${roundIndex < 2 ? "after:absolute after:left-full after:top-1/2 after:h-px after:w-9 after:bg-blue-300/45 after:content-['']" : ""}`}>
                     <div className="flex items-center justify-between bg-slate-100 px-3 py-2">
                       <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">{matchup.label}</span>
                       <span className="text-[10px] font-black text-blue-700">BEST OF 7</span>
