@@ -13,6 +13,7 @@ User=rlca
 Group=rlca
 WorkingDirectory=/opt/rlca
 Environment=NODE_ENV=production
+Environment=NODE_OPTIONS=--max-old-space-size=384
 EnvironmentFile=/etc/rlca/discord-worker.env
 ExecStartPre=/usr/bin/test -r /etc/rlca/discord-worker.env
 ExecStart=/usr/local/bin/node /opt/rlca/scripts/discord-gateway-worker.mjs
@@ -23,6 +24,9 @@ TimeoutStopSec=20
 KillSignal=SIGTERM
 UMask=0077
 SyslogIdentifier=rlca-discord-worker
+MemoryHigh=384M
+MemoryMax=640M
+TasksMax=128
 NoNewPrivileges=true
 PrivateDevices=true
 PrivateTmp=true

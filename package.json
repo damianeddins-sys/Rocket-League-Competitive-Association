@@ -13,7 +13,7 @@
     "test:watch": "vitest",
     "discord:register": "node --env-file-if-exists=.env.local scripts/register-discord-commands.mjs",
     "discord:worker": "node --env-file-if-exists=.env.local scripts/discord-gateway-worker.mjs",
-    "discord:oracle:validate": "bash scripts/validate-oracle-package.sh",
+    "discord:gcp:validate": "bash scripts/validate-gcp-package.sh",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx --env-file-if-exists=.env.local scripts/seed-season-one.ts",

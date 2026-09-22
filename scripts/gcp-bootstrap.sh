@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 umask 027
 
-LOG_FILE="/var/log/rlca-oracle-bootstrap.log"
+LOG_FILE="/var/log/rlca-gcp-bootstrap.log"
 mkdir -p "$(dirname "$LOG_FILE")"
 touch "$LOG_FILE"
 chmod 0600 "$LOG_FILE"
@@ -14,7 +14,7 @@ if [[ ${EUID} -ne 0 ]]; then
   exit 1
 fi
 
-CONFIG_FILE="${RLCA_BOOTSTRAP_CONFIG:-/etc/rlca/oracle-bootstrap.conf}"
+CONFIG_FILE="${RLCA_BOOTSTRAP_CONFIG:-/etc/rlca/gcp-bootstrap.conf}"
 if [[ -f "$CONFIG_FILE" ]]; then
   # shellcheck disable=SC1090
   source "$CONFIG_FILE"
@@ -37,8 +37,12 @@ if [[ ! "$RLCA_NODE_VERSION" =~ ^22\.[0-9]+\.[0-9]+$ ]]; then
   echo "[RLCA BOOTSTRAP] RLCA_NODE_VERSION must pin an exact Node.js 22 release."
   exit 1
 fi
+if [[ "$(uname -m)" != "x86_64" && "$(uname -m)" != "amd64" ]]; then
+  echo "[RLCA BOOTSTRAP] Google production requires AMD64/x86_64; found $(uname -m)."
+  exit 1
+fi
 if ! command -v apt-get >/dev/null 2>&1; then
-  echo "[RLCA BOOTSTRAP] This package targets Ubuntu/Debian images with apt."
+  echo "[RLCA BOOTSTRAP] This package requires an Ubuntu/Debian image with apt."
   exit 1
 fi
 
@@ -47,19 +51,10 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends ca-certificates curl git xz-utils
 
-case "$(uname -m)" in
-  aarch64|arm64) node_arch="arm64" ;;
-  x86_64|amd64) node_arch="x64" ;;
-  *)
-    echo "[RLCA BOOTSTRAP] Unsupported architecture: $(uname -m)"
-    exit 1
-    ;;
-esac
-
-node_package="node-v${RLCA_NODE_VERSION}-linux-${node_arch}"
+node_package="node-v${RLCA_NODE_VERSION}-linux-x64"
 node_root="/opt/${node_package}"
 if [[ ! -x "${node_root}/bin/node" ]]; then
-  echo "[RLCA BOOTSTRAP] Installing verified Node.js ${RLCA_NODE_VERSION} for ${node_arch}"
+  echo "[RLCA BOOTSTRAP] Installing verified Node.js ${RLCA_NODE_VERSION} for x64"
   work_dir="$(mktemp -d)"
   trap 'rm -rf "${work_dir:-}"' EXIT
   base_url="https://nodejs.org/dist/v${RLCA_NODE_VERSION}"
@@ -125,9 +120,10 @@ if [[ "$resolved_revision" != "${RLCA_GIT_REF,,}" ]]; then
   echo "[RLCA BOOTSTRAP] Checked-out revision does not match RLCA_GIT_REF."
   exit 1
 fi
+
 echo "[RLCA BOOTSTRAP] Installing production-only worker dependencies"
-runuser -u rlca -- /usr/local/bin/npm \
-  --prefix "${RLCA_INSTALL_DIR}/deploy/discord-worker" \
+runuser -u rlca -- env NODE_OPTIONS=--max-old-space-size=384 \
+  /usr/local/bin/npm --prefix "${RLCA_INSTALL_DIR}/deploy/discord-worker" \
   ci --omit=dev --ignore-scripts --no-audit --no-fund
 if [[ -e "${RLCA_INSTALL_DIR}/node_modules" \
   && ! -L "${RLCA_INSTALL_DIR}/node_modules" ]]; then
@@ -140,7 +136,7 @@ runuser -u rlca -- /usr/local/bin/node \
   --check "${RLCA_INSTALL_DIR}/scripts/discord-gateway-worker.mjs"
 
 install -o root -g root -m 0644 \
-  "${RLCA_INSTALL_DIR}/deploy/oracle/rlca-discord-worker.service" \
+  "${RLCA_INSTALL_DIR}/deploy/gcp/rlca-discord-worker.service" \
   /etc/systemd/system/rlca-discord-worker.service
 install -o root -g root -m 0750 \
   "${RLCA_INSTALL_DIR}/scripts/configure-discord-worker.sh" \

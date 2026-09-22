@@ -8,7 +8,7 @@ packages:
   - xz-utils
 
 write_files:
-  - path: /etc/rlca/oracle-bootstrap.conf
+  - path: /etc/rlca/gcp-bootstrap.conf
     owner: root:root
     permissions: "0644"
     content: |
@@ -18,8 +18,8 @@ write_files:
       RLCA_INSTALL_DIR=/opt/rlca
 
 runcmd:
-  - [bash, -lc, "set -Eeuo pipefail; source /etc/rlca/oracle-bootstrap.conf; test \"${RLCA_GIT_REF}\" != \"__RLCA_REVIEWED_COMMIT_SHA__\""]
-  - [bash, -lc, "set -Eeuo pipefail; source /etc/rlca/oracle-bootstrap.conf; curl --fail --silent --show-error --location --retry 5 --retry-all-errors \"https://raw.githubusercontent.com/damianeddins-sys/Rocket-League-Competitive-Association/${RLCA_GIT_REF}/scripts/oracle-bootstrap.sh\" --output /usr/local/sbin/oracle-bootstrap; chmod 0750 /usr/local/sbin/oracle-bootstrap; /usr/local/sbin/oracle-bootstrap"]
+  - [bash, -lc, "set -Eeuo pipefail; source /etc/rlca/gcp-bootstrap.conf; test \"${RLCA_GIT_REF}\" != \"__RLCA_REVIEWED_COMMIT_SHA__\""]
+  - [bash, -lc, "set -Eeuo pipefail; source /etc/rlca/gcp-bootstrap.conf; curl --fail --silent --show-error --location --retry 5 --retry-all-errors \"https://raw.githubusercontent.com/damianeddins-sys/Rocket-League-Competitive-Association/${RLCA_GIT_REF}/scripts/gcp-bootstrap.sh\" --output /usr/local/sbin/gcp-bootstrap; chmod 0750 /usr/local/sbin/gcp-bootstrap; /usr/local/sbin/gcp-bootstrap"]
 
 output:
   all: "| tee -a /var/log/cloud-init-output.log"

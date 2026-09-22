@@ -60,7 +60,7 @@ if ! runuser -u rlca -- git -C "$INSTALL_DIR" diff --quiet \
 fi
 
 echo "[RLCA FINALIZE] Rebuilding production dependency tree"
-runuser -u rlca -- /usr/local/bin/npm \
+runuser -u rlca -- env NODE_OPTIONS=--max-old-space-size=384 /usr/local/bin/npm \
   --prefix "${INSTALL_DIR}/deploy/discord-worker" \
   ci --omit=dev --ignore-scripts --no-audit --no-fund
 if [[ ! -L "${INSTALL_DIR}/node_modules" ]]; then
