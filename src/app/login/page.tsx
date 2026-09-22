@@ -45,6 +45,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           <div className="relative">
             <RlcaLogo
               className="h-40 w-40 object-contain sm:h-52 sm:w-52"
+              sizes="(min-width: 640px) 208px, 160px"
               priority
             />
             <p className="eyebrow mt-8 text-blue-300">{RLCA_FULL_NAME} · {RLCA_FORMAT}</p>

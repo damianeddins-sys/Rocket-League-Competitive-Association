@@ -67,6 +67,8 @@ export default async function Home() {
         <RlcaLogo
           decorative
           className="pointer-events-none absolute -right-24 top-1/2 w-[500px] -translate-y-1/2 object-contain opacity-[0.1] lg:right-4 lg:w-[680px]"
+          sizes="(min-width: 1024px) 680px, 500px"
+          quality={65}
           priority
         />
         <div className="relative mx-auto grid min-h-[700px] max-w-7xl items-center gap-12 px-5 py-20 lg:grid-cols-[1.12fr_.88fr] lg:px-8">
@@ -205,7 +207,7 @@ export default async function Home() {
                   <TierIcon tier={tier.id} size={68} />
                   <span className="font-mono text-xs font-bold text-slate-400">0{tier.ordinal}</span>
                 </div>
-                <p className="eyebrow mt-7" style={{ color: tier.color }}>{tier.progression}</p>
+                <p className="eyebrow mt-7 text-slate-600">{tier.progression}</p>
                 <h3 className="mt-2 text-3xl font-black text-[#061426]"><Link href={`/tiers/${tier.id}`}>{tier.name}</Link></h3>
                 <p className="mt-3 min-h-12 text-sm leading-6 text-slate-600">{tier.description}</p>
                 <div className="mt-6 flex gap-6 border-t border-slate-100 pt-4 text-sm">

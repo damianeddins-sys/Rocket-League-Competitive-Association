@@ -42,7 +42,7 @@ export default async function TiersPage() {
                     <TierIcon tier={tier.id} size={96} />
                   </div>
                   <div>
-                    <p className="eyebrow" style={{ color: tier.color }}>{tier.progression} · Level {tier.ordinal} of 4</p>
+                    <p className="eyebrow text-slate-600">{tier.progression} · Level {tier.ordinal} of 4</p>
                     <h2 className="mt-2 text-4xl font-black text-[#061426]">{tier.code}</h2>
                     <p className="mt-3 leading-7 text-slate-600">{tier.description}</p>
                     <dl className="mt-5 flex gap-10 border-t border-slate-100 pt-5">

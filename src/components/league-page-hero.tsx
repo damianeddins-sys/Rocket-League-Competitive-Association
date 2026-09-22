@@ -21,6 +21,8 @@ export function LeaguePageHero({
       <RlcaLogo
         decorative
         className="pointer-events-none absolute -right-20 top-1/2 w-80 -translate-y-1/2 opacity-[0.055] sm:w-[28rem] lg:right-[6%]"
+        sizes="(min-width: 640px) 448px, 320px"
+        quality={65}
         aria-hidden
       />
       <div className={`league-shell relative ${compact ? "py-12 sm:py-14" : "py-16 sm:py-20"}`}>

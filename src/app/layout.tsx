@@ -79,10 +79,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <header className="rlca-site-header sticky top-0 z-50 border-b border-white/10 text-white shadow-[0_14px_40px_rgba(0,0,0,.22)] backdrop-blur-xl">
           <div className="h-[2px] bg-gradient-to-r from-transparent via-[#168bff] to-transparent" />
           <div className="mx-auto flex h-[4.9rem] max-w-[90rem] items-center gap-4 px-5 xl:px-8">
-            <Link href="/" className="mr-auto flex min-w-0 items-center gap-3" aria-label={`${RLCA_PRIMARY_IDENTITY} home`}>
+            <Link href="/" className="mr-auto flex min-w-0 items-center gap-3" aria-label={`${RLCA_FULL_NAME} ${RLCA_FORMAT}`}>
               <RlcaLogo
                 decorative
                 className="h-12 w-12 shrink-0 object-contain sm:h-14 sm:w-14"
+                sizes="56px"
                 priority
               />
               <span className="block max-w-36 border-l border-white/20 pl-3 text-[9px] font-bold uppercase leading-[1.25] tracking-[0.12em] text-slate-300 sm:max-w-none sm:text-[10px] sm:tracking-[0.17em]">
@@ -123,7 +124,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <footer className="rlca-site-footer border-t-4 border-[#168bff] text-slate-300">
           <div className="mx-auto grid max-w-[90rem] gap-10 px-5 py-14 lg:grid-cols-[1.1fr_1.9fr] lg:px-8">
             <div>
-              <RlcaLogo decorative className="h-24 w-24 object-contain" />
+              <RlcaLogo decorative className="h-24 w-24 object-contain" sizes="96px" />
               <p className="mt-4 font-black uppercase tracking-[.08em] text-white">
                 {RLCA_FULL_NAME}
                 <span className="ml-2 text-blue-300">{RLCA_FORMAT}</span>
