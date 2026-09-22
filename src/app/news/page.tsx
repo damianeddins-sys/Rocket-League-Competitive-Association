@@ -16,9 +16,11 @@ export default async function NewsPage() {
       </section>
       <main className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
         {content.status !== "READY" ? (
-          <div className="empty-stage border-red-200">
-            <h2 className="text-2xl font-black text-red-950">Official news is temporarily unavailable.</h2>
-            <p className="mt-3 text-red-800">The official database could not be read. No fallback or mock announcements are being shown.</p>
+          <div className="empty-stage flex min-h-[28rem] flex-col items-center justify-center border-red-200">
+            <p className="eyebrow text-red-600">Editorial feed status</p>
+            <h2 className="mt-3 text-3xl font-black text-red-950">Official news is temporarily unavailable.</h2>
+            <p className="mt-3 max-w-2xl leading-7 text-red-800">The official database could not be read. No fallback announcements, fabricated recaps, or placeholder roster news are being shown.</p>
+            <Link href="/league" className="mt-7 rounded-lg bg-[#061426] px-5 py-3 font-black text-white">Explore the league</Link>
           </div>
         ) : featured ? (
           <>
@@ -55,7 +57,7 @@ export default async function NewsPage() {
             </div>
           </>
         ) : (
-          <div className="empty-stage">
+          <div className="empty-stage flex min-h-[28rem] flex-col items-center justify-center">
             <h2 className="text-2xl font-black">No news has been published.</h2>
             <p className="mt-3 text-slate-600">Official announcements will appear here when released.</p>
             <Link href="/league" className="mt-6 inline-flex rounded-lg bg-[#168bff] px-5 py-3 font-black text-white">Explore the league</Link>
