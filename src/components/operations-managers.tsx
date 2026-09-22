@@ -582,7 +582,7 @@ export function SettingsManager({
       </section>
       <section>
         <h3 className="text-lg font-black text-[#081e3a]">Season tier configuration</h3>
-        <p className="mt-1 text-sm text-slate-600">Competitive order is fixed to Contender → Challenger → Master → Premier. Presentation and activation remain auditable.</p>
+        <p className="mt-1 text-sm text-slate-600">Competitive order, names, colors, and vector marks are fixed to the official Contender → Challenger → Master → Premier system. Season activation remains auditable.</p>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           {tiers.map((tier) => (
             <form key={tier.id} action={saveTier} className="rounded-xl border bg-white p-4" style={{ borderTop: `4px solid ${tier.color}` }}>
@@ -591,9 +591,9 @@ export function SettingsManager({
                 <p className="font-mono text-xs font-black uppercase text-slate-400">{tier.slug}</p>
                 {normalizeTierId(tier.slug) && <TierBadge tierId={normalizeTierId(tier.slug)!} compact />}
               </div>
-              <input name="displayName" required defaultValue={tier.displayName} className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" aria-label="Tier display name" />
+              <input name="displayName" required readOnly value={normalizeTierId(tier.slug) ? tierDefinition(normalizeTierId(tier.slug)!).name : tier.displayName} className="mt-3 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" aria-label="Tier display name" />
               <div className="mt-2 grid grid-cols-2 gap-2">
-                <input name="color" required pattern="#[0-9a-fA-F]{6}" defaultValue={tier.color} className="rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm" aria-label="Tier color" />
+                <input name="color" required readOnly pattern="#[0-9a-fA-F]{6}" value={normalizeTierId(tier.slug) ? tierDefinition(normalizeTierId(tier.slug)!).color : tier.color} className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 font-mono text-sm" aria-label="Tier color" />
                 <input name="iconPath" required readOnly value={normalizeTierId(tier.slug) ? tierDefinition(normalizeTierId(tier.slug)!).iconPath : tier.iconPath} className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" aria-label="Tier icon path" />
               </div>
               <input name="reason" required minLength={3} placeholder="Required audit reason" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
