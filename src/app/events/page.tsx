@@ -23,7 +23,7 @@ export default async function EventsPage({
       <section className="bg-[#0b1f3a] px-5 py-14 text-white">
         <div className="mx-auto max-w-7xl lg:px-3">
           <p className="eyebrow text-blue-300">
-            {data.status === "ready" ? data.season.name : "Season 1"} circuit
+            {data.status === "ready" ? data.season.name : "No active season"} circuit
           </p>
           <h1 className="mt-3 text-4xl font-black">Events</h1>
           <p className="mt-4 max-w-2xl text-slate-300">

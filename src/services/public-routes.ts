@@ -7,7 +7,6 @@ export const PUBLIC_NAVIGATION_GROUPS = [
       { label: "Tiers", href: "/tiers", description: "The four competitive divisions" },
       { label: "Standings", href: "/standings", description: "Tier-isolated qualification tables" },
       { label: "Matches", href: "/matches", description: "Upcoming and completed series" },
-      { label: "Statistics", href: "/statistics", description: "Official player and team metrics" },
     ],
   },
   {
@@ -16,8 +15,7 @@ export const PUBLIC_NAVIGATION_GROUPS = [
     items: [
       { label: "Teams", href: "/teams", description: "Franchises and active rosters" },
       { label: "Players", href: "/players", description: "Search the official player directory" },
-      { label: "Rankings", href: "/rankings", description: "MMR and competitive rankings" },
-      { label: "Match Center", href: "/matches", description: "Schedules, live status, and results" },
+      { label: "Statistics", href: "/statistics", description: "Official performance and MMR rankings" },
     ],
   },
   {
@@ -32,8 +30,7 @@ export const PUBLIC_NAVIGATION_GROUPS = [
     label: "Resources",
     href: "/rules",
     items: [
-      { label: "Rules", href: "/rules", description: "The official RLCA rulebook" },
-      { label: "League Format", href: "/league", description: "Season structure and qualification" },
+      { label: "Rulebook", href: "/rules", description: "The official RLCA rulebook" },
       { label: "FAQ", href: "/league#faq", description: "Common competition and application questions" },
       { label: "Applications", href: "/applications", description: "Player, team, staff, and franchise paths" },
     ],
@@ -55,6 +52,26 @@ export const PUBLIC_NAVIGATION = [
 ] as const;
 
 export const PUBLIC_ACTIONS = [
-  { label: "Apply", href: "/apply" },
+  { label: "Apply", href: "/applications" },
   { label: "Sign In", href: "/login" },
 ] as const;
+
+export const FEATURE_ROUTE_OWNERSHIP = {
+  home: { route: "/", component: "Home" },
+  tiers: { route: "/tiers", component: "TiersPage" },
+  teams: { route: "/teams", component: "TeamsPage" },
+  players: { route: "/players", component: "PlayersPage" },
+  standings: { route: "/standings", component: "StandingsPage" },
+  matches: { route: "/matches", component: "MatchesPage" },
+  statistics: { route: "/statistics", component: "StatisticsPage" },
+  news: { route: "/news", component: "NewsPage" },
+  rulebook: { route: "/rules", component: "RulesPage" },
+  applications: { route: "/applications", component: "ApplicationsPage" },
+  playerDashboard: { route: "/dashboard", component: "DashboardPage" },
+  playerTeam: { route: "/dashboard/team", component: "MyTeamPage" },
+  playerStatistics: { route: "/dashboard/stats", component: "MyStatsPage" },
+  coach: { route: "/coach", component: "CoachPage" },
+  operations: { route: "/operations", component: "OperationsPage" },
+  seasons: { route: "/operations/seasons", component: "SeasonManager" },
+  mmr: { route: "/operations/mmr", component: "MmrManager" },
+} as const;

@@ -83,7 +83,7 @@ export default async function LeaguePage() {
       <section className="bg-[#061426] px-5 py-16 text-white">
         <div className="mx-auto flex max-w-7xl flex-col justify-between gap-8 sm:flex-row sm:items-center">
           <div><p className="eyebrow text-blue-300">Competition starts here</p><h2 className="mt-2 text-3xl font-black">Find your tier and follow the season.</h2></div>
-          <div className="flex gap-3"><Link href="/standings" className="rounded-lg bg-white px-5 py-3 font-black text-[#061426]">Standings</Link><Link href="/apply" className="rounded-lg bg-[#168bff] px-5 py-3 font-black">Apply</Link></div>
+          <div className="flex gap-3"><Link href="/standings" className="rounded-lg bg-white px-5 py-3 font-black text-[#061426]">Standings</Link><Link href="/applications" className="rounded-lg bg-[#168bff] px-5 py-3 font-black">Apply</Link></div>
         </div>
       </section>
     </div>

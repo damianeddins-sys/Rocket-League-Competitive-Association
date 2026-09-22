@@ -3,6 +3,7 @@ import Link from "next/link";
 import { LeaguePageHero } from "@/components/league-page-hero";
 import { LeagueDataState } from "@/components/league-data-state";
 import { TierBadge, TierNavigation } from "@/components/tier-navigation";
+import { SeasonSwitcher } from "@/components/season-switcher";
 import { loadPublicLeagueData } from "@/services/public-league-data";
 import { DEFAULT_TIER_ID, normalizeTierId } from "@/services/tiers";
 
@@ -33,14 +34,15 @@ export default async function StatisticsPage({
       />
       <section className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
         {data.status !== "ready" ? <LeagueDataState state={data.reason} /> : <>
+          <SeasonSwitcher seasons={data.availableSeasons} currentSlug={data.season.slug} pathname="/statistics" searchParams={{ tier: tierId, team: query.team, player: query.player }} />
           <TierNavigation
             current={tierId}
             pathname="/statistics"
-            searchParams={{ season: query.season, team: query.team, player: query.player }}
+            searchParams={{ season: data.season.slug, team: query.team, player: query.player }}
           />
           <form className="panel mt-6 grid gap-3 p-4 md:grid-cols-[1fr_1fr_auto]">
             <input type="hidden" name="tier" value={tierId} />
-            {query.season && <input type="hidden" name="season" value={query.season} />}
+            <input type="hidden" name="season" value={data.season.slug} />
             <select name="team" defaultValue={query.team ?? ""} className="rounded-lg border border-slate-300 px-3 py-2.5">
               <option value="">All teams</option>
               {data.standings.map((team) => <option key={team.id} value={team.slug}>{team.name}</option>)}

@@ -36,7 +36,7 @@ export const COMPETITION_EVENTS = {
     endWeek: 16,
     teams: 8,
     bestOf: 7,
-    award: "RLCA Season 1 Championship Title",
+    award: "RLCA Championship Title",
     format: "8-team bracket · Every match Best of 7",
   },
 } as const;

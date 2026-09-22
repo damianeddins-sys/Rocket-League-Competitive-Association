@@ -86,7 +86,7 @@ export function placementScore(rankedEvidence: number, combineRating: number) {
 export function assignCombineRatings(players: CombinePerformance[]): CombineResult[] {
   const poolSize = SEASON_ONE_RULES.verification.placementPoolSize;
   if (players.length !== poolSize || new Set(players.map((player) => player.playerId)).size !== poolSize) {
-    throw new Error(`Season 1 Combine rating requires exactly ${poolSize} unique players`);
+    throw new Error(`Combine rating requires exactly ${poolSize} unique players`);
   }
   if (players.some((player) => !Number.isFinite(player.performance))) {
     throw new Error("Combine performance values must be finite");
@@ -116,7 +116,7 @@ export function assignPlacement(candidates: PlacementCandidate[]): PlacementResu
     candidates.length !== placementPoolSize ||
     new Set(candidates.map((candidate) => candidate.playerId)).size !== placementPoolSize
   ) {
-    throw new Error(`Season 1 placement requires exactly ${placementPoolSize} unique verified players`);
+    throw new Error(`Placement requires exactly ${placementPoolSize} unique verified players`);
   }
 
   const ordered = candidates

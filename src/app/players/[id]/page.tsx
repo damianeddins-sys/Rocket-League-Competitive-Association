@@ -14,11 +14,12 @@ export default async function PlayerDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tier?: string }>;
+  searchParams: Promise<{ tier?: string; season?: string }>;
 }) {
   const { id } = await params;
-  const tierId = normalizeTierId((await searchParams).tier) ?? DEFAULT_TIER_ID;
-  const data = await loadPublicLeagueData({ tier: tierId });
+  const query = await searchParams;
+  const tierId = normalizeTierId(query.tier) ?? DEFAULT_TIER_ID;
+  const data = await loadPublicLeagueData({ tier: tierId, season: query.season });
   if (data.status !== "ready") {
     return <main className="min-h-[70vh] bg-[#f4f7fb] px-5 py-16"><LeagueDataState state={data.reason} /></main>;
   }
@@ -67,7 +68,7 @@ export default async function PlayerDetailPage({
             RLCA does not publish private application answers, Discord identifiers, staff notes, or moderation records.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link href={`/rankings?tier=${tierId}`} className="rounded-lg bg-[#168bff] px-5 py-3 font-black text-white">Tier rankings</Link>
+            <Link href={`/statistics?tier=${tierId}&season=${data.season.slug}&player=${player.id}`} className="rounded-lg bg-[#168bff] px-5 py-3 font-black text-white">Player statistics</Link>
             <Link href={`/matches?tier=${tierId}`} className="rounded-lg border border-slate-200 px-5 py-3 font-black">Match history</Link>
           </div>
         </section>

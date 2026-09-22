@@ -86,7 +86,7 @@ export default async function Home() {
               Structured competition. Verified results. One official path from application to championship.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
-              <Link href="/apply" className="inline-flex items-center gap-2 rounded-md bg-[#168bff] px-6 py-3.5 font-black text-white hover:bg-[#0872da]">
+              <Link href="/applications" className="inline-flex items-center gap-2 rounded-md bg-[#168bff] px-6 py-3.5 font-black text-white hover:bg-[#0872da]">
                 Join RLCA <ArrowRight size={18} />
               </Link>
               <Link href="/standings" className="inline-flex items-center gap-2 rounded-md border border-white/25 bg-white/[0.06] px-6 py-3.5 font-black hover:bg-white/10">

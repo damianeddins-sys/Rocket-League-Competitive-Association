@@ -1,7 +1,12 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { PUBLIC_ACTIONS, PUBLIC_NAVIGATION } from "./public-routes";
+import {
+  FEATURE_ROUTE_OWNERSHIP,
+  PUBLIC_ACTIONS,
+  PUBLIC_NAVIGATION,
+  PUBLIC_NAVIGATION_GROUPS,
+} from "./public-routes";
 
 const appRoot = join(process.cwd(), "src", "app");
 
@@ -39,5 +44,15 @@ describe("public route contract", () => {
       "error.tsx",
       "not-found.tsx",
     ].forEach((path) => expect(existsSync(join(appRoot, path)), path).toBe(true));
+  });
+
+  it("keeps one authoritative route per major feature and no duplicate menu destinations", () => {
+    const ownedRoutes = Object.values(FEATURE_ROUTE_OWNERSHIP).map((feature) => feature.route);
+    expect(new Set(ownedRoutes).size).toBe(ownedRoutes.length);
+    const groupedDestinations = PUBLIC_NAVIGATION_GROUPS.flatMap((group) =>
+      group.items.map((item) => item.href),
+    );
+    expect(new Set(groupedDestinations).size).toBe(groupedDestinations.length);
+    expect(PUBLIC_ACTIONS).toContainEqual({ label: "Apply", href: "/applications" });
   });
 });

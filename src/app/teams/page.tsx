@@ -3,6 +3,7 @@ import Link from "next/link";
 import { LeaguePageHero } from "@/components/league-page-hero";
 import { LeagueDataState } from "@/components/league-data-state";
 import { TierBadge, TierNavigation } from "@/components/tier-navigation";
+import { SeasonSwitcher } from "@/components/season-switcher";
 import { loadPublicLeagueData } from "@/services/public-league-data";
 import { DEFAULT_TIER_ID, normalizeTierId } from "@/services/tiers";
 
@@ -33,10 +34,11 @@ export default async function TeamsPage({
           <LeagueDataState state={data.reason} />
         ) : (
           <>
-          <TierNavigation current={tierId} pathname="/teams" searchParams={{ season: query.season }} />
+          <SeasonSwitcher seasons={data.availableSeasons} currentSlug={data.season.slug} pathname="/teams" searchParams={{ tier: tierId }} />
+          <TierNavigation current={tierId} pathname="/teams" searchParams={{ season: data.season.slug }} />
           <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {franchises.map((team) => (
-              <Link href={`/teams/${team.slug}?tier=${tierId}`} key={team.id} className="panel group overflow-hidden">
+              <Link href={`/teams/${team.slug}?tier=${tierId}&season=${data.season.slug}`} key={team.id} className="panel group overflow-hidden">
                 <div className="h-1.5" style={{ backgroundColor: data.tier.color }} />
                 <div className="p-6 sm:p-7">
                   {team.logoUrl ? (

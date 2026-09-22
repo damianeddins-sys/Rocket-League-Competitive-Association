@@ -7,6 +7,11 @@ import { TierBadge, TierIcon, TierNavigation } from "@/components/tier-navigatio
 import { readApiResult } from "@/services/api-response";
 import { normalizeTierId, tierDefinition, type TierId } from "@/services/tiers";
 import { SEASON_ONE_RULES } from "@/services/rules";
+import {
+  APPROVED_SEASON_FORMAT,
+  seasonLifecycleStage,
+  SEASON_LIFECYCLE_STAGES,
+} from "@/services/season-management";
 
 function Feedback({ message }: { message?: string }) {
   return message
@@ -46,6 +51,7 @@ export function BotControl() {
 
 export function OperationsOverview({
   counts,
+  quickActions,
 }: {
   counts: Record<"applications" | "transactions" | "players" | "franchises" | "members", number> & {
     tiers: Array<{
@@ -57,6 +63,7 @@ export function OperationsOverview({
       completed: number;
     }>;
   };
+  quickActions: Array<{ label: string; href: string; description: string }>;
 }) {
   const links = {
     applications: "/operations/applications",
@@ -107,16 +114,10 @@ export function OperationsOverview({
       <p className="section-kicker">Operational workspaces</p>
       <h3 className="mt-2 text-2xl font-black text-[#081e3a]">Run the league</h3>
       <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {[
-          ["Application queue", "/operations/applications", "Review submitted player, team, staff, and franchise records."],
-          ["Recent transactions", "/operations/transactions", "Inspect roster requests and audited decisions."],
-          ["Upcoming matches", "/operations/matches", "Manage scheduled competition and verified results."],
-          ["System status", "/operations/health", "Review production services and database health."],
-          ["Audit activity", "/operations/audit", "Trace protected actions and official record changes."],
-        ].map(([title, href, description]) => (
-          <Link key={href} href={href} className="panel min-h-44 p-5">
-            <h4 className="font-black text-[#061426]">{title}</h4>
-            <p className="mt-3 text-sm leading-6 text-slate-600">{description}</p>
+        {quickActions.map((action) => (
+          <Link key={action.href} href={action.href} className="panel min-h-44 p-5">
+            <h4 className="font-black text-[#061426]">{action.label}</h4>
+            <p className="mt-3 text-sm leading-6 text-slate-600">{action.description}</p>
             <p className="mt-5 text-[10px] font-black uppercase tracking-[.1em] text-[#168bff]">Open workspace →</p>
           </Link>
         ))}
@@ -434,7 +435,7 @@ export function TeamManager({ teams }: { teams: TeamRow[] }) {
           <button className="mt-4 rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Save franchise</button>
         </form>
       ))}
-      {!teams.length && <Empty text="No franchises are stored. Run the Season 1 seed." />}
+      {!teams.length && <Empty text="No franchises are stored. Create or activate official franchise records before assigning them to a season." />}
     </div>
   );
 }
@@ -512,6 +513,9 @@ type SeasonRow = {
   startsAt: string;
   endsAt: string;
   settings: Record<string, unknown>;
+  registeredTeams: number;
+  registeredPlayers: number;
+  configuredTiers: number;
 };
 type ChannelRow = {
   id: string;
@@ -523,6 +527,7 @@ type ChannelRow = {
 };
 
 export function SettingsManager({
+  view,
   seasons,
   channels,
   roles,
@@ -532,6 +537,7 @@ export function SettingsManager({
   tiers,
   teamTierAssignments,
 }: {
+  view: "seasons" | "tiers" | "settings";
   seasons: SeasonRow[];
   channels: ChannelRow[];
   roles: Array<{ id: string; key: string; roleId: string; displayName: string; active: boolean }>;
@@ -593,8 +599,30 @@ export function SettingsManager({
       startsAt: new Date(String(payload.startsAt)).toISOString(),
       endsAt: new Date(String(payload.endsAt)).toISOString(),
       active: payload.active === "on",
+      lifecycleStage: payload.lifecycleStage,
+      confirmed: payload.confirmed === "on",
       settings,
     });
+  }
+  async function createSeason(formData: FormData) {
+    const payload = Object.fromEntries(formData.entries());
+    if (payload.confirmed !== "on") {
+      setMessage("Confirm the reviewed season configuration before creating it.");
+      return;
+    }
+    const response = await fetch("/api/admin/operations/seasons", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...payload,
+        startsAt: new Date(String(payload.startsAt)).toISOString(),
+        endsAt: new Date(String(payload.endsAt)).toISOString(),
+        confirmed: true,
+      }),
+    });
+    const result = await readApiResult<object>(response);
+    setMessage(response.ok ? "Draft season created with the official four-tier structure." : result.error ?? "Season creation failed");
+    if (response.ok) router.refresh();
   }
   async function saveChannel(formData: FormData) {
     const payload = Object.fromEntries(formData.entries());
@@ -633,7 +661,7 @@ export function SettingsManager({
   return (
     <div className="mt-7 space-y-7">
       <Feedback message={message} />
-      <section>
+      {view === "settings" && <section>
         <h3 className="text-lg font-black text-[#081e3a]">Discord integration status</h3>
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
           <div className="rounded-xl border border-slate-200 bg-white p-4">
@@ -661,28 +689,66 @@ export function SettingsManager({
             Latest worker report: {integration.runtime.lastError}
           </p>
         )}
-      </section>
-      <section>
-        <h3 className="text-lg font-black text-[#081e3a]">Season configuration</h3>
+      </section>}
+      {view === "seasons" && <section>
+        <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-5 sm:p-6">
+          <p className="section-kicker">Reusable season workflow</p>
+          <h3 className="mt-2 text-2xl font-black text-[#081e3a]">Create New Season</h3>
+          <form action={createSeason} className="mt-5 grid gap-5">
+            <fieldset className="grid gap-3 md:grid-cols-2">
+              <legend className="mb-3 font-black">1 · Season information</legend>
+              <input name="name" required placeholder="RLCA Season 2" className="rounded-lg border border-slate-300 px-3 py-2.5" aria-label="Season name" />
+              <input name="seasonNumber" required type="number" min={1} placeholder="2" className="rounded-lg border border-slate-300 px-3 py-2.5" aria-label="Season number" />
+              <input name="startsAt" required type="datetime-local" className="rounded-lg border border-slate-300 px-3 py-2.5" aria-label="Season start date" />
+              <input name="endsAt" required type="datetime-local" className="rounded-lg border border-slate-300 px-3 py-2.5" aria-label="Season end date" />
+              <textarea name="description" rows={3} placeholder="Official season description" className="rounded-lg border border-slate-300 px-3 py-2.5 md:col-span-2" />
+            </fieldset>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-lg border bg-white p-4"><p className="eyebrow text-[#0765c9]">2 · Competition format</p><p className="mt-2 text-sm">Regular season BO{APPROVED_SEASON_FORMAT.regularSeasonBestOf}; every Major BO{APPROVED_SEASON_FORMAT.major1BestOf}. Source: {APPROVED_SEASON_FORMAT.rulebookVersion}.</p></div>
+              <div className="rounded-lg border bg-white p-4"><p className="eyebrow text-[#0765c9]">3 · Tiers</p><p className="mt-2 text-sm">Contender → Challenger → Master → Premier are created automatically.</p></div>
+              <div className="rounded-lg border bg-white p-4"><p className="eyebrow text-[#0765c9]">4 · Configuration</p><p className="mt-2 text-sm">Weeks, events, points, rosters, and qualification remain empty until configured through supported competition tools.</p></div>
+            </div>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+              <p className="font-black">5 · Review</p>
+              <p className="mt-1">Creation produces an isolated DRAFT season. It does not activate the season or modify historical records.</p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+              <div>
+                <label className="flex items-center gap-2 text-sm font-bold"><input name="confirmed" type="checkbox" required /> 6 · Confirm creation of this draft season</label>
+                <input name="reason" required minLength={3} placeholder="Required audit reason" className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
+              </div>
+              <button className="rounded-lg bg-[#1683ff] px-5 py-3 text-sm font-black text-white">Create Season</button>
+            </div>
+          </form>
+        </div>
+        <h3 className="mt-8 text-lg font-black text-[#081e3a]">Season lifecycle</h3>
         <div className="mt-3 space-y-3">
           {seasons.map((season) => (
             <form key={season.id} action={saveSeason} className="rounded-xl border border-slate-200 bg-white p-5">
               <input type="hidden" name="id" value={season.id} />
+              <input type="hidden" name="status" value={season.status} />
+              <input type="hidden" name="settings" value={JSON.stringify(season.settings)} />
               <div className="grid gap-3 md:grid-cols-2">
                 <input name="name" required defaultValue={season.name} className="rounded-lg border border-slate-300 px-3 py-2.5" aria-label="Season name" />
-                <select name="status" defaultValue={season.status} className="rounded-lg border border-slate-300 bg-white px-3 py-2.5" aria-label="Season status"><option>DRAFT</option><option>ACTIVE</option><option>ARCHIVED</option></select>
+                <select name="lifecycleStage" defaultValue={seasonLifecycleStage(season.settings, season.status)} className="rounded-lg border border-slate-300 bg-white px-3 py-2.5" aria-label="Season lifecycle stage">{SEASON_LIFECYCLE_STAGES.map((stage) => <option key={stage}>{stage}</option>)}</select>
                 <input name="startsAt" type="datetime-local" required defaultValue={season.startsAt.slice(0, 16)} className="rounded-lg border border-slate-300 px-3 py-2.5" aria-label="Season starts" />
                 <input name="endsAt" type="datetime-local" required defaultValue={season.endsAt.slice(0, 16)} className="rounded-lg border border-slate-300 px-3 py-2.5" aria-label="Season ends" />
-                <textarea name="settings" rows={5} defaultValue={JSON.stringify(season.settings, null, 2)} className="rounded-lg border border-slate-300 px-3 py-2.5 font-mono text-xs md:col-span-2" aria-label="Season settings JSON" />
-                <label className="flex items-center gap-2 text-sm font-bold"><input name="active" type="checkbox" defaultChecked={season.active} /> Current active season</label>
+                <div className="rounded-lg bg-slate-50 p-3 text-sm"><strong>{season.active ? "CURRENT ACTIVE SEASON" : "Historical or pre-season record"}</strong><p className="mt-1 text-slate-600">All standings, matches, rosters, MMR, tier, and audit records remain season-isolated.</p></div>
+                <dl className="grid grid-cols-3 gap-2 rounded-lg border border-slate-200 bg-white p-3 text-center text-xs">
+                  <div><dt className="text-slate-500">Teams</dt><dd className="mt-1 text-lg font-black">{season.registeredTeams}</dd></div>
+                  <div><dt className="text-slate-500">Players</dt><dd className="mt-1 text-lg font-black">{season.registeredPlayers}</dd></div>
+                  <div><dt className="text-slate-500">Tiers</dt><dd className="mt-1 text-lg font-black">{season.configuredTiers}/4</dd></div>
+                </dl>
+                <label className="flex items-center gap-2 text-sm font-bold"><input name="confirmed" type="checkbox" /> Confirm lifecycle transition when required</label>
                 <input name="reason" required minLength={3} placeholder="Required audit reason" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
               </div>
-              <button className="mt-4 rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Save season</button>
+              <button className="mt-4 rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Save / Start Season</button>
             </form>
           ))}
+          {!seasons.length && <Empty text="No seasons have been created. Use the audited draft workflow above." />}
         </div>
-      </section>
-      <section>
+      </section>}
+      {view === "tiers" && <section>
         <h3 className="text-lg font-black text-[#081e3a]">Season tier configuration</h3>
         <p className="mt-1 text-sm text-slate-600">Competitive order, names, colors, and vector marks are fixed to the official Contender → Challenger → Master → Premier system. Season activation remains auditable.</p>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -704,8 +770,8 @@ export function SettingsManager({
             </form>
           ))}
         </div>
-      </section>
-      <section>
+      </section>}
+      {view === "tiers" && <section>
         <h3 className="text-lg font-black text-[#081e3a]">Franchise tier entries</h3>
         <p className="mt-1 text-sm text-slate-600">Each entry is season-specific. Deactivation preserves historical records.</p>
         <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
@@ -722,8 +788,8 @@ export function SettingsManager({
             </form>
           ))}
         </div>
-      </section>
-      <section>
+      </section>}
+      {view === "settings" && <section>
         <h3 className="text-lg font-black text-[#081e3a]">Discord channels</h3>
         <form action={createChannel} className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
           <p className="font-black text-[#081e3a]">Add a secure channel mapping</p>
@@ -750,8 +816,8 @@ export function SettingsManager({
             </form>
           ))}
         </div>
-      </section>
-      {owner && <section>
+      </section>}
+      {view === "settings" && owner && <section>
         <h3 className="text-lg font-black text-[#081e3a]">Notification routing</h3>
         <p className="mt-1 text-sm text-slate-600">Choose which website events are sent to each configured Discord channel. Sensitive application fields are never included.</p>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -773,10 +839,10 @@ export function SettingsManager({
           ))}
         </div>
       </section>}
-      <section>
+      {view === "settings" && <section>
         <h3 className="text-lg font-black text-[#081e3a]">Verified Discord role mappings</h3>
         <div className="mt-3 grid gap-2 md:grid-cols-2">{roles.map((role) => <div key={role.id} className="rounded-lg border border-slate-200 bg-white p-4 text-sm"><strong>{role.displayName}</strong><p className="font-mono text-xs text-slate-500">{role.key} · {role.roleId}</p></div>)}</div>
-      </section>
+      </section>}
     </div>
   );
 }

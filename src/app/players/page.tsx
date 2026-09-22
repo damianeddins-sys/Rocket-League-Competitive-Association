@@ -3,6 +3,7 @@ import Link from "next/link";
 import { LeaguePageHero } from "@/components/league-page-hero";
 import { LeagueDataState } from "@/components/league-data-state";
 import { TierBadge, TierNavigation } from "@/components/tier-navigation";
+import { SeasonSwitcher } from "@/components/season-switcher";
 import { loadPublicLeagueData } from "@/services/public-league-data";
 import { DEFAULT_TIER_ID, normalizeTierId } from "@/services/tiers";
 
@@ -32,7 +33,7 @@ export default async function PlayersPage({
   return (
     <div className="min-h-screen bg-[#f4f7fa]">
       <LeaguePageHero
-        eyebrow="Season 1 · Competitive player directory"
+        eyebrow={`${result.status === "ready" ? result.season.name : "RLCA"} · Competitive player directory`}
         title="RLCA players"
         description="Follow verified competitors through tier placement, official rosters, RLCA MMR, match history, and published performance."
       />
@@ -40,9 +41,11 @@ export default async function PlayersPage({
         {result.status !== "ready" ? (
           <LeagueDataState state={result.reason} />
         ) : <>
-          <TierNavigation current={tierId} pathname="/players" searchParams={{ season: query.season }} />
+          <SeasonSwitcher seasons={result.availableSeasons} currentSlug={result.season.slug} pathname="/players" searchParams={{ tier: tierId, q: query.q, team: query.team, status: query.status }} />
+          <TierNavigation current={tierId} pathname="/players" searchParams={{ season: result.season.slug }} />
           <form className="panel mb-7 mt-5 grid gap-3 p-4 md:grid-cols-[1.2fr_1fr_1fr_auto]">
             <input type="hidden" name="tier" value={tierId} />
+            <input type="hidden" name="season" value={result.season.slug} />
             <input name="q" defaultValue={query.q ?? ""} placeholder="Search player" aria-label="Search player" className="rounded-lg border border-slate-300 px-4 py-2.5" />
             <select name="team" defaultValue={query.team ?? ""} aria-label="Filter by team" className="rounded-lg border border-slate-300 bg-white px-4 py-2.5">
               <option value="">All teams</option>
@@ -57,7 +60,7 @@ export default async function PlayersPage({
         {players.length ? (
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {players.map((player) => (
-              <Link href={`/players/${player.id}?tier=${tierId}`} key={player.id} className="panel group overflow-hidden p-6 sm:p-7">
+              <Link href={`/players/${player.id}?tier=${tierId}&season=${result.season.slug}`} key={player.id} className="panel group overflow-hidden p-6 sm:p-7">
                 <div className="flex items-center gap-4">
                   {player.avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element

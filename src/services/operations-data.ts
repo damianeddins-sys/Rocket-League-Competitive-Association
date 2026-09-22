@@ -288,6 +288,7 @@ export function loadSettingsManagement() {
       tierRows,
       teamRows,
       teamEntryRows,
+      seasonPlayerRows,
     ] = await Promise.all([
       db.select().from(seasons).orderBy(desc(seasons.startsAt)),
       db.select().from(discordChannelConfigurations).orderBy(asc(discordChannelConfigurations.category), asc(discordChannelConfigurations.displayName)),
@@ -301,6 +302,7 @@ export function loadSettingsManagement() {
       db.select().from(divisions).orderBy(asc(divisions.seasonId), asc(divisions.ordinal)),
       db.select({ id: teams.id, name: teams.name }).from(teams).orderBy(asc(teams.franchiseNumber)),
       db.select().from(teamSeasonEntries),
+      db.select({ seasonId: playerSeasons.seasonId }).from(playerSeasons),
     ]);
     const tierOrder = new Map(TIERS.map((tier) => [tier.code, tier.ordinal]));
     const orderedChannels = [...channels].sort((a, b) =>
@@ -314,6 +316,9 @@ export function loadSettingsManagement() {
         startsAt: season.startsAt.toISOString(),
         endsAt: season.endsAt.toISOString(),
         archivedAt: season.archivedAt?.toISOString() ?? null,
+        registeredTeams: new Set(teamEntryRows.filter((entry) => entry.seasonId === season.id && entry.active).map((entry) => entry.teamId)).size,
+        registeredPlayers: seasonPlayerRows.filter((entry) => entry.seasonId === season.id).length,
+        configuredTiers: tierRows.filter((tier) => tier.seasonId === season.id && tier.active).length,
       })),
       channels: orderedChannels.map((channel) => ({
         id: channel.id,

@@ -105,7 +105,7 @@ export function TournamentBracket({
     <section id={id} className="min-w-0 scroll-mt-28 overflow-hidden rounded-xl border border-slate-200 bg-[#07172b] p-5 text-white sm:p-7">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow text-blue-300">Official Season 1 bracket</p>
+          <p className="eyebrow text-blue-300">Official competition bracket</p>
           <h2 className="mt-2 text-2xl font-black sm:text-3xl">{title}</h2>
         </div>
         <span className="rounded-md border border-blue-300/30 bg-blue-500/15 px-4 py-2 text-xs font-black tracking-wider text-blue-100">

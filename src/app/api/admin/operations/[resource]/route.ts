@@ -47,8 +47,15 @@ import {
   notificationJob,
 } from "@/services/discord/notifications";
 import { roleSyncJob } from "@/services/discord/role-sync";
+import {
+  APPROVED_SEASON_FORMAT,
+  canTransitionSeason,
+  seasonLifecycleStage,
+  SEASON_LIFECYCLE_STAGES,
+  storedSeasonStatus,
+} from "@/services/season-management";
 import { buildTierHistoryRecord, toTierCode } from "@/services/tier-history";
-import { normalizeTierId, TIER_IDS } from "@/services/tiers";
+import { normalizeTierId, tierDefinition, TIER_IDS, TIERS } from "@/services/tiers";
 import { regularSeasonPoints } from "@/services/points";
 
 export const runtime = "nodejs";
@@ -123,6 +130,18 @@ const seasonSchema = z.object({
   active: z.boolean(),
   settings: z.record(z.string(), z.unknown()),
   reason: z.string().trim().min(3).max(2000),
+  lifecycleStage: z.enum(SEASON_LIFECYCLE_STAGES).optional(),
+  confirmed: z.boolean().optional(),
+});
+
+const createSeasonSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  seasonNumber: z.coerce.number().int().positive().max(999),
+  startsAt: z.iso.datetime(),
+  endsAt: z.iso.datetime(),
+  description: z.string().trim().max(2000).default(""),
+  reason: z.string().trim().min(3).max(2000),
+  confirmed: z.literal(true),
 });
 
 const channelSchema = z.object({
@@ -683,25 +702,53 @@ export async function PATCH(
     }
     const [current] = await db.select().from(seasons).where(eq(seasons.id, parsed.data.id)).limit(1);
     if (!current) return NextResponse.json({ error: "Season not found" }, { status: 404 });
+    const currentStage = seasonLifecycleStage(current.settings, current.status);
+    const nextStage = parsed.data.lifecycleStage ?? currentStage;
+    if (!canTransitionSeason(currentStage, nextStage)) {
+      return NextResponse.json({ error: `Season cannot move directly from ${currentStage} to ${nextStage}` }, { status: 409 });
+    }
+    if ((nextStage === "ACTIVE" || nextStage === "PLAYOFFS") && nextStage !== currentStage && !parsed.data.confirmed) {
+      return NextResponse.json({ error: "Starting a season requires explicit confirmation" }, { status: 400 });
+    }
+    if (nextStage === "ACTIVE" && nextStage !== currentStage) {
+      const configuredTiers = await db.select({ id: divisions.id }).from(divisions).where(and(
+        eq(divisions.seasonId, current.id),
+        eq(divisions.active, true),
+      ));
+      if (configuredTiers.length !== TIERS.length) {
+        return NextResponse.json({ error: "All four official tiers must be configured before starting the season" }, { status: 409 });
+      }
+    }
+    const nextStatus = storedSeasonStatus(nextStage);
+    const nextActive = nextStage === "ACTIVE" || nextStage === "PLAYOFFS";
+    const nextSettings = {
+      ...parsed.data.settings,
+      lifecycleStage: nextStage,
+      competitionFormat: APPROVED_SEASON_FORMAT,
+    };
     await db.transaction(async (tx) => {
-      if (parsed.data.active) await tx.update(seasons).set({ active: false });
+      if (nextActive) {
+        await tx.execute(sql`select pg_advisory_xact_lock(1380731713)`);
+        await tx.update(seasons).set({ active: false });
+      }
       await tx.update(seasons).set({
         name: parsed.data.name,
         startsAt: new Date(parsed.data.startsAt),
         endsAt: new Date(parsed.data.endsAt),
-        status: parsed.data.status,
-        active: parsed.data.active,
-        settings: parsed.data.settings,
+        status: nextStatus,
+        active: nextActive,
+        archivedAt: nextStage === "ARCHIVED" ? new Date() : current.archivedAt,
+        settings: nextSettings,
       }).where(eq(seasons.id, current.id));
       await tx.insert(auditLogs).values(buildAuditLogRecord({
         actorId: context.user.id,
         actorDiscordRoleIds: context.access.roleIds,
         actorFranchiseNumber: context.access.franchiseNumber,
-        action: "SEASON_SETTINGS_UPDATED",
+        action: nextStage === currentStage ? "SEASON_SETTINGS_UPDATED" : "SEASON_LIFECYCLE_UPDATED",
         entityType: "SEASON",
         entityId: current.id,
         previousState: toAuditJson(current),
-        nextState: toAuditJson(parsed.data),
+        nextState: toAuditJson({ ...parsed.data, status: nextStatus, active: nextActive, settings: nextSettings }),
         reason: parsed.data.reason,
         requestId,
       }));
@@ -1034,7 +1081,7 @@ export async function POST(
   { params }: { params: Promise<{ resource: string }> },
 ) {
   const { resource } = await params;
-  if (resource !== "channels" && resource !== "matches") {
+  if (resource !== "channels" && resource !== "matches" && resource !== "seasons") {
     return NextResponse.json({ error: "Unknown operations resource" }, { status: 404 });
   }
   const context = await contextFor(request, resource);
@@ -1049,6 +1096,63 @@ export async function POST(
   });
   if (!rateLimit.allowed) {
     return NextResponse.json({ error: "Operations write limit reached" }, { status: 429 });
+  }
+  if (resource === "seasons") {
+    const parsed = createSeasonSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success || new Date(parsed.data?.startsAt ?? 0) >= new Date(parsed.data?.endsAt ?? 0)) {
+      return NextResponse.json({ error: "New season details are invalid" }, { status: 400 });
+    }
+    const db = getDatabase();
+    const slug = `season-${parsed.data.seasonNumber}`;
+    const [existing] = await db.select({ id: seasons.id }).from(seasons).where(eq(seasons.slug, slug)).limit(1);
+    if (existing) return NextResponse.json({ error: `Season ${parsed.data.seasonNumber} already exists` }, { status: 409 });
+    const created = await db.transaction(async (tx) => {
+      const [season] = await tx.insert(seasons).values({
+        name: parsed.data.name,
+        slug,
+        startsAt: new Date(parsed.data.startsAt),
+        endsAt: new Date(parsed.data.endsAt),
+        status: "DRAFT",
+        active: false,
+        settings: {
+          seasonNumber: parsed.data.seasonNumber,
+          description: parsed.data.description,
+          lifecycleStage: "DRAFT",
+          competitionFormat: APPROVED_SEASON_FORMAT,
+        },
+      }).returning();
+      await tx.insert(divisions).values(TIERS.map((tier) => {
+        const definition = tierDefinition(tier.id);
+        return {
+          seasonId: season.id,
+          code: tier.code,
+          slug: tier.id,
+          displayName: definition.name,
+          color: definition.color,
+          iconPath: definition.iconPath,
+          ordinal: definition.ordinal,
+          active: true,
+        };
+      }));
+      await tx.insert(auditLogs).values(buildAuditLogRecord({
+        actorId: context.user.id,
+        actorDiscordRoleIds: context.access.roleIds,
+        actorFranchiseNumber: context.access.franchiseNumber,
+        action: "SEASON_CREATED",
+        entityType: "SEASON",
+        entityId: season.id,
+        nextState: {
+          name: season.name,
+          slug,
+          lifecycleStage: "DRAFT",
+          competitionFormat: APPROVED_SEASON_FORMAT,
+        },
+        reason: parsed.data.reason,
+        requestId: randomUUID(),
+      }));
+      return season;
+    });
+    return NextResponse.json({ id: created.id, saved: true }, { status: 201 });
   }
   if (resource === "matches") {
     const parsed = matchCreateSchema.safeParse(await request.json().catch(() => null));

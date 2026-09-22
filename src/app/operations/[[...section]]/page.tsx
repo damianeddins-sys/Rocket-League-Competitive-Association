@@ -40,6 +40,7 @@ import {
   loadTeamManagement,
   loadTransactionManagement,
 } from "@/services/operations-data";
+import { OPERATIONS_QUICK_ACTIONS, OPERATIONS_SECTION_GROUPS } from "@/services/operations-navigation";
 import { DEFAULT_TIER_ID, normalizeTierId } from "@/services/tiers";
 
 export const metadata: Metadata = { title: "Operations" };
@@ -73,14 +74,6 @@ const sections = {
   statistics: { label: "Statistics & Replays", portal: "STATISTICS" as Portal, permission: "statistics.review" as Permission, icon: Database },
   production: { label: "Production", portal: "PRODUCTION" as Portal, permission: "production.view" as Permission, icon: Activity },
 } as const;
-
-const sectionGroups: Array<{ label: string; keys: Array<keyof typeof sections> }> = [
-  { label: "Overview", keys: ["overview"] },
-  { label: "People & rosters", keys: ["applications", "players", "mmr", "teams", "transactions", "franchise", "staff", "permissions", "documents"] },
-  { label: "Competition", keys: ["seasons", "tiers", "matches", "standings", "statistics", "production"] },
-  { label: "Content", keys: ["news", "content", "media", "site-info", "rules"] },
-  { label: "System", keys: ["settings", "health", "storage", "bot", "audit"] },
-];
 
 export default async function OperationsPage({
   params,
@@ -120,6 +113,14 @@ export default async function OperationsPage({
       </main>
     );
   }
+  const canSeeSection = (key: keyof typeof sections) => {
+    const item = sections[key];
+    return access.portals.includes(item.portal)
+      && (!("permission" in item) || access.permissions.includes(item.permission));
+  };
+  const quickActions = OPERATIONS_QUICK_ACTIONS.flatMap(([label, key, description]) => canSeeSection(key as keyof typeof sections)
+    ? [{ label, href: `/operations/${key}`, description }]
+    : []);
   const botHealth = sectionKey === "bot"
     ? await getDiscordBotHealth()
     : null;
@@ -196,12 +197,8 @@ export default async function OperationsPage({
       </section>
       <main className="mx-auto grid max-w-7xl gap-7 px-5 py-10 lg:grid-cols-[18rem_minmax(0,1fr)] lg:px-8">
         <nav className="h-fit overflow-hidden rounded-xl border border-white/10 bg-[#07172b] p-2 text-white shadow-xl lg:sticky lg:top-28" aria-label="Operations sections">
-          {sectionGroups.map((group) => {
-            const visible = group.keys.filter((key) => {
-              const item = sections[key];
-              return access.portals.includes(item.portal)
-                && (!("permission" in item) || access.permissions.includes(item.permission));
-            });
+          {OPERATIONS_SECTION_GROUPS.map((group) => {
+            const visible = group.keys.filter((key) => canSeeSection(key as keyof typeof sections));
             if (!visible.length) return null;
             return (
               <div key={group.label} className="border-b border-white/10 py-2 last:border-0">
@@ -324,7 +321,7 @@ export default async function OperationsPage({
                 </div>
               </div>
             ) : overview?.status === "READY" ? (
-              <OperationsOverview counts={overview.data} />
+              <OperationsOverview counts={overview.data} quickActions={quickActions} />
             ) : transactionManagement?.status === "READY" ? (
               <TransactionManager
                 transactions={transactionManagement.data.items}
@@ -344,6 +341,7 @@ export default async function OperationsPage({
               <SettingsManager
                 {...settingsManagement.data}
                 owner={access.permissions.includes("league.full")}
+                view={sectionKey === "seasons" ? "seasons" : sectionKey === "tiers" ? "tiers" : "settings"}
               />
             ) : auditManagement?.status === "READY" ? (
               <AuditManager

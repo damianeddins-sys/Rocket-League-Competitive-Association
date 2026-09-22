@@ -113,6 +113,7 @@ export type PublicLeagueData =
   | {
       status: "ready";
       season: { id: string; name: string; slug: string };
+      availableSeasons: Array<{ id: string; name: string; slug: string; active: boolean }>;
       tier: ReturnType<typeof tierDefinition>;
       availableTiers: typeof TIERS;
       currentWeek: { number: number; phase: string } | null;
@@ -174,6 +175,11 @@ export async function loadPublicLeagueData(
       .limit(1);
     const [activeSeason] = await seasonQuery;
     if (!activeSeason) return { status: "empty", reason: "NO_ACTIVE_SEASON" };
+    const availableSeasons = await db
+      .select({ id: seasons.id, name: seasons.name, slug: seasons.slug, active: seasons.active })
+      .from(seasons)
+      .where(inArray(seasons.status, ["ACTIVE", "ARCHIVED"]))
+      .orderBy(desc(seasons.startsAt));
 
     const [selectedDivision] = await db
       .select()
@@ -455,6 +461,7 @@ export async function loadPublicLeagueData(
     return {
       status: "ready",
       season: { id: activeSeason.id, name: activeSeason.name, slug: activeSeason.slug },
+      availableSeasons,
       tier: tierDefinition(selectedTierId),
       availableTiers: TIERS,
       currentWeek: currentWeek

@@ -32,7 +32,7 @@ describe("V4 authoritative product foundation", () => {
     expect(COMPETITION_EVENTS.MAJOR_1).toMatchObject({ startWeek: 5, endWeek: 6, teams: 8, award: "240 Qualification Points" });
     expect(COMPETITION_EVENTS.MAJOR_2).toMatchObject({ startWeek: 11, endWeek: 12, teams: 8, award: "240 Qualification Points" });
     expect(COMPETITION_EVENTS.LAST_CHANCE).toMatchObject({ startWeek: 13, endWeek: 14, teams: 6, award: "120 Qualification Points" });
-    expect(COMPETITION_EVENTS.CHAMPIONSHIP).toMatchObject({ startWeek: 15, endWeek: 16, teams: 8, award: "RLCA Season 1 Championship Title" });
+    expect(COMPETITION_EVENTS.CHAMPIONSHIP).toMatchObject({ startWeek: 15, endWeek: 16, teams: 8, award: "RLCA Championship Title" });
     expect(Object.values(COMPETITION_EVENTS).every((event) => event.bestOf === 7)).toBe(true);
   });
 

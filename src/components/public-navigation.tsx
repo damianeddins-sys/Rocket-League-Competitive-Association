@@ -111,14 +111,14 @@ export function PublicNavigation({
       </nav>
 
       <div className="hidden items-center gap-1 xl:flex">
-        <Link href="/apply" className="rounded-md bg-[#168bff] px-3 py-2.5 text-xs font-black uppercase tracking-[.05em] text-white shadow-[0_8px_24px_rgba(22,139,255,.22)] hover:bg-[#0765c9] 2xl:px-4 2xl:text-sm">
+        <Link href="/applications" className="rounded-md bg-[#168bff] px-3 py-2.5 text-xs font-black uppercase tracking-[.05em] text-white shadow-[0_8px_24px_rgba(22,139,255,.22)] hover:bg-[#0765c9] 2xl:px-4 2xl:text-sm">
           Apply
         </Link>
         <Link href="/search" className="rounded-md p-2.5 text-slate-300 hover:bg-white/10 hover:text-white" aria-label="Search RLCA">
           <Search size={18} />
         </Link>
         {signedIn ? (
-          <Link href="/profile" className="rounded-md border border-white/20 px-3 py-2.5 text-xs font-bold 2xl:px-4 2xl:text-sm">
+          <Link href="/dashboard" className="rounded-md border border-white/20 px-3 py-2.5 text-xs font-bold 2xl:px-4 2xl:text-sm">
             My RLCA
           </Link>
         ) : (
@@ -180,7 +180,7 @@ export function PublicNavigation({
           </nav>
           <div className="mt-3 grid gap-2 border-t border-white/10 pt-3">
             <div className="grid grid-cols-2 gap-2">
-              <Link href="/apply" onClick={closeMobile} className="rounded-lg bg-[#168bff] px-4 py-3 text-center text-sm font-black">Apply</Link>
+              <Link href="/applications" onClick={closeMobile} className="rounded-lg bg-[#168bff] px-4 py-3 text-center text-sm font-black">Apply</Link>
               <Link href={discordHref} onClick={closeMobile} className="rounded-lg border border-white/15 px-4 py-3 text-center text-sm font-bold">Discord</Link>
             </div>
             <Link href="/search" onClick={closeMobile} className="flex items-center justify-center gap-2 rounded-lg border border-white/15 px-4 py-3 text-sm font-bold"><Search size={16} /> Search</Link>
@@ -193,7 +193,7 @@ export function PublicNavigation({
                       {label}
                     </Link>
                   ))}
-                  <Link href="/profile" onClick={closeMobile} className="block rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/10">Profile</Link>
+                  <Link href="/dashboard" onClick={closeMobile} className="block rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/10">My RLCA</Link>
                   {hasOperations && (
                     <Link href={operationsHref} onClick={closeMobile} className="mt-1 block rounded-lg bg-blue-500/15 px-4 py-2.5 text-sm font-black text-blue-200">
                       Operations {isOwner ? "· Owner" : ""}

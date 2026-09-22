@@ -145,7 +145,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             </nav>
           </div>
           <div className="mx-auto flex max-w-[90rem] flex-wrap items-center gap-5 border-t border-white/10 px-5 py-5 text-xs lg:px-8">
-            <Link href="/apply" className="font-black text-white">Join RLCA</Link>
+            <Link href="/applications" className="font-black text-white">Join RLCA</Link>
             <Link href={discordHref}>Discord</Link>
             <Link href="/rules">Rules</Link>
             <span className="ml-auto text-slate-500">Official database-backed competition</span>

@@ -4,6 +4,7 @@ import { Radio } from "lucide-react";
 import { LeaguePageHero } from "@/components/league-page-hero";
 import { LeagueDataState } from "@/components/league-data-state";
 import { TierBadge, TierNavigation } from "@/components/tier-navigation";
+import { SeasonSwitcher } from "@/components/season-switcher";
 import { seasonWeekLabel } from "@/services/competition-events";
 import { loadPublicLeagueData } from "@/services/public-league-data";
 import { DEFAULT_TIER_ID, normalizeTierId } from "@/services/tiers";
@@ -16,7 +17,7 @@ const filters = ["all", "upcoming", "live", "completed"] as const;
 export default async function MatchesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tier?: string; status?: string; team?: string; page?: string }>;
+  searchParams: Promise<{ tier?: string; status?: string; team?: string; page?: string; season?: string }>;
 }) {
   const query = await searchParams;
   const tierId = normalizeTierId(query.tier) ?? DEFAULT_TIER_ID;
@@ -24,7 +25,7 @@ export default async function MatchesPage({
     ? query.status as typeof filters[number]
     : "all";
   const page = query.page && /^\d+$/.test(query.page) ? Math.max(1, Number(query.page)) : 1;
-  const data = await loadPublicLeagueData({ tier: tierId });
+  const data = await loadPublicLeagueData({ tier: tierId, season: query.season });
   const pageSize = 12;
   const filtered = data.status === "ready"
     ? data.matches.filter((match) =>
@@ -50,13 +51,15 @@ export default async function MatchesPage({
       />
       <main className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
         {data.status !== "ready" ? <LeagueDataState state={data.reason} /> : <>
-          <TierNavigation current={tierId} pathname="/matches" searchParams={{ status, team: query.team }} />
+          <SeasonSwitcher seasons={data.availableSeasons} currentSlug={data.season.slug} pathname="/matches" searchParams={{ tier: tierId, status, team: query.team }} />
+          <TierNavigation current={tierId} pathname="/matches" searchParams={{ status, team: query.team, season: data.season.slug }} />
           <nav className="mt-5 flex flex-wrap gap-2" aria-label="Match status">
-            {filters.map((filter) => <Link key={filter} href={`/matches?tier=${tierId}&status=${filter}${query.team ? `&team=${query.team}` : ""}`} className={`rounded-full px-4 py-2 text-sm font-black ${status === filter ? "bg-[#061426] text-white" : "border border-slate-200 bg-white text-slate-600"}`}>{filter[0].toUpperCase() + filter.slice(1)}</Link>)}
+            {filters.map((filter) => <Link key={filter} href={`/matches?tier=${tierId}&status=${filter}&season=${data.season.slug}${query.team ? `&team=${query.team}` : ""}`} className={`rounded-full px-4 py-2 text-sm font-black ${status === filter ? "bg-[#061426] text-white" : "border border-slate-200 bg-white text-slate-600"}`}>{filter[0].toUpperCase() + filter.slice(1)}</Link>)}
           </nav>
           <form className="mt-5 flex max-w-lg gap-2">
             <input type="hidden" name="tier" value={tierId} />
             <input type="hidden" name="status" value={status} />
+            <input type="hidden" name="season" value={data.season.slug} />
             <select name="team" defaultValue={query.team ?? ""} aria-label="Filter matches by team" className="min-w-0 flex-1 border border-slate-300 bg-white px-4 py-2.5">
               <option value="">All teams</option>
               {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
@@ -86,7 +89,7 @@ export default async function MatchesPage({
             );})}
           </div>
           {!visible.length && <div className="empty-stage mt-7"><p className="eyebrow text-[#168bff]">Official schedule</p><h2 className="mt-3 text-3xl font-black text-[#061426]">No {status === "all" ? "" : `${status} `}matches found</h2><p className="mx-auto mt-3 max-w-2xl leading-7 text-slate-600">Published series will appear here with tier, stage, Best-of format, date, and verified result context.</p></div>}
-          {pages > 1 && <nav className="mt-7 flex justify-center gap-2" aria-label="Match pages">{page > 1 && <Link href={`/matches?tier=${tierId}&status=${status}${query.team ? `&team=${query.team}` : ""}&page=${page - 1}`} className="rounded-lg border bg-white px-4 py-2 font-bold">Previous</Link>}<span className="px-4 py-2 text-sm font-bold">Page {page} of {pages}</span>{page < pages && <Link href={`/matches?tier=${tierId}&status=${status}${query.team ? `&team=${query.team}` : ""}&page=${page + 1}`} className="rounded-lg border bg-white px-4 py-2 font-bold">Next</Link>}</nav>}
+          {pages > 1 && <nav className="mt-7 flex justify-center gap-2" aria-label="Match pages">{page > 1 && <Link href={`/matches?tier=${tierId}&status=${status}&season=${data.season.slug}${query.team ? `&team=${query.team}` : ""}&page=${page - 1}`} className="rounded-lg border bg-white px-4 py-2 font-bold">Previous</Link>}<span className="px-4 py-2 text-sm font-bold">Page {page} of {pages}</span>{page < pages && <Link href={`/matches?tier=${tierId}&status=${status}&season=${data.season.slug}${query.team ? `&team=${query.team}` : ""}&page=${page + 1}`} className="rounded-lg border bg-white px-4 py-2 font-bold">Next</Link>}</nav>}
         </>}
       </main>
     </div>

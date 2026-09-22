@@ -28,7 +28,7 @@ function roundRobin(teamIds: string[]): Pair[][] {
 export function generateRegularSeasonSchedule(teamIds: string[]): ScheduledSeries[] {
   const teamCount = SEASON_ONE_RULES.scheduling.teamCount;
   if (teamIds.length !== teamCount || new Set(teamIds).size !== teamCount) {
-    throw new Error(`Season 1 scheduling requires ${teamCount} unique teams`);
+    throw new Error(`Season scheduling requires ${teamCount} unique teams`);
   }
 
   const firstCycle = roundRobin(teamIds);

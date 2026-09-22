@@ -4,6 +4,7 @@ import { LockKeyhole } from "lucide-react";
 import { LeaguePageHero } from "@/components/league-page-hero";
 import { LeagueDataState } from "@/components/league-data-state";
 import { TierBadge, TierNavigation } from "@/components/tier-navigation";
+import { SeasonSwitcher } from "@/components/season-switcher";
 import { loadPublicLeagueData } from "@/services/public-league-data";
 import { DEFAULT_TIER_ID, normalizeTierId } from "@/services/tiers";
 
@@ -18,7 +19,7 @@ export default async function StandingsPage({
   const query = await searchParams;
   const tierId = normalizeTierId(query.tier) ?? DEFAULT_TIER_ID;
   const data = await loadPublicLeagueData({ tier: tierId, season: query.season });
-  const seasonName = data.status === "ready" ? data.season.name : "Season 1";
+  const seasonName = data.status === "ready" ? data.season.name : "No active season";
   const championshipLocked = data.status === "ready"
     && data.standings.slice(0, 2).every((team) => team.status.startsWith("LOCKED"));
 
@@ -34,6 +35,7 @@ export default async function StandingsPage({
           <LeagueDataState state={data.reason} />
         ) : (
           <>
+            <SeasonSwitcher seasons={data.availableSeasons} currentSlug={data.season.slug} pathname="/standings" searchParams={{ tier: tierId }} />
             <div className="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
               <div>
                 <p className="eyebrow text-slate-400">Season</p>
@@ -41,7 +43,7 @@ export default async function StandingsPage({
               </div>
               <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Regular season · Tier isolated</p>
             </div>
-            <TierNavigation current={tierId} pathname="/standings" searchParams={{ season: query.season }} />
+            <TierNavigation current={tierId} pathname="/standings" searchParams={{ season: data.season.slug }} />
             <div className="mb-6 mt-6 grid gap-4 lg:grid-cols-[1.25fr_.75fr]">
               <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-6">
                 <p className="eyebrow text-emerald-700">Championship lock</p>

@@ -74,7 +74,7 @@ export default async function DashboardPage() {
             [Users, "My Team", "Roster, franchise schedule, and recent form.", "/dashboard/team"],
             [BarChart3, "My Stats", "Verified match and replay-derived performance.", "/dashboard/stats"],
             [BrainCircuit, "RLCA Coach", "Replay evidence, focus areas, and progress.", "/coach"],
-            [CalendarDays, "Schedule", "This week's official series and event path.", "/schedule"],
+            [CalendarDays, "Matches", "This week's official series and event path.", "/matches"],
           ].map(([Icon, title, description, href]) => {
             const CardIcon = Icon as typeof Users;
             return (
