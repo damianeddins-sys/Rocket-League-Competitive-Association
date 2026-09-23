@@ -333,7 +333,7 @@ export default async function OperationsPage({
             ) : playerManagement?.status === "READY" ? (
               <PlayerManager players={playerManagement.data.players} />
             ) : teamManagement?.status === "READY" ? (
-              <TeamManager teams={teamManagement.data} />
+              <TeamManager teams={teamManagement.data.teams} users={teamManagement.data.users} />
             ) : documentManagement?.status === "READY" ? (
               <DocumentManager {...documentManagement.data} />
             ) : settingsManagement?.status === "READY" ? (

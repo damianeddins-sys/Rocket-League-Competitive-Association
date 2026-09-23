@@ -6,6 +6,7 @@ import {
   expectedResult,
   isVerificationComplete,
   rlcaMmrDelta,
+  verificationAttentionStatus,
   verificationRankedGameCountAfter,
 } from "./mmr";
 import { SEASON_ONE_RULES } from "./rules";
@@ -49,6 +50,22 @@ describe("approved RLCA MMR authority", () => {
       evaluatedAt: new Date("2026-01-20T00:00:00.000Z"),
       rankedGamesPlayed: 83,
     })).toBe(true);
+  });
+
+  it("identifies missing evidence and placement-ready players without inventing a tier", () => {
+    const verification = { opensAt, rankedGamesPlayed: 50 };
+    expect(verificationAttentionStatus({
+      verification,
+      evaluatedAt: day14,
+      hasAcceptedEvidence: false,
+      alreadyPlaced: false,
+    })).toBe("MISSING_EVIDENCE");
+    expect(verificationAttentionStatus({
+      verification,
+      evaluatedAt: day14,
+      hasAcceptedEvidence: true,
+      alreadyPlaced: false,
+    })).toBe("ELIGIBLE_FOR_PLACEMENT");
   });
 
   it("does not count scrimmages or official series as Ranked 2v2 verification games", () => {

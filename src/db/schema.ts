@@ -387,7 +387,12 @@ export const teams = pgTable("teams", {
   shortName: text("short_name").notNull(),
   logoUrl: text("logo_url"),
   primaryColor: text("primary_color").notNull(),
+  ownerUserId: uuid("owner_user_id").references(() => users.id),
+  managerUserId: uuid("manager_user_id").references(() => users.id),
+  contactInformation: text("contact_information"),
+  notes: text("notes"),
   active: boolean("active").default(true).notNull(),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
 });
 
 export const teamSeasonEntries = pgTable(

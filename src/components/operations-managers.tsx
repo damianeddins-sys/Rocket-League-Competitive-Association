@@ -310,13 +310,25 @@ type PlayerRow = {
   currentMmr: string | null;
   previousMmr: string | null;
   verificationStatus: string;
+  attentionStatus: string;
   verificationDate: string | null;
   verificationData: {
+    id: string;
     opensAt: string;
     closesAt: string;
     rankedGamesPlayed: number;
     acceptedSnapshots: number;
+    latestEvidenceAt: string | null;
+    latestEvidenceReference: string | null;
+    verifiedBy: string | null;
   } | null;
+  accounts: Array<{
+    id: string;
+    platform: string;
+    accountId: string;
+    trackerUrl: string | null;
+    isPrimary: boolean;
+  }>;
   ratingHistory: Array<{
     previousMmr: string;
     nextMmr: string;
@@ -336,6 +348,7 @@ const playerStatuses = [
 export function PlayerManager({ players }: { players: PlayerRow[] }) {
   const router = useRouter();
   const [message, setMessage] = useState<string>();
+  const [query, setQuery] = useState("");
   async function save(formData: FormData) {
     const payload = Object.fromEntries(formData.entries());
     const response = await fetch("/api/admin/operations/players", {
@@ -351,10 +364,24 @@ export function PlayerManager({ players }: { players: PlayerRow[] }) {
     setMessage(response.ok ? "Player profile and status saved." : result.error ?? "Player update failed");
     if (response.ok) router.refresh();
   }
+  const visiblePlayers = players.filter((player) => {
+    const searchable = [
+      player.handle,
+      player.team,
+      player.division,
+      player.status,
+      ...player.accounts.map((account) => `${account.platform} ${account.accountId}`),
+    ].filter(Boolean).join(" ").toLowerCase();
+    return searchable.includes(query.trim().toLowerCase());
+  });
   return (
     <div className="mt-7 space-y-4">
       <Feedback message={message} />
-      {players.map((player) => (
+      <label className="block rounded-xl border border-slate-200 bg-white p-4 text-sm font-bold">
+        Search players, teams, tiers, statuses, or account identifiers
+        <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search official player records" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" />
+      </label>
+      {visiblePlayers.map((player) => (
         <form key={player.id} action={save} className="rounded-xl border border-slate-200 bg-white p-5">
           <input type="hidden" name="id" value={player.id} />
           <input type="hidden" name="playerSeasonId" value={player.playerSeasonId ?? ""} />
@@ -370,10 +397,20 @@ export function PlayerManager({ players }: { players: PlayerRow[] }) {
             <label className="text-sm font-bold">Reason<input name="reason" required minLength={3} maxLength={2000} placeholder="Required audit reason" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
           </div>
           <p className="mt-3 text-xs text-slate-500">{player.team ?? "No franchise"} · {player.division ?? "Unplaced"} · MMR {player.currentMmr ?? "—"}</p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {player.accounts.map((account) => (
+              <div key={account.id} className="rounded-lg bg-slate-50 p-3 text-sm">
+                <p className="text-[10px] font-black uppercase tracking-wider text-blue-700">{account.isPrimary ? "Primary account" : "Alternate account"} · {account.platform}</p>
+                <p className="mt-1 break-all font-mono text-xs">{account.accountId}</p>
+                {account.trackerUrl && <a href={account.trackerUrl} target="_blank" rel="noreferrer" className="mt-2 block text-xs font-black text-blue-700 underline">Tracker evidence</a>}
+              </div>
+            ))}
+            {!player.accounts.length && <p className="rounded-lg border border-dashed border-slate-300 p-3 text-sm text-slate-500">No Rocket League accounts linked.</p>}
+          </div>
           <button className="mt-4 rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Save player</button>
         </form>
       ))}
-      {!players.length && <Empty text="No player records are stored yet. Approved Player applications will appear here." />}
+      {!visiblePlayers.length && <Empty text={players.length ? "No players match the current search." : "No player records are stored yet. Approved Player applications will appear here."} />}
     </div>
   );
 }
@@ -390,6 +427,40 @@ export function MmrManager({ players }: { players: PlayerRow[] }) {
     });
     const result = await readApiResult<object>(response);
     setMessage(response.ok ? "Player MMR updated with rating history and audit records." : result.error ?? "MMR update failed");
+    if (response.ok) router.refresh();
+  }
+  async function openVerification(formData: FormData) {
+    setMessage("Opening official verification window…");
+    const response = await fetch("/api/admin/operations/mmr", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "OPEN_VERIFICATION",
+        playerSeasonId: formData.get("playerSeasonId"),
+        reason: formData.get("reason"),
+      }),
+    });
+    const result = await readApiResult<{ closesAt?: string }>(response);
+    setMessage(response.ok ? `Verification window opened through ${new Date(result.closesAt!).toLocaleDateString()}.` : result.error ?? "Verification window could not be opened");
+    if (response.ok) router.refresh();
+  }
+  async function recordEvidence(formData: FormData) {
+    setMessage("Recording Ranked 2v2 verification evidence…");
+    const response = await fetch("/api/admin/operations/mmr", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "RECORD_EVIDENCE",
+        windowId: formData.get("windowId"),
+        accountId: formData.get("accountId"),
+        rankedGamesPlayed: formData.get("rankedGamesPlayed"),
+        evidenceMmr: formData.get("evidenceMmr"),
+        sourceReference: formData.get("sourceReference"),
+        reason: formData.get("reason"),
+      }),
+    });
+    const result = await readApiResult<object>(response);
+    setMessage(response.ok ? "Ranked 2v2 evidence recorded and audited." : result.error ?? "Evidence could not be recorded");
     if (response.ok) router.refresh();
   }
   const eligible = players.filter((player) => player.playerSeasonId);
@@ -424,7 +495,7 @@ export function MmrManager({ players }: { players: PlayerRow[] }) {
         <article key={player.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <div className="grid gap-4 border-b border-slate-200 p-5 md:grid-cols-[1fr_auto]">
             <div>
-              <p className="eyebrow text-[#168bff]">{player.verificationStatus.replaceAll("_", " ")}</p>
+              <p className="eyebrow text-[#168bff]">{player.attentionStatus.replaceAll("_", " ")}</p>
               <h3 className="mt-2 text-xl font-black text-[#061426]">{player.handle}</h3>
               <p className="mt-1 text-sm text-slate-500">{player.division ?? "Unplaced"} · {player.team ?? "No team"}</p>
             </div>
@@ -442,6 +513,9 @@ export function MmrManager({ players }: { players: PlayerRow[] }) {
                   <div className="rounded-lg bg-slate-50 p-3"><dt className="text-xs text-slate-400">Ranked 2v2 games</dt><dd className="mt-1 font-bold">{player.verificationData.rankedGamesPlayed}</dd></div>
                   <div className="rounded-lg bg-slate-50 p-3"><dt className="text-xs text-slate-400">Accepted snapshots</dt><dd className="mt-1 font-bold">{player.verificationData.acceptedSnapshots}</dd></div>
                   <div className="rounded-lg bg-slate-50 p-3"><dt className="text-xs text-slate-400">Evidence window</dt><dd className="mt-1 font-bold">{new Date(player.verificationData.opensAt).toLocaleDateString()}–{new Date(player.verificationData.closesAt).toLocaleDateString()}</dd></div>
+                  <div className="rounded-lg bg-slate-50 p-3"><dt className="text-xs text-slate-400">Last evidence</dt><dd className="mt-1 font-bold">{player.verificationData.latestEvidenceAt ? new Date(player.verificationData.latestEvidenceAt).toLocaleString() : "None"}</dd></div>
+                  <div className="rounded-lg bg-slate-50 p-3"><dt className="text-xs text-slate-400">Verified by</dt><dd className="mt-1 font-bold">{player.verificationData.verifiedBy ?? "Not verified"}</dd></div>
+                  {player.verificationData.latestEvidenceReference && <a href={player.verificationData.latestEvidenceReference} target="_blank" rel="noreferrer" className="text-xs font-black text-blue-700 underline sm:col-span-2">Open latest verification evidence</a>}
                 </dl>
               ) : <p className="mt-3 rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">No verification window is stored for this player.</p>}
             </section>
@@ -459,6 +533,25 @@ export function MmrManager({ players }: { players: PlayerRow[] }) {
               </div>
             </section>
           </div>
+          {!player.verificationData ? (
+            <form action={openVerification} className="grid gap-3 border-t border-slate-200 bg-blue-50/40 p-5 md:grid-cols-[1fr_1.5fr_auto] md:items-end">
+              <input type="hidden" name="playerSeasonId" value={player.playerSeasonId!} />
+              <div><p className="font-black">Open verification</p><p className="mt-1 text-xs text-slate-500">{SEASON_ONE_RULES.verification.windowDays} days · {SEASON_ONE_RULES.verification.rankedGamesRequired} Ranked 2v2 games minimum.</p></div>
+              <label className="text-sm font-bold">Required audit reason<input name="reason" minLength={3} maxLength={2000} required className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+              <button className="rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Open window</button>
+            </form>
+          ) : (
+            <form action={recordEvidence} className="grid gap-3 border-t border-slate-200 bg-blue-50/40 p-5 md:grid-cols-2 xl:grid-cols-6 xl:items-end">
+              <input type="hidden" name="windowId" value={player.verificationData.id} />
+              <label className="text-sm font-bold">Account<select name="accountId" required className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal"><option value="">Select account</option>{player.accounts.map((account) => <option key={account.id} value={account.id}>{account.isPrimary ? "Primary · " : ""}{account.platform} · {account.accountId}</option>)}</select></label>
+              <label className="text-sm font-bold">Ranked 2v2 games<input name="rankedGamesPlayed" type="number" min={0} max={100000} defaultValue={player.verificationData.rankedGamesPlayed} required className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+              <label className="text-sm font-bold">Observed 2v2 MMR<input name="evidenceMmr" type="number" min={0} max={5000} required className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+              <label className="text-sm font-bold">Evidence URL<input name="sourceReference" type="url" placeholder="https://…" required className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+              <label className="text-sm font-bold">Audit reason<input name="reason" minLength={3} maxLength={2000} required className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+              <button disabled={!player.accounts.length} className="rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-slate-400">Record evidence</button>
+              {!player.accounts.length && <p className="text-xs text-red-700 xl:col-span-6">No Rocket League account is linked. Resolve the player account record before adding evidence.</p>}
+            </form>
+          )}
           <form action={save} className="grid gap-3 border-t border-slate-200 bg-slate-50 p-5 md:grid-cols-[1fr_10rem_1.5fr_auto] md:items-end">
             <input type="hidden" name="playerSeasonId" value={player.playerSeasonId!} />
             <div><p className="font-black">Audited correction</p><p className="mt-1 text-xs text-slate-500">Creates rating history and an audit-log entry.</p></div>
@@ -477,17 +570,30 @@ type TeamRow = {
   id: string;
   franchiseNumber: number | null;
   name: string;
+  shortName: string;
   logoUrl: string | null;
   primaryColor: string;
   discordFranchiseRoleId: string | null;
+  ownerUserId: string | null;
+  managerUserId: string | null;
+  contactInformation: string | null;
+  notes: string | null;
   active: boolean;
+  archivedAt: string | null;
 };
 
-export function TeamManager({ teams }: { teams: TeamRow[] }) {
+export function TeamManager({
+  teams,
+  users,
+}: {
+  teams: TeamRow[];
+  users: Array<{ id: string; name: string }>;
+}) {
   const router = useRouter();
   const [message, setMessage] = useState<string>();
   async function save(formData: FormData) {
     const payload = Object.fromEntries(formData.entries());
+    if (!payload.active && !window.confirm(`Archive ${payload.name}? Existing season and roster history will be preserved.`)) return;
     const response = await fetch("/api/admin/operations/teams", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -497,9 +603,38 @@ export function TeamManager({ teams }: { teams: TeamRow[] }) {
     setMessage(response.ok ? "Franchise settings saved and audited." : result.error ?? "Franchise update failed");
     if (response.ok) router.refresh();
   }
+  async function create(formData: FormData) {
+    setMessage("Creating franchise…");
+    const payload = Object.fromEntries(formData.entries());
+    const response = await fetch("/api/admin/operations/teams", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const result = await readApiResult<object>(response);
+    setMessage(response.ok ? "Franchise created and audited." : result.error ?? "Franchise could not be created");
+    if (response.ok) router.refresh();
+  }
   return (
     <div className="mt-7 space-y-4">
       <Feedback message={message} />
+      <details className="rounded-xl border border-blue-200 bg-blue-50/40 p-5">
+        <summary className="cursor-pointer text-lg font-black text-[#081e3a]">Create franchise</summary>
+        <form action={create} className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <label className="text-sm font-bold">Franchise number<input name="franchiseNumber" type="number" min={1} required className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+          <label className="text-sm font-bold">Franchise / team name<input name="name" required minLength={2} maxLength={120} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+          <label className="text-sm font-bold">Short name<input name="shortName" required minLength={2} maxLength={12} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal uppercase" /></label>
+          <label className="text-sm font-bold">Primary color<input name="primaryColor" type="color" defaultValue="#1683ff" className="mt-2 h-11 w-full rounded-lg border border-slate-300 p-1" /></label>
+          <label className="text-sm font-bold">Logo URL<input name="logoUrl" type="url" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+          <label className="text-sm font-bold">Owner<select name="ownerUserId" className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal"><option value="">Unassigned</option>{users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label>
+          <label className="text-sm font-bold">Manager<select name="managerUserId" className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal"><option value="">Unassigned</option>{users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label>
+          <label className="text-sm font-bold">Discord role ID (optional)<input name="discordFranchiseRoleId" pattern="\d{16,22}" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-mono font-normal" /></label>
+          <label className="text-sm font-bold md:col-span-2">Contact information<textarea name="contactInformation" maxLength={1000} rows={2} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+          <label className="text-sm font-bold md:col-span-2">Internal notes<textarea name="notes" maxLength={3000} rows={2} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+          <label className="text-sm font-bold md:col-span-2 xl:col-span-3">Required audit reason<input name="reason" required minLength={3} maxLength={2000} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+          <button className="self-end rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Create franchise</button>
+        </form>
+      </details>
       {teams.map((team) => (
         <form key={team.id} action={save} className="rounded-xl border border-slate-200 bg-white p-5">
           <input type="hidden" name="id" value={team.id} />
@@ -507,12 +642,18 @@ export function TeamManager({ teams }: { teams: TeamRow[] }) {
             <span className="h-10 w-10 rounded-lg" style={{ backgroundColor: team.primaryColor }} />
             <div><p className="text-xs font-black uppercase text-slate-400">Franchise {team.franchiseNumber}</p><h3 className="font-black text-[#081e3a]">{team.name}</h3></div>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <label className="text-sm font-bold">Name<input name="name" defaultValue={team.name} required minLength={2} maxLength={120} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+            <label className="text-sm font-bold">Short name<input name="shortName" defaultValue={team.shortName} required minLength={2} maxLength={12} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal uppercase" /></label>
             <label className="text-sm font-bold">Logo URL<input name="logoUrl" type="url" defaultValue={team.logoUrl ?? ""} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
             <label className="text-sm font-bold">Primary color<input name="primaryColor" type="color" defaultValue={team.primaryColor} className="mt-2 h-11 w-full rounded-lg border border-slate-300 p-1" /></label>
-            <label className="text-sm font-bold">Discord franchise role ID<input name="discordFranchiseRoleId" required defaultValue={team.discordFranchiseRoleId ?? ""} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-mono font-normal" /></label>
-            <label className="flex items-center gap-2 text-sm font-bold"><input name="active" type="checkbox" defaultChecked={team.active} /> Active franchise</label>
-            <input name="reason" required minLength={3} maxLength={2000} placeholder="Required audit reason" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm md:col-span-2" />
+            <label className="text-sm font-bold">Owner<select name="ownerUserId" defaultValue={team.ownerUserId ?? ""} className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal"><option value="">Unassigned</option>{users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label>
+            <label className="text-sm font-bold">Manager<select name="managerUserId" defaultValue={team.managerUserId ?? ""} className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal"><option value="">Unassigned</option>{users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label>
+            <label className="text-sm font-bold">Discord role ID (optional)<input name="discordFranchiseRoleId" pattern="\d{16,22}" defaultValue={team.discordFranchiseRoleId ?? ""} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-mono font-normal" /></label>
+            <label className="text-sm font-bold">Status<p className="mt-2 flex h-11 items-center gap-2 rounded-lg border border-slate-300 px-3 font-normal"><input name="active" type="checkbox" defaultChecked={team.active} /> Active franchise</p></label>
+            <label className="text-sm font-bold md:col-span-2">Contact information<textarea name="contactInformation" maxLength={1000} rows={2} defaultValue={team.contactInformation ?? ""} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+            <label className="text-sm font-bold md:col-span-2">Internal notes<textarea name="notes" maxLength={3000} rows={2} defaultValue={team.notes ?? ""} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+            <input name="reason" required minLength={3} maxLength={2000} placeholder="Required audit reason" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm md:col-span-2 xl:col-span-4" />
           </div>
           <button className="mt-4 rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Save franchise</button>
         </form>

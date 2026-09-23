@@ -25,10 +25,11 @@ import {
   mmrVerificationWindows,
   transactionRequests,
   ratingEvents,
+  rocketLeagueAccounts,
   users,
 } from "../db/schema";
 import { DISCORD_NOTIFICATION_EVENTS } from "./discord/notifications";
-import { isVerificationComplete } from "./mmr";
+import { isVerificationComplete, verificationAttentionStatus } from "./mmr";
 import { DEFAULT_TIER_ID, normalizeTierId, TIERS } from "./tiers";
 
 export type OperationsData<T> =
@@ -233,7 +234,7 @@ export function loadPlayerManagement() {
       .from(seasons)
       .where(eq(seasons.active, true))
       .limit(1);
-    const [playerRows, seasonRows, divisionRows, membershipRows, teamRows, verificationRows, ratingRows] = await Promise.all([
+    const [playerRows, seasonRows, divisionRows, membershipRows, teamRows, verificationRows, ratingRows, accountRows, userRows] = await Promise.all([
       db.select().from(players).orderBy(asc(players.handle)).limit(1000),
       season
         ? db.select().from(playerSeasons).where(eq(playerSeasons.seasonId, season.id))
@@ -257,6 +258,8 @@ export function loadPlayerManagement() {
           .where(eq(ratingEvents.seasonId, season.id))
           .orderBy(desc(ratingEvents.createdAt))
         : Promise.resolve([]),
+      db.select().from(rocketLeagueAccounts),
+      db.select({ id: users.id, name: users.displayName }).from(users),
     ]);
     const snapshotRows = verificationRows.length
       ? await db.select().from(mmrSnapshots)
@@ -264,6 +267,7 @@ export function loadPlayerManagement() {
       : [];
     const divisionNames = new Map(divisionRows.map((division) => [division.id, division.name]));
     const teamNames = new Map(teamRows.map((team) => [team.id, team.name]));
+    const userNames = new Map(userRows.map((user) => [user.id, user.name]));
     const evaluatedAt = new Date();
     return {
       activeSeason: season,
@@ -280,6 +284,8 @@ export function loadPlayerManagement() {
         const acceptedSnapshots = verification
           ? snapshotRows.filter((snapshot) => snapshot.windowId === verification.id && snapshot.accepted)
           : [];
+        const latestSnapshot = [...acceptedSnapshots]
+          .sort((left, right) => right.capturedAt.getTime() - left.capturedAt.getTime())[0];
         const history = ratingRows
           .filter((event) => event.playerId === player.id)
           .slice(0, 10)
@@ -310,15 +316,36 @@ export function loadPlayerManagement() {
               })
               ? "COMPLETE"
               : "IN_PROGRESS",
+          attentionStatus: verificationAttentionStatus({
+            verification,
+            evaluatedAt,
+            hasAcceptedEvidence: acceptedSnapshots.length > 0,
+            alreadyPlaced: Boolean(playerSeason?.divisionId && playerSeason.currentMmr !== null),
+          }),
           verificationDate: verification?.closesAt.toISOString() ?? null,
           verificationData: verification
             ? {
+                id: verification.id,
                 opensAt: verification.opensAt.toISOString(),
                 closesAt: verification.closesAt.toISOString(),
                 rankedGamesPlayed: verification.rankedGamesPlayed,
                 acceptedSnapshots: acceptedSnapshots.length,
+                latestEvidenceAt: latestSnapshot?.capturedAt.toISOString() ?? null,
+                latestEvidenceReference: latestSnapshot?.sourceReference ?? null,
+                verifiedBy: latestSnapshot?.capturedBy
+                  ? userNames.get(latestSnapshot.capturedBy) ?? "Authorized staff"
+                  : null,
               }
             : null,
+          accounts: accountRows
+            .filter((account) => account.playerId === player.id)
+            .map((account) => ({
+              id: account.id,
+              platform: account.platform,
+              accountId: account.platformAccountId,
+              trackerUrl: account.trackerUrl,
+              isPrimary: account.isPrimary,
+            })),
           ratingHistory: history,
           team: membership ? teamNames.get(membership.teamId) ?? null : null,
         };
@@ -328,7 +355,20 @@ export function loadPlayerManagement() {
 }
 
 export function loadTeamManagement() {
-  return load(async () => getDatabase().select().from(teams).orderBy(asc(teams.franchiseNumber)));
+  return load(async () => {
+    const db = getDatabase();
+    const [teamRows, userRows] = await Promise.all([
+      db.select().from(teams).orderBy(asc(teams.franchiseNumber)),
+      db.select({ id: users.id, name: users.displayName }).from(users).orderBy(asc(users.displayName)),
+    ]);
+    return {
+      teams: teamRows.map((team) => ({
+        ...team,
+        archivedAt: team.archivedAt?.toISOString() ?? null,
+      })),
+      users: userRows,
+    };
+  });
 }
 
 export function loadDocumentManagement() {

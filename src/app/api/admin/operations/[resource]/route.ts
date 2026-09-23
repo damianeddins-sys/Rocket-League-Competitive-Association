@@ -14,11 +14,14 @@ import {
   discordRoleSyncJobs,
   events,
   matches,
+  mmrSnapshots,
+  mmrVerificationWindows,
   playerSeasons,
   playerStatusHistory,
   players,
   qualificationPointEvents,
   ratingEvents,
+  rocketLeagueAccounts,
   rosterMemberships,
   seasons,
   teams,
@@ -57,6 +60,7 @@ import {
 import { buildTierHistoryRecord, toTierCode } from "@/services/tier-history";
 import { normalizeTierId, tierDefinition, TIER_IDS, TIERS } from "@/services/tiers";
 import { regularSeasonPoints } from "@/services/points";
+import { VERIFICATION_DAYS } from "@/services/mmr";
 
 export const runtime = "nodejs";
 
@@ -112,13 +116,39 @@ const mmrSchema = z.object({
   reason: z.string().trim().min(3).max(2000),
 });
 
+const mmrEvidenceSchema = z.object({
+  operation: z.literal("RECORD_EVIDENCE"),
+  windowId: z.string().uuid(),
+  accountId: z.string().uuid(),
+  rankedGamesPlayed: z.coerce.number().int().min(0).max(100_000),
+  evidenceMmr: z.coerce.number().int().min(0).max(5000),
+  sourceReference: z.url().max(1000).refine((url) => url.startsWith("https://")),
+  reason: z.string().trim().min(3).max(2000),
+});
+
+const openMmrVerificationSchema = z.object({
+  operation: z.literal("OPEN_VERIFICATION"),
+  playerSeasonId: z.string().uuid(),
+  reason: z.string().trim().min(3).max(2000),
+});
+
 const teamSchema = z.object({
   id: z.string().uuid(),
+  name: z.string().trim().min(2).max(120),
+  shortName: z.string().trim().min(2).max(12),
   logoUrl: z.union([z.literal(""), z.url().max(1000).refine((url) => url.startsWith("https://"))]),
   primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-  discordFranchiseRoleId: z.string().regex(/^\d{16,22}$/),
+  discordFranchiseRoleId: z.union([z.literal(""), z.string().regex(/^\d{16,22}$/)]),
+  ownerUserId: z.union([z.literal(""), z.string().uuid()]),
+  managerUserId: z.union([z.literal(""), z.string().uuid()]),
+  contactInformation: z.string().trim().max(1000),
+  notes: z.string().trim().max(3000),
   active: z.boolean(),
   reason: z.string().trim().min(3).max(2000),
+});
+
+const createTeamSchema = teamSchema.omit({ id: true, active: true }).extend({
+  franchiseNumber: z.coerce.number().int().positive().max(10_000),
 });
 
 const seasonSchema = z.object({
@@ -627,6 +657,52 @@ export async function PATCH(
   }
 
   if (resource === "mmr") {
+    const evidence = mmrEvidenceSchema.safeParse(body);
+    if (evidence.success) {
+      const [window] = await db.select().from(mmrVerificationWindows)
+        .where(eq(mmrVerificationWindows.id, evidence.data.windowId)).limit(1);
+      if (!window) return NextResponse.json({ error: "MMR verification window not found" }, { status: 404 });
+      const [account] = await db.select().from(rocketLeagueAccounts)
+        .where(eq(rocketLeagueAccounts.id, evidence.data.accountId)).limit(1);
+      if (!account || account.playerId !== window.playerId) {
+        return NextResponse.json({ error: "Evidence account does not belong to this player" }, { status: 409 });
+      }
+      const capturedAt = new Date();
+      await db.transaction(async (tx) => {
+        await tx.update(mmrVerificationWindows).set({
+          rankedGamesPlayed: evidence.data.rankedGamesPlayed,
+        }).where(eq(mmrVerificationWindows.id, window.id));
+        const [snapshot] = await tx.insert(mmrSnapshots).values({
+          windowId: window.id,
+          accountId: account.id,
+          capturedAt,
+          mmr: evidence.data.evidenceMmr,
+          source: "RANKED_2V2",
+          sourceReference: evidence.data.sourceReference,
+          capturedBy: context.user.id,
+          accepted: true,
+        }).returning({ id: mmrSnapshots.id });
+        await tx.insert(auditLogs).values(buildAuditLogRecord({
+          actorId: context.user.id,
+          actorDiscordRoleIds: context.access.roleIds,
+          actorFranchiseNumber: context.access.franchiseNumber,
+          action: "MMR_VERIFICATION_EVIDENCE_RECORDED",
+          entityType: "MMR_VERIFICATION_WINDOW",
+          entityId: window.id,
+          previousState: { rankedGamesPlayed: window.rankedGamesPlayed },
+          nextState: {
+            rankedGamesPlayed: evidence.data.rankedGamesPlayed,
+            snapshotId: snapshot.id,
+            accountId: account.id,
+            evidenceMmr: evidence.data.evidenceMmr,
+            source: "RANKED_2V2",
+          },
+          reason: evidence.data.reason,
+          requestId,
+        }));
+      });
+      return NextResponse.json({ id: window.id, evidenceRecorded: true });
+    }
     const parsed = mmrSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: "MMR change is invalid" }, { status: 400 });
     const [current] = await db
@@ -674,10 +750,17 @@ export async function PATCH(
     if (!current) return NextResponse.json({ error: "Franchise not found" }, { status: 404 });
     await db.transaction(async (tx) => {
       await tx.update(teams).set({
+        name: parsed.data.name,
+        shortName: parsed.data.shortName.toUpperCase(),
         logoUrl: parsed.data.logoUrl || null,
         primaryColor: parsed.data.primaryColor,
-        discordFranchiseRoleId: parsed.data.discordFranchiseRoleId,
+        discordFranchiseRoleId: parsed.data.discordFranchiseRoleId || null,
+        ownerUserId: parsed.data.ownerUserId || null,
+        managerUserId: parsed.data.managerUserId || null,
+        contactInformation: parsed.data.contactInformation || null,
+        notes: parsed.data.notes || null,
         active: parsed.data.active,
+        archivedAt: parsed.data.active ? null : current.archivedAt ?? new Date(),
       }).where(eq(teams.id, current.id));
       await tx.insert(auditLogs).values(buildAuditLogRecord({
         actorId: context.user.id,
@@ -1081,7 +1164,7 @@ export async function POST(
   { params }: { params: Promise<{ resource: string }> },
 ) {
   const { resource } = await params;
-  if (resource !== "channels" && resource !== "matches" && resource !== "seasons") {
+  if (resource !== "channels" && resource !== "matches" && resource !== "seasons" && resource !== "mmr" && resource !== "teams") {
     return NextResponse.json({ error: "Unknown operations resource" }, { status: 404 });
   }
   const context = await contextFor(request, resource);
@@ -1096,6 +1179,116 @@ export async function POST(
   });
   if (!rateLimit.allowed) {
     return NextResponse.json({ error: "Operations write limit reached" }, { status: 429 });
+  }
+  if (resource === "teams") {
+    const parsed = createTeamSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Franchise details are invalid" }, { status: 400 });
+    }
+    const db = getDatabase();
+    const baseSlug = parsed.data.name.toLowerCase().normalize("NFKD")
+      .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const slug = `${baseSlug || "franchise"}-${parsed.data.franchiseNumber}`;
+    try {
+      const created = await db.transaction(async (tx) => {
+        const [team] = await tx.insert(teams).values({
+          franchiseNumber: parsed.data.franchiseNumber,
+          name: parsed.data.name,
+          slug,
+          shortName: parsed.data.shortName.toUpperCase(),
+          logoUrl: parsed.data.logoUrl || null,
+          primaryColor: parsed.data.primaryColor,
+          discordFranchiseRoleId: parsed.data.discordFranchiseRoleId || null,
+          ownerUserId: parsed.data.ownerUserId || null,
+          managerUserId: parsed.data.managerUserId || null,
+          contactInformation: parsed.data.contactInformation || null,
+          notes: parsed.data.notes || null,
+          active: true,
+        }).returning();
+        await tx.insert(auditLogs).values(buildAuditLogRecord({
+          actorId: context.user.id,
+          actorDiscordRoleIds: context.access.roleIds,
+          actorFranchiseNumber: context.access.franchiseNumber,
+          action: "FRANCHISE_CREATED",
+          entityType: "TEAM",
+          entityId: team.id,
+          previousState: null,
+          nextState: toAuditJson(team),
+          reason: parsed.data.reason,
+          requestId: randomUUID(),
+        }));
+        return team;
+      });
+      return NextResponse.json({ id: created.id, saved: true }, { status: 201 });
+    } catch (error) {
+      const databaseError = error as { code?: unknown };
+      if (databaseError.code === "23505") {
+        return NextResponse.json({ error: "That franchise number, name, or Discord role is already in use" }, { status: 409 });
+      }
+      throw error;
+    }
+  }
+  if (resource === "mmr") {
+    const parsed = openMmrVerificationSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) {
+      return NextResponse.json({ error: "MMR verification request is invalid" }, { status: 400 });
+    }
+    const db = getDatabase();
+    const [playerSeason] = await db.select().from(playerSeasons)
+      .where(eq(playerSeasons.id, parsed.data.playerSeasonId)).limit(1);
+    if (!playerSeason) return NextResponse.json({ error: "Player season record not found" }, { status: 404 });
+    const [existing] = await db.select().from(mmrVerificationWindows)
+      .where(and(
+        eq(mmrVerificationWindows.seasonId, playerSeason.seasonId),
+        eq(mmrVerificationWindows.playerId, playerSeason.playerId),
+      ))
+      .orderBy(desc(mmrVerificationWindows.closesAt))
+      .limit(1);
+    if (existing && existing.closesAt >= new Date()) {
+      return NextResponse.json({ error: "This player already has an active verification window" }, { status: 409 });
+    }
+    const opensAt = new Date();
+    const closesAt = new Date(opensAt.getTime() + VERIFICATION_DAYS * 86_400_000);
+    const created = await db.transaction(async (tx) => {
+      const [window] = await tx.insert(mmrVerificationWindows).values({
+        seasonId: playerSeason.seasonId,
+        playerId: playerSeason.playerId,
+        opensAt,
+        closesAt,
+        rankedGamesPlayed: 0,
+      }).returning();
+      if (playerSeason.status === "APPLIED") {
+        await tx.update(playerSeasons).set({ status: "VERIFICATION_PENDING" })
+          .where(eq(playerSeasons.id, playerSeason.id));
+        await tx.insert(playerStatusHistory).values({
+          playerSeasonId: playerSeason.id,
+          fromStatus: playerSeason.status,
+          toStatus: "VERIFICATION_PENDING",
+          effectiveAt: opensAt,
+          reason: parsed.data.reason,
+          actorId: context.user.id,
+        });
+      }
+      await tx.insert(auditLogs).values(buildAuditLogRecord({
+        actorId: context.user.id,
+        actorDiscordRoleIds: context.access.roleIds,
+        actorFranchiseNumber: context.access.franchiseNumber,
+        action: "MMR_VERIFICATION_OPENED",
+        entityType: "MMR_VERIFICATION_WINDOW",
+        entityId: window.id,
+        previousState: null,
+        nextState: {
+          playerSeasonId: playerSeason.id,
+          opensAt: opensAt.toISOString(),
+          closesAt: closesAt.toISOString(),
+          rankedGamesPlayed: 0,
+        },
+        reason: parsed.data.reason,
+        requestId: randomUUID(),
+      }));
+      return window;
+    });
+    return NextResponse.json({ id: created.id, closesAt: created.closesAt.toISOString() }, { status: 201 });
   }
   if (resource === "seasons") {
     const parsed = createSeasonSchema.safeParse(await request.json().catch(() => null));

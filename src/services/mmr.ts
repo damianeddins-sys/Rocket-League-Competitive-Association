@@ -66,6 +66,25 @@ export function isVerificationComplete(input: {
   );
 }
 
+export function verificationAttentionStatus(input: {
+  verification: { opensAt: Date; rankedGamesPlayed: number } | null;
+  evaluatedAt: Date;
+  hasAcceptedEvidence: boolean;
+  alreadyPlaced: boolean;
+}) {
+  if (input.alreadyPlaced) return "ALREADY_PLACED" as const;
+  if (!input.verification) return "NEEDS_VERIFICATION" as const;
+  if (input.verification.rankedGamesPlayed < MINIMUM_RANKED_GAMES) return "MISSING_RANKED_GAMES" as const;
+  if (!input.hasAcceptedEvidence) return "MISSING_EVIDENCE" as const;
+  return isVerificationComplete({
+    opensAt: input.verification.opensAt,
+    evaluatedAt: input.evaluatedAt,
+    rankedGamesPlayed: input.verification.rankedGamesPlayed,
+  })
+    ? "ELIGIBLE_FOR_PLACEMENT" as const
+    : "NEEDS_VERIFICATION" as const;
+}
+
 export function verificationRankedGameCountAfter(
   currentRankedGames: number,
   activity: "RANKED_2V2" | "SCRIMMAGE" | "OFFICIAL_BO5",
