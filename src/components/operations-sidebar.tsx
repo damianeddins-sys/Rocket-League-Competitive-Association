@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ComponentType } from "react";
+import { useState, type ComponentType } from "react";
 
 type NavigationItem = {
   key: string;
@@ -27,22 +27,11 @@ export function OperationsSidebar({
   const currentGroup = groups.find((group) => group.items.some((item) => item.key === currentKey))?.label;
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set(currentGroup ? [currentGroup] : []));
 
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem("rlca:operations:open-groups");
-      const parsed = stored ? JSON.parse(stored) as string[] : [];
-      setOpenGroups(new Set([...parsed, ...(currentGroup ? [currentGroup] : [])]));
-    } catch {
-      setOpenGroups(new Set(currentGroup ? [currentGroup] : []));
-    }
-  }, [currentGroup]);
-
   function toggle(label: string) {
     setOpenGroups((previous) => {
       const next = new Set(previous);
       if (next.has(label)) next.delete(label);
       else next.add(label);
-      window.localStorage.setItem("rlca:operations:open-groups", JSON.stringify([...next]));
       return next;
     });
   }
