@@ -158,7 +158,7 @@ export default async function OperationsPage({
     : null;
   const contentCategory: ContentCategory | null =
     sectionKey === "rules" ? "RULES"
-      : sectionKey === "content" || sectionKey === "news" ? "CONTENT"
+      : sectionKey === "content" ? "CONTENT"
         : sectionKey === "site-info" ? "LEAGUE_INFO"
         : sectionKey === "media" ? "MEDIA"
           : null;
