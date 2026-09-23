@@ -173,8 +173,12 @@ export async function PATCH(
       if (!current.platform || !current.epicAccountId) {
         throw new Error("Player application is missing platform account details");
       }
+      const primaryPlatform = z.enum(["EPIC", "STEAM", "XBOX", "PLAYSTATION", "SWITCH"]).safeParse(current.platform);
+      if (!primaryPlatform.success) {
+        throw new Error("Player application has an unsupported platform");
+      }
       const declaredAccounts = applicationAccountsForApproval({
-        platform: current.platform,
+        platform: primaryPlatform.data,
         accountId: current.epicAccountId,
         trackerUrl: current.trackerUrl ?? "",
       }, current.answersJson.additionalRocketLeagueAccounts);
@@ -328,6 +332,7 @@ export async function PATCH(
     if (
       message === "Player application is missing a competitive handle"
       || message === "Player application is missing platform account details"
+      || message === "Player application has an unsupported platform"
       || message.includes("is already linked to another player")
       || message === "An active season is required before approving a player"
       || message === "Player season record could not be created"

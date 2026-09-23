@@ -21,6 +21,7 @@ const statusPresentation: Record<ApplicationStatus, { label: string; icon: strin
   APPROVED: { label: "APPROVED", icon: "🟢", color: SUCCESS_COLOR },
   DENIED: { label: "DENIED", icon: "🔴", color: ERROR_COLOR },
   WITHDRAWN: { label: "WITHDRAWN", icon: "⚪", color: 0x64748b },
+  CLOSED: { label: "CLOSED", icon: "⚫", color: 0x334155 },
 };
 
 const input = (

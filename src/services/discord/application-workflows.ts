@@ -345,6 +345,7 @@ export async function loadApplicationDashboard(actor: DiscordActor) {
     APPROVED: 0,
     DENIED: 0,
     WITHDRAWN: 0,
+    CLOSED: 0,
   });
 }
 
