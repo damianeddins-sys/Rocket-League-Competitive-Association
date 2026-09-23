@@ -12,6 +12,7 @@ import {
   BotControl,
   DocumentManager,
   FranchiseWorkspace,
+  LeagueLogManager,
   MmrManager,
   OperationsOverview,
   PlayerManager,
@@ -37,6 +38,7 @@ import {
   loadBracketManagement,
   loadDocumentManagement,
   loadFranchiseWorkspace,
+  loadLeagueLogManagement,
   loadOperationsOverview,
   loadPlayerManagement,
   loadProductionWorkspace,
@@ -180,7 +182,8 @@ export default async function OperationsPage({
   const settingsManagement = sectionKey === "settings" || sectionKey === "tiers" || sectionKey === "seasons"
     ? await loadSettingsManagement()
     : null;
-  const auditManagement = sectionKey === "audit" || sectionKey === "league-logs" ? await loadAuditManagement() : null;
+  const auditManagement = sectionKey === "audit" ? await loadAuditManagement() : null;
+  const leagueLogManagement = sectionKey === "league-logs" ? await loadLeagueLogManagement() : null;
   const franchiseWorkspace = sectionKey === "franchise" ? await loadFranchiseWorkspace(access.franchiseNumber) : null;
   const statisticsWorkspace = sectionKey === "statistics" || sectionKey === "replays" ? await loadStatisticsWorkspace(tierId) : null;
   const productionWorkspace = ["schedule", "matches", "brackets", "standings"].includes(sectionKey)
@@ -200,6 +203,7 @@ export default async function OperationsPage({
     documentManagement,
     settingsManagement,
     auditManagement,
+    leagueLogManagement,
     franchiseWorkspace,
     statisticsWorkspace,
     productionWorkspace,
@@ -359,6 +363,8 @@ export default async function OperationsPage({
                 logs={auditManagement.data.logs}
                 tierHistory={auditManagement.data.tierHistory}
               />
+            ) : leagueLogManagement?.status === "READY" ? (
+              <LeagueLogManager entries={leagueLogManagement.data.entries} />
             ) : franchiseWorkspace?.status === "READY" ? (
               <FranchiseWorkspace data={franchiseWorkspace.data} />
             ) : statisticsWorkspace?.status === "READY" ? (

@@ -314,6 +314,10 @@ const bracketCreateSchema = z.object({
   reason: z.string().trim().min(3).max(2000),
   confirmed: z.literal(true),
 });
+const leagueNoteSchema = z.object({
+  category: z.enum(["SEASON", "APPLICATION", "MMR", "ROSTER", "MATCH", "BRACKET", "SCHEDULE", "GENERAL"]),
+  note: z.string().trim().min(3).max(3000),
+});
 
 const permissions: Record<string, Permission> = {
   transactions: "transaction.approve",
@@ -329,6 +333,7 @@ const permissions: Record<string, Permission> = {
   matches: "matches.manage",
   schedule: "matches.manage",
   brackets: "matches.manage",
+  "league-logs": "league.manage",
 };
 const portals: Record<string, "LEAGUE_OPERATIONS" | "SIGN_UP_MANAGER" | "PRODUCTION" | "STATISTICS"> = {
   transactions: "LEAGUE_OPERATIONS",
@@ -344,6 +349,7 @@ const portals: Record<string, "LEAGUE_OPERATIONS" | "SIGN_UP_MANAGER" | "PRODUCT
   matches: "PRODUCTION",
   schedule: "PRODUCTION",
   brackets: "PRODUCTION",
+  "league-logs": "LEAGUE_OPERATIONS",
 };
 
 async function contextFor(request: Request, resource: string) {
@@ -1494,7 +1500,7 @@ export async function POST(
   { params }: { params: Promise<{ resource: string }> },
 ) {
   const { resource } = await params;
-  if (resource !== "channels" && resource !== "matches" && resource !== "seasons" && resource !== "mmr" && resource !== "teams" && resource !== "schedule" && resource !== "brackets") {
+  if (resource !== "channels" && resource !== "matches" && resource !== "seasons" && resource !== "mmr" && resource !== "teams" && resource !== "schedule" && resource !== "brackets" && resource !== "league-logs") {
     return NextResponse.json({ error: "Unknown operations resource" }, { status: 404 });
   }
   const context = await contextFor(request, resource);
@@ -1509,6 +1515,27 @@ export async function POST(
   });
   if (!rateLimit.allowed) {
     return NextResponse.json({ error: "Operations write limit reached" }, { status: 429 });
+  }
+  if (resource === "league-logs") {
+    const parsed = leagueNoteSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "League note is invalid" }, { status: 400 });
+    }
+    const db = getDatabase();
+    const id = randomUUID();
+    await db.insert(auditLogs).values(buildAuditLogRecord({
+      actorId: context.user.id,
+      actorDiscordRoleIds: context.access.roleIds,
+      actorFranchiseNumber: context.access.franchiseNumber,
+      action: "LEAGUE_NOTE_ADDED",
+      entityType: "LEAGUE_NOTE",
+      entityId: id,
+      previousState: null,
+      nextState: { category: parsed.data.category },
+      reason: parsed.data.note,
+      requestId: randomUUID(),
+    }));
+    return NextResponse.json({ id, saved: true }, { status: 201 });
   }
   if (resource === "brackets") {
     const parsed = bracketCreateSchema.safeParse(await request.json().catch(() => null));

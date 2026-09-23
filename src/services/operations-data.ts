@@ -755,6 +755,43 @@ export function loadAuditManagement() {
   });
 }
 
+export function loadLeagueLogManagement() {
+  return load(async () => {
+    const db = getDatabase();
+    const [logs, userRows] = await Promise.all([
+      db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(500),
+      db.select({ id: users.id, name: users.displayName }).from(users),
+    ]);
+    const names = new Map(userRows.map((user) => [user.id, user.name]));
+    return {
+      entries: logs
+        .filter((entry) => [
+          "APPLICATION",
+          "PLAYER",
+          "PLAYER_SEASON",
+          "TEAM",
+          "TRANSACTION_REQUEST",
+          "SEASON",
+          "SEASON_WEEK",
+          "EVENT",
+          "MATCH",
+          "BRACKET",
+          "MMR_VERIFICATION_WINDOW",
+          "LEAGUE_NOTE",
+        ].includes(entry.entityType))
+        .map((entry) => ({
+          id: entry.id,
+          action: entry.action,
+          category: entry.entityType,
+          entityId: entry.entityId,
+          actor: entry.actorId ? names.get(entry.actorId) ?? "Authorized staff" : "System",
+          reason: entry.reason,
+          createdAt: entry.createdAt.toISOString(),
+        })),
+    };
+  });
+}
+
 export function loadStaffSummary() {
   return load(async () => {
     const db = getDatabase();

@@ -1221,6 +1221,67 @@ export function AuditManager({
   );
 }
 
+export function LeagueLogManager({
+  entries,
+}: {
+  entries: Array<{
+    id: string;
+    action: string;
+    category: string;
+    entityId: string;
+    actor: string;
+    reason: string | null;
+    createdAt: string;
+  }>;
+}) {
+  const router = useRouter();
+  const [message, setMessage] = useState<string>();
+  const [query, setQuery] = useState("");
+  async function addNote(formData: FormData) {
+    setMessage("Adding league operations note…");
+    const response = await fetch("/api/admin/operations/league-logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.fromEntries(formData.entries())),
+    });
+    const result = await readApiResult<object>(response);
+    setMessage(response.ok ? "League note recorded in the operational timeline and immutable audit." : result.error ?? "League note could not be recorded");
+    if (response.ok) router.refresh();
+  }
+  const visible = entries.filter((entry) =>
+    `${entry.action} ${entry.category} ${entry.actor} ${entry.reason ?? ""}`.toLowerCase().includes(query.toLowerCase()));
+  return (
+    <div className="mt-7 space-y-5">
+      <Feedback message={message} />
+      <form action={addNote} className="rounded-xl border border-blue-200 bg-blue-50/40 p-5">
+        <h3 className="text-lg font-black text-[#081e3a]">Add administrative league note</h3>
+        <p className="mt-1 text-sm text-slate-600">Notes are append-only and do not replace the immutable security Audit Log.</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-[12rem_1fr_auto]">
+          <select name="category" required className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"><option>SEASON</option><option>APPLICATION</option><option>MMR</option><option>ROSTER</option><option>MATCH</option><option>BRACKET</option><option>SCHEDULE</option><option>GENERAL</option></select>
+          <input name="note" required minLength={3} maxLength={3000} placeholder="Operational note" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
+          <button className="rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Add note</button>
+        </div>
+      </form>
+      <label className="block rounded-xl border border-slate-200 bg-white p-4 text-sm font-bold">Search league activity
+        <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" />
+      </label>
+      <div className="space-y-3">
+        {visible.map((entry) => (
+          <article key={entry.id} className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div><span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700">{entry.category}</span><strong className="ml-2 text-sm">{entry.action.replaceAll("_", " ")}</strong></div>
+              <span className="text-xs text-slate-400">{new Date(entry.createdAt).toLocaleString()}</span>
+            </div>
+            <p className="mt-2 text-sm text-slate-600">{entry.reason ?? "No operational reason recorded."}</p>
+            <p className="mt-2 text-xs text-slate-400">{entry.actor} · {entry.entityId}</p>
+          </article>
+        ))}
+        {!visible.length && <Empty text="No league activity matches the current search." />}
+      </div>
+    </div>
+  );
+}
+
 export function FranchiseWorkspace({
   data,
 }: {
