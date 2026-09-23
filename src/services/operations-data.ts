@@ -317,7 +317,7 @@ export function loadPlayerManagement() {
               ? "COMPLETE"
               : "IN_PROGRESS",
           attentionStatus: verificationAttentionStatus({
-            verification,
+            verification: verification ?? null,
             evaluatedAt,
             hasAcceptedEvidence: acceptedSnapshots.length > 0,
             alreadyPlaced: Boolean(playerSeason?.divisionId && playerSeason.currentMmr !== null),
