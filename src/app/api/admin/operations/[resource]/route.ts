@@ -368,7 +368,7 @@ export async function PATCH(
         action: "SEASON_TIER_THRESHOLDS_UPDATED",
         entityType: "SEASON",
         entityId: season.id,
-        previousState: { tierThresholds: season.settings.tierThresholds ?? null },
+        previousState: toAuditJson({ tierThresholds: season.settings.tierThresholds ?? null }),
         nextState: { tierThresholds: thresholds },
         reason: parsed.data.reason,
         requestId,
