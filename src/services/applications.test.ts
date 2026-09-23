@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addDeclaredAccount,
+  applicationAccountsForApproval,
   applicationAnswersForSubmission,
   applicationReviewSchema,
   applicationReference,
@@ -17,12 +18,14 @@ describe("application review transitions", () => {
     expect(canReviewApplicationTransition("SUBMITTED", "UNDER_REVIEW")).toBe(true);
     expect(canReviewApplicationTransition("UNDER_REVIEW", "APPROVED")).toBe(true);
     expect(canReviewApplicationTransition("MORE_INFO_REQUIRED", "UNDER_REVIEW")).toBe(true);
+    expect(canReviewApplicationTransition("APPROVED", "CLOSED")).toBe(true);
   });
 
   it("blocks skipped, repeated, and terminal transitions", () => {
     expect(canReviewApplicationTransition("SUBMITTED", "APPROVED")).toBe(false);
     expect(canReviewApplicationTransition("APPROVED", "DENIED")).toBe(false);
     expect(canReviewApplicationTransition("UNDER_REVIEW", "UNDER_REVIEW")).toBe(false);
+    expect(canReviewApplicationTransition("CLOSED", "UNDER_REVIEW")).toBe(false);
   });
 
   it("lets an owner correct status while rejecting no-op updates", () => {
@@ -77,6 +80,13 @@ describe("application validation", () => {
       additionalAccounts,
     });
     expect(parseDeclaredRocketLeagueAccounts(answers.additionalRocketLeagueAccounts)).toEqual(additionalAccounts);
+    expect(applicationAccountsForApproval(
+      { platform: "EPIC", accountId: "PrimaryEpic", trackerUrl: "" },
+      answers.additionalRocketLeagueAccounts,
+    )).toEqual([
+      { platform: "EPIC", accountId: "PrimaryEpic", trackerUrl: "" },
+      ...additionalAccounts,
+    ]);
     const promoted = promoteDeclaredAccount(
       { platform: "EPIC", accountId: "PrimaryEpic", trackerUrl: "" },
       additionalAccounts,

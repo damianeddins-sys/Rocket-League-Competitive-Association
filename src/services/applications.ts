@@ -8,6 +8,7 @@ export const applicationStatuses = [
   "APPROVED",
   "DENIED",
   "WITHDRAWN",
+  "CLOSED",
 ] as const;
 
 export type ApplicationType = (typeof applicationTypes)[number];
@@ -41,6 +42,13 @@ export function parseDeclaredRocketLeagueAccounts(value: string | undefined): De
   } catch {
     return [];
   }
+}
+
+export function applicationAccountsForApproval(
+  primary: DeclaredRocketLeagueAccount,
+  serializedAdditionalAccounts: string | undefined,
+) {
+  return [primary, ...parseDeclaredRocketLeagueAccounts(serializedAdditionalAccounts)];
 }
 
 export function applicationAnswersForSubmission(input: {
@@ -141,17 +149,18 @@ export const applicationSubmissionSchema = z
   });
 
 export const applicationReviewSchema = z.object({
-  status: z.enum(["UNDER_REVIEW", "MORE_INFO_REQUIRED", "APPROVED", "DENIED"]),
+  status: z.enum(["UNDER_REVIEW", "MORE_INFO_REQUIRED", "APPROVED", "DENIED", "CLOSED"]),
   reason: z.string().trim().min(3).max(2000),
 });
 
 const reviewTransitions: Record<ApplicationStatus, readonly ApplicationStatus[]> = {
-  SUBMITTED: ["UNDER_REVIEW", "DENIED"],
-  UNDER_REVIEW: ["MORE_INFO_REQUIRED", "APPROVED", "DENIED"],
-  MORE_INFO_REQUIRED: ["UNDER_REVIEW", "DENIED"],
-  APPROVED: [],
-  DENIED: [],
+  SUBMITTED: ["UNDER_REVIEW", "DENIED", "CLOSED"],
+  UNDER_REVIEW: ["MORE_INFO_REQUIRED", "APPROVED", "DENIED", "CLOSED"],
+  MORE_INFO_REQUIRED: ["UNDER_REVIEW", "DENIED", "CLOSED"],
+  APPROVED: ["CLOSED"],
+  DENIED: ["CLOSED"],
   WITHDRAWN: [],
+  CLOSED: [],
 };
 
 export function canReviewApplicationTransition(

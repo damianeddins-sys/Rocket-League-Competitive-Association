@@ -83,6 +83,7 @@ export const applicationStatus = pgEnum("application_status", [
   "APPROVED",
   "DENIED",
   "WITHDRAWN",
+  "CLOSED",
 ]);
 export const seasonStatus = pgEnum("season_status", ["DRAFT", "ACTIVE", "ARCHIVED"]);
 export const seasonWeekPhase = pgEnum("season_week_phase", [
@@ -486,6 +487,8 @@ export const applications = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     reviewedBy: uuid("reviewed_by").references(() => users.id),
+    assignedReviewerId: uuid("assigned_reviewer_id").references(() => users.id),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
     playerSeasonId: uuid("player_season_id").references(() => playerSeasons.id),
   },
   (table) => [
@@ -509,6 +512,18 @@ export const applicationStatusHistory = pgTable(
     createdAt: createdAt(),
   },
   (table) => [index("application_status_timeline").on(table.applicationId, table.createdAt)],
+);
+
+export const applicationStaffNotes = pgTable(
+  "application_staff_notes",
+  {
+    id: id(),
+    applicationId: uuid("application_id").notNull().references(() => applications.id),
+    authorId: uuid("author_id").notNull().references(() => users.id),
+    body: text("body").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [index("application_staff_note_timeline").on(table.applicationId, table.createdAt)],
 );
 
 export const applicationEmailDocuments = pgTable(
@@ -577,9 +592,15 @@ export const rocketLeagueAccounts = pgTable(
     platform: text("platform").notNull(),
     platformAccountId: text("platform_account_id").notNull(),
     trackerUrl: text("tracker_url"),
+    isPrimary: boolean("is_primary").default(false).notNull(),
     verifiedAt: timestamp("verified_at", { withTimezone: true }),
   },
-  (table) => [uniqueIndex("rocket_account_platform_id").on(table.platform, table.platformAccountId)],
+  (table) => [
+    uniqueIndex("rocket_account_platform_id").on(table.platform, table.platformAccountId),
+    uniqueIndex("rocket_account_one_primary")
+      .on(table.playerId)
+      .where(sql`${table.isPrimary} = true`),
+  ],
 );
 
 export const rosterMemberships = pgTable(

@@ -1,6 +1,6 @@
 import { count, desc, inArray } from "drizzle-orm";
 import { getDatabase } from "../db";
-import { applications, applicationStatusHistory, users } from "../db/schema";
+import { applications, applicationStaffNotes, applicationStatusHistory, users } from "../db/schema";
 import { parseDeclaredRocketLeagueAccounts, type DeclaredRocketLeagueAccount } from "./applications";
 
 export type ApplicationQueue =
@@ -10,6 +10,7 @@ export type ApplicationQueue =
       page: number;
       pages: number;
       total: number;
+      reviewers: Array<{ id: string; name: string }>;
       applications: Array<{
         id: string;
         type: string;
@@ -28,6 +29,15 @@ export type ApplicationQueue =
         notes: string | null;
         additionalAccounts: DeclaredRocketLeagueAccount[];
         answers: Record<string, string>;
+        assignedReviewerId: string | null;
+        assignedReviewer: string | null;
+        closedAt: string | null;
+        staffNotes: Array<{
+          id: string;
+          body: string;
+          author: string;
+          createdAt: string;
+        }>;
         reviewHistory: Array<{
           fromStatus: string | null;
           toStatus: string;
@@ -58,16 +68,19 @@ export async function loadApplicationQueue(page = 1): Promise<ApplicationQueue> 
         .where(inArray(applicationStatusHistory.applicationId, rows.map((application) => application.id)))
         .orderBy(desc(applicationStatusHistory.createdAt))
       : [];
-    const actorIds = [...new Set(historyRows.map((history) => history.actorId))];
-    const actorRows = actorIds.length
-      ? await db.select({ id: users.id, name: users.displayName }).from(users).where(inArray(users.id, actorIds))
+    const staffNoteRows = rows.length
+      ? await db.select().from(applicationStaffNotes)
+        .where(inArray(applicationStaffNotes.applicationId, rows.map((application) => application.id)))
+        .orderBy(desc(applicationStaffNotes.createdAt))
       : [];
-    const actorNames = new Map(actorRows.map((actor) => [actor.id, actor.name]));
+    const userRows = await db.select({ id: users.id, name: users.displayName }).from(users);
+    const userNames = new Map(userRows.map((actor) => [actor.id, actor.name]));
     return {
       status: "READY",
       page,
       pages: Math.max(1, Math.ceil(totalRow.value / pageSize)),
       total: totalRow.value,
+      reviewers: userRows,
       applications: rows.map((application) => ({
         id: application.id,
         type: application.type,
@@ -91,13 +104,26 @@ export async function loadApplicationQueue(page = 1): Promise<ApplicationQueue> 
           Object.entries(application.answersJson)
             .filter(([key]) => key !== "additionalRocketLeagueAccounts"),
         ),
+        assignedReviewerId: application.assignedReviewerId,
+        assignedReviewer: application.assignedReviewerId
+          ? userNames.get(application.assignedReviewerId) ?? "Unknown reviewer"
+          : null,
+        closedAt: application.closedAt?.toISOString() ?? null,
+        staffNotes: staffNoteRows
+          .filter((note) => note.applicationId === application.id)
+          .map((note) => ({
+            id: note.id,
+            body: note.body,
+            author: userNames.get(note.authorId) ?? "Authorized RLCA staff",
+            createdAt: note.createdAt.toISOString(),
+          })),
         reviewHistory: historyRows
           .filter((history) => history.applicationId === application.id)
           .map((history) => ({
             fromStatus: history.fromStatus,
             toStatus: history.toStatus,
             reason: history.reason,
-            actor: actorNames.get(history.actorId) ?? "Authorized RLCA staff",
+            actor: userNames.get(history.actorId) ?? "Authorized RLCA staff",
             createdAt: history.createdAt.toISOString(),
           })),
         submittedAt: application.submittedAt.toISOString(),

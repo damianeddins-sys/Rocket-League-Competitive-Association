@@ -370,6 +370,7 @@ export default async function OperationsPage({
             ) : applicationQueue?.status === "READY" ? (
               <ApplicationManager
                 applications={applicationQueue.applications}
+                reviewers={applicationQueue.reviewers}
                 owner={access.permissions.includes("league.full")}
                 page={applicationQueue.page}
                 pages={applicationQueue.pages}

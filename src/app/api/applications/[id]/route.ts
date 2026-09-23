@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getDatabase } from "@/db";
 import {
   applications,
+  applicationStaffNotes,
   applicationStatusHistory,
   auditLogs,
   discordNotificationJobs,
@@ -14,12 +15,14 @@ import {
   playerStatusHistory,
   rocketLeagueAccounts,
   seasons,
+  users,
 } from "@/db/schema";
 import { buildAuditLogRecord } from "@/services/audit";
 import { checkPortalAccess } from "@/services/auth/portal-access";
 import { consumeAuthRateLimit } from "@/services/auth/rate-limit";
 import { getSession } from "@/services/auth/session";
 import {
+  applicationAccountsForApproval,
   applicationReference,
   applicationReviewSchema,
   canReviewApplicationTransition,
@@ -59,14 +62,76 @@ export async function PATCH(
   if (!z.string().uuid().safeParse(id).success) {
     return NextResponse.json({ error: "Invalid application ID" }, { status: 400 });
   }
-  const parsed = applicationReviewSchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid review" }, { status: 400 });
-  }
+  const body = await request.json().catch(() => null);
 
   const db = getDatabase();
   const [current] = await db.select().from(applications).where(eq(applications.id, id)).limit(1);
   if (!current) return NextResponse.json({ error: "Application not found" }, { status: 404 });
+  const requestId = randomUUID();
+
+  const assignment = z.object({
+    operation: z.literal("ASSIGN_REVIEWER"),
+    reviewerId: z.string().uuid().nullable(),
+  }).safeParse(body);
+  if (assignment.success) {
+    if (assignment.data.reviewerId) {
+      const [reviewer] = await db.select({ id: users.id }).from(users)
+        .where(eq(users.id, assignment.data.reviewerId)).limit(1);
+      if (!reviewer) return NextResponse.json({ error: "Reviewer not found" }, { status: 404 });
+    }
+    await db.transaction(async (tx) => {
+      await tx.update(applications).set({
+        assignedReviewerId: assignment.data.reviewerId,
+        updatedAt: new Date(),
+      }).where(eq(applications.id, id));
+      await tx.insert(auditLogs).values(buildAuditLogRecord({
+        actorId: session.user.id,
+        actorDiscordRoleIds: access.roleIds,
+        actorFranchiseNumber: access.franchiseNumber,
+        action: "APPLICATION_REVIEWER_ASSIGNED",
+        entityType: "APPLICATION",
+        entityId: id,
+        previousState: { assignedReviewerId: current.assignedReviewerId },
+        nextState: { assignedReviewerId: assignment.data.reviewerId },
+        reason: "Application reviewer assignment updated",
+        requestId,
+      }));
+    });
+    return NextResponse.json({ id, assignedReviewerId: assignment.data.reviewerId });
+  }
+
+  const note = z.object({
+    operation: z.literal("ADD_INTERNAL_NOTE"),
+    note: z.string().trim().min(3).max(5000),
+  }).safeParse(body);
+  if (note.success) {
+    const [created] = await db.transaction(async (tx) => {
+      const inserted = await tx.insert(applicationStaffNotes).values({
+        applicationId: id,
+        authorId: session.user.id,
+        body: note.data.note,
+      }).returning({ id: applicationStaffNotes.id });
+      await tx.insert(auditLogs).values(buildAuditLogRecord({
+        actorId: session.user.id,
+        actorDiscordRoleIds: access.roleIds,
+        actorFranchiseNumber: access.franchiseNumber,
+        action: "APPLICATION_INTERNAL_NOTE_ADDED",
+        entityType: "APPLICATION",
+        entityId: id,
+        previousState: null,
+        nextState: { noteId: inserted[0]?.id },
+        reason: "Internal application note added",
+        requestId,
+      }));
+      return inserted;
+    });
+    return NextResponse.json({ id, noteId: created?.id });
+  }
+
+  const parsed = applicationReviewSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid review action" }, { status: 400 });
+  }
   if (!canReviewApplicationTransition(
     current.status,
     parsed.data.status,
@@ -76,8 +141,6 @@ export async function PATCH(
       error: `Application cannot move from ${current.status} to ${parsed.data.status}`,
     }, { status: 409 });
   }
-
-  const requestId = randomUUID();
   try {
     await db.transaction(async (tx) => {
     let playerSeasonId = current.playerSeasonId;
@@ -110,24 +173,40 @@ export async function PATCH(
       if (!current.platform || !current.epicAccountId) {
         throw new Error("Player application is missing platform account details");
       }
-      const [existingAccount] = await tx
-        .select({ playerId: rocketLeagueAccounts.playerId })
-        .from(rocketLeagueAccounts)
-        .where(and(
-          eq(rocketLeagueAccounts.platform, current.platform),
-          eq(rocketLeagueAccounts.platformAccountId, current.epicAccountId),
-        ))
-        .limit(1);
-      if (existingAccount && existingAccount.playerId !== player.id) {
-        throw new Error("Rocket League account is already linked to another player");
-      }
-      if (!existingAccount) {
-        await tx.insert(rocketLeagueAccounts).values({
-          playerId: player.id,
-          platform: current.platform,
-          platformAccountId: current.epicAccountId,
-          trackerUrl: current.trackerUrl,
-        });
+      const declaredAccounts = applicationAccountsForApproval({
+        platform: current.platform,
+        accountId: current.epicAccountId,
+        trackerUrl: current.trackerUrl ?? "",
+      }, current.answersJson.additionalRocketLeagueAccounts);
+      await tx.update(rocketLeagueAccounts)
+        .set({ isPrimary: false })
+        .where(eq(rocketLeagueAccounts.playerId, player.id));
+      for (const [index, account] of declaredAccounts.entries()) {
+        const [existingAccount] = await tx
+          .select({ id: rocketLeagueAccounts.id, playerId: rocketLeagueAccounts.playerId })
+          .from(rocketLeagueAccounts)
+          .where(and(
+            eq(rocketLeagueAccounts.platform, account.platform),
+            eq(rocketLeagueAccounts.platformAccountId, account.accountId),
+          ))
+          .limit(1);
+        if (existingAccount && existingAccount.playerId !== player.id) {
+          throw new Error(`Rocket League account ${account.accountId} is already linked to another player`);
+        }
+        if (existingAccount) {
+          await tx.update(rocketLeagueAccounts).set({
+            trackerUrl: account.trackerUrl || null,
+            isPrimary: index === 0,
+          }).where(eq(rocketLeagueAccounts.id, existingAccount.id));
+        } else {
+          await tx.insert(rocketLeagueAccounts).values({
+            playerId: player.id,
+            platform: account.platform,
+            platformAccountId: account.accountId,
+            trackerUrl: account.trackerUrl || null,
+            isPrimary: index === 0,
+          });
+        }
       }
 
       const [newPlayerSeason] = await tx
@@ -181,6 +260,7 @@ export async function PATCH(
         playerSeasonId,
         reviewedAt: new Date(),
         reviewedBy: session.user.id,
+        closedAt: parsed.data.status === "CLOSED" ? new Date() : null,
         updatedAt: new Date(),
       })
       .where(eq(applications.id, id));
@@ -248,7 +328,7 @@ export async function PATCH(
     if (
       message === "Player application is missing a competitive handle"
       || message === "Player application is missing platform account details"
-      || message === "Rocket League account is already linked to another player"
+      || message.includes("is already linked to another player")
       || message === "An active season is required before approving a player"
       || message === "Player season record could not be created"
     ) {

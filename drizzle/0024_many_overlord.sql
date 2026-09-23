@@ -1,0 +1,2 @@
+ALTER TABLE "rocket_league_accounts" ADD COLUMN "is_primary" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "rocket_account_one_primary" ON "rocket_league_accounts" USING btree ("player_id") WHERE "rocket_league_accounts"."is_primary" = true;

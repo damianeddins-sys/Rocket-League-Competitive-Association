@@ -11,22 +11,31 @@ import { applicationReference } from "@/services/applications";
 type QueueItem = Extract<ApplicationQueue, { status: "READY" }>["applications"][number];
 
 const normalTransitions: Record<string, string[]> = {
-  SUBMITTED: ["UNDER_REVIEW", "DENIED"],
-  UNDER_REVIEW: ["MORE_INFO_REQUIRED", "APPROVED", "DENIED"],
-  MORE_INFO_REQUIRED: ["UNDER_REVIEW", "DENIED"],
-  APPROVED: [],
-  DENIED: [],
+  SUBMITTED: ["UNDER_REVIEW", "DENIED", "CLOSED"],
+  UNDER_REVIEW: ["MORE_INFO_REQUIRED", "APPROVED", "DENIED", "CLOSED"],
+  MORE_INFO_REQUIRED: ["UNDER_REVIEW", "DENIED", "CLOSED"],
+  APPROVED: ["CLOSED"],
+  DENIED: ["CLOSED"],
   WITHDRAWN: [],
+  CLOSED: [],
 };
+
+function statusLabel(status: string) {
+  if (status === "SUBMITTED") return "PENDING";
+  if (status === "MORE_INFO_REQUIRED") return "NEEDS CHANGES";
+  return status.replaceAll("_", " ");
+}
 
 export function ApplicationManager({
   applications,
+  reviewers,
   owner,
   page,
   pages,
   total,
 }: {
   applications: QueueItem[];
+  reviewers: Array<{ id: string; name: string }>;
   owner: boolean;
   page: number;
   pages: number;
@@ -39,9 +48,14 @@ export function ApplicationManager({
     setMessage("Saving review…");
     const id = String(formData.get("applicationId"));
     const status = String(formData.get("status"));
+    const applicationName = String(formData.get("applicationName"));
     if (
-      ["APPROVED", "DENIED"].includes(status)
-      && !window.confirm(`Confirm application status change to ${status.replaceAll("_", " ")}?`)
+      ["APPROVED", "DENIED", "MORE_INFO_REQUIRED", "CLOSED"].includes(status)
+      && !window.confirm(
+        status === "APPROVED"
+          ? `Approve ${applicationName}'s complete application and all declared Rocket League accounts?`
+          : `Confirm ${statusLabel(status).toLowerCase()} for ${applicationName}?`,
+      )
     ) {
       setMessage("Review was not changed.");
       return;
@@ -61,6 +75,33 @@ export function ApplicationManager({
     }
     setMessage("Application status updated and audited.");
     router.refresh();
+  }
+
+  async function assignReviewer(formData: FormData) {
+    setMessage("Assigning reviewer…");
+    const id = String(formData.get("applicationId"));
+    const reviewerId = String(formData.get("reviewerId")) || null;
+    const response = await fetch(`/api/applications/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operation: "ASSIGN_REVIEWER", reviewerId }),
+    });
+    const result = await readApiResult<object>(response);
+    setMessage(response.ok ? "Reviewer assignment saved and audited." : result.error ?? "Reviewer could not be assigned");
+    if (response.ok) router.refresh();
+  }
+
+  async function addInternalNote(formData: FormData) {
+    setMessage("Saving internal note…");
+    const id = String(formData.get("applicationId"));
+    const response = await fetch(`/api/applications/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operation: "ADD_INTERNAL_NOTE", note: formData.get("note") }),
+    });
+    const result = await readApiResult<object>(response);
+    setMessage(response.ok ? "Internal note saved and audited." : result.error ?? "Internal note could not be saved");
+    if (response.ok) router.refresh();
   }
 
   async function sendDocument(formData: FormData) {
@@ -85,7 +126,7 @@ export function ApplicationManager({
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black text-blue-700">{application.type.replaceAll("_", " / ")}</span>
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-600">{application.reviewStatus.replaceAll("_", " ")}</span>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-600">{statusLabel(application.reviewStatus)}</span>
                 </div>
                 <h3 className="mt-3 text-xl font-black text-[#081e3a]">{application.fullName}</h3>
                 <p className="mt-1 text-sm text-slate-500">{application.email} · Discord {application.discordUserId}</p>
@@ -95,6 +136,15 @@ export function ApplicationManager({
               </div>
               <p className="font-mono text-xs text-slate-500">{applicationReference(application.id)}</p>
             </div>
+            <form action={assignReviewer} className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 p-3">
+              <input type="hidden" name="applicationId" value={application.id} />
+              <label className="text-xs font-black uppercase tracking-wider text-slate-500" htmlFor={`reviewer-${application.id}`}>Assigned reviewer</label>
+              <select id={`reviewer-${application.id}`} name="reviewerId" defaultValue={application.assignedReviewerId ?? ""} className="min-w-52 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+                <option value="">Unassigned</option>
+                {reviewers.map((reviewer) => <option key={reviewer.id} value={reviewer.id}>{reviewer.name}</option>)}
+              </select>
+              <button className="rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-black text-blue-800">Assign</button>
+            </form>
             <div className="mt-5 grid gap-3 rounded-lg bg-slate-50 p-4 text-sm sm:grid-cols-2">
               <p><strong>Availability:</strong> {application.availability}</p>
               {application.handle && <p><strong>Handle:</strong> {application.handle}</p>}
@@ -152,14 +202,32 @@ export function ApplicationManager({
                 {!application.reviewHistory.length && <p className="text-sm text-slate-500">No review-history events are stored for this application.</p>}
               </div>
             </details>
+            <details className="mt-4 rounded-xl border border-amber-200 bg-amber-50/40 p-4">
+              <summary className="cursor-pointer font-black text-amber-950">Internal staff notes · {application.staffNotes.length}</summary>
+              <div className="mt-4 space-y-2">
+                {application.staffNotes.map((note) => (
+                  <div key={note.id} className="rounded-lg bg-white p-3 text-sm">
+                    <p className="whitespace-pre-wrap text-slate-700">{note.body}</p>
+                    <p className="mt-2 text-xs text-slate-400">{note.author} · {new Date(note.createdAt).toLocaleString()}</p>
+                  </div>
+                ))}
+                {!application.staffNotes.length && <p className="text-sm text-slate-500">No internal staff notes have been recorded.</p>}
+                <form action={addInternalNote} className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <input type="hidden" name="applicationId" value={application.id} />
+                  <textarea name="note" required minLength={3} maxLength={5000} rows={2} placeholder="Add a private note for authorized staff" className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm" />
+                  <button className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-black text-white">Add note</button>
+                </form>
+              </div>
+            </details>
             {(owner || (normalTransitions[application.reviewStatus]?.length ?? 0) > 0) && (
             <form action={review} className="mt-5 grid gap-3 sm:grid-cols-[13rem_1fr_auto]">
               <input type="hidden" name="applicationId" value={application.id} />
+              <input type="hidden" name="applicationName" value={application.fullName} />
               <select name="status" className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-bold">
                 {(owner
-                  ? ["UNDER_REVIEW", "MORE_INFO_REQUIRED", "APPROVED", "DENIED"].filter((status) => status !== application.reviewStatus)
+                  ? ["UNDER_REVIEW", "MORE_INFO_REQUIRED", "APPROVED", "DENIED", "CLOSED"].filter((status) => status !== application.reviewStatus)
                   : normalTransitions[application.reviewStatus] ?? []
-                ).map((status) => <option key={status} value={status}>{status.replaceAll("_", " ")}</option>)}
+                ).map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
               </select>
               <input name="reason" required minLength={3} maxLength={2000} placeholder="Required review reason" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
               <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">
