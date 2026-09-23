@@ -765,6 +765,20 @@ type SeasonRow = {
   registeredTeams: number;
   registeredPlayers: number;
   configuredTiers: number;
+  readiness: {
+    configuredWeeks: number;
+    requiredWeeks: number;
+    configuredEvents: number;
+    requiredEvents: number;
+    teamEntries: number;
+    expectedTeams: number;
+    validRosters: number;
+    scheduledTierWeeks: number;
+    expectedTierWeeks: number;
+    hasThresholds: boolean;
+    hasRulebook: boolean;
+    ready: boolean;
+  };
 };
 type ChannelRow = {
   id: string;
@@ -1008,6 +1022,19 @@ export function SettingsManager({
                   <div><dt className="text-slate-500">Players</dt><dd className="mt-1 text-lg font-black">{season.registeredPlayers}</dd></div>
                   <div><dt className="text-slate-500">Tiers</dt><dd className="mt-1 text-lg font-black">{season.configuredTiers}/4</dd></div>
                 </dl>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm md:col-span-2">
+                  <div className="flex items-center justify-between gap-3"><strong>Activation checklist</strong><span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${season.readiness.ready ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{season.readiness.ready ? "READY" : "INCOMPLETE"}</span></div>
+                  <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <li>{season.configuredTiers}/4 official tiers</li>
+                    <li>{season.readiness.configuredWeeks}/{season.readiness.requiredWeeks} required regular-season weeks</li>
+                    <li>{season.readiness.configuredEvents}/{season.readiness.requiredEvents} tier event records</li>
+                    <li>{season.readiness.teamEntries}/{season.readiness.expectedTeams} tier team entries</li>
+                    <li>{season.readiness.validRosters}/{season.readiness.teamEntries} valid 2-starter/1-sub rosters</li>
+                    <li>{season.readiness.scheduledTierWeeks}/{season.readiness.expectedTierWeeks} complete BO5 tier-weeks</li>
+                    <li>{season.readiness.hasThresholds ? "Tier thresholds configured" : "Tier thresholds missing"}</li>
+                    <li>{season.readiness.hasRulebook ? "Rulebook assigned" : "Rulebook missing"}</li>
+                  </ul>
+                </div>
                 <label className="flex items-center gap-2 text-sm font-bold"><input name="confirmed" type="checkbox" /> Confirm lifecycle transition when required</label>
                 <input name="reason" required minLength={3} placeholder="Required audit reason" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
               </div>
@@ -1292,6 +1319,99 @@ export function StatisticsWorkspace({
       <TierNavigation current={tierId} pathname="/operations/statistics" />
       {replays.map((replay) => <div key={replay.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm"><div><strong>{replay.player}</strong><p className="text-xs text-slate-500">{new Date(replay.submittedAt).toLocaleString()} · Parser {replay.parserVersion ?? "pending"}</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black">{replay.status.replaceAll("_", " ")}</span></div>)}
       {!replays.length && <Empty text="No replay submissions are stored." />}
+    </div>
+  );
+}
+
+export function ScheduleManager({
+  data,
+}: {
+  data: {
+    seasons: Array<{ id: string; name: string; active: boolean }>;
+    selectedSeason: { id: string; name: string; status: string; active: boolean } | null;
+    weeks: Array<{ id: string; weekNumber: number; phase: string; startsAt: string; endsAt: string }>;
+    events: Array<{ id: string; type: string; name: string; tierName: string; startsAt: string; endsAt: string; bracketLockedAt: string | null }>;
+    matches: Array<{ id: string; status: string; bestOf: number; scheduledAt: string }>;
+    tiers: Array<{ id: string; name: string }>;
+  };
+}) {
+  const router = useRouter();
+  const [message, setMessage] = useState<string>();
+  async function saveScheduleItem(formData: FormData) {
+    setMessage("Saving schedule item…");
+    const payload = Object.fromEntries(formData.entries());
+    const response = await fetch("/api/admin/operations/schedule", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...payload,
+        weekNumber: payload.weekNumber ? Number(payload.weekNumber) : undefined,
+        startsAt: new Date(String(payload.startsAt)).toISOString(),
+        endsAt: new Date(String(payload.endsAt)).toISOString(),
+      }),
+    });
+    const result = await readApiResult<object>(response);
+    setMessage(response.ok ? "Schedule item saved to the selected season and audited." : result.error ?? "Schedule item could not be saved");
+    if (response.ok) router.refresh();
+  }
+  if (!data.selectedSeason) return <div className="mt-7"><Empty text="Create a draft season before configuring its schedule." /></div>;
+  const formatForEvent = (type: string) => type === "REGULAR_SEASON" ? "BO5" : "BO7";
+  return (
+    <div className="mt-7 space-y-6">
+      <Feedback message={message} />
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <label className="text-sm font-black">Season selector
+          <select value={data.selectedSeason.id} onChange={(event) => router.push(`/operations/schedule?season=${event.target.value}`)} className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal">
+            {data.seasons.map((season) => <option key={season.id} value={season.id}>{season.name}{season.active ? " · ACTIVE" : ""}</option>)}
+          </select>
+        </label>
+      </section>
+      <div className="grid gap-5 xl:grid-cols-2">
+        <form action={saveScheduleItem} className="rounded-xl border border-blue-200 bg-blue-50/40 p-5">
+          <input type="hidden" name="operation" value="SAVE_WEEK" />
+          <input type="hidden" name="seasonId" value={data.selectedSeason.id} />
+          <h3 className="text-lg font-black text-[#081e3a]">Add or update season week</h3>
+          <p className="mt-1 text-sm text-slate-600">Enter exact approved dates. The website does not invent calendar dates.</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="text-sm font-bold">Week number<input name="weekNumber" type="number" min={1} max={52} required className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+            <label className="text-sm font-bold">Phase<select name="phase" required className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal">{["REGULAR_SPLIT_1", "MAJOR_1", "REGULAR_SPLIT_2", "MAJOR_2", "LAST_CHANCE", "CHAMPIONSHIP"].map((phase) => <option key={phase}>{phase.replaceAll("_", " ")}</option>)}</select></label>
+            <label className="text-sm font-bold">Starts<input name="startsAt" type="datetime-local" required className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+            <label className="text-sm font-bold">Ends<input name="endsAt" type="datetime-local" required className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+            <input name="reason" required minLength={3} maxLength={2000} placeholder="Required audit reason" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm sm:col-span-2" />
+          </div>
+          <button className="mt-3 rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Save week</button>
+        </form>
+        <form action={saveScheduleItem} className="rounded-xl border border-blue-200 bg-blue-50/40 p-5">
+          <input type="hidden" name="operation" value="SAVE_EVENT" />
+          <input type="hidden" name="seasonId" value={data.selectedSeason.id} />
+          <h3 className="text-lg font-black text-[#081e3a]">Add or update event</h3>
+          <p className="mt-1 text-sm text-slate-600">Regular season is BO5. Major 1, Major 2, Last Chance, and Championship are BO7.</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="text-sm font-bold">Tier<select name="tierId" required className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal">{data.tiers.map((tier) => <option key={tier.id} value={tier.id}>{tier.name}</option>)}</select></label>
+            <label className="text-sm font-bold">Event type<select name="eventType" required className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal">{["REGULAR_SEASON", "MAJOR_1", "MAJOR_2", "LAST_CHANCE", "CHAMPIONSHIP"].map((type) => <option key={type}>{type.replaceAll("_", " ")}</option>)}</select></label>
+            <label className="text-sm font-bold sm:col-span-2">Event name<input name="name" required minLength={2} maxLength={120} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+            <label className="text-sm font-bold">Starts<input name="startsAt" type="datetime-local" required className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+            <label className="text-sm font-bold">Ends<input name="endsAt" type="datetime-local" required className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+            <input name="reason" required minLength={3} maxLength={2000} placeholder="Required audit reason" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm sm:col-span-2" />
+          </div>
+          <button className="mt-3 rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Save event</button>
+        </form>
+      </div>
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <h3 className="text-lg font-black text-[#081e3a]">Configured weeks · {data.weeks.length}</h3>
+        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {data.weeks.map((week) => <div key={week.id} className="rounded-lg bg-slate-50 p-3 text-sm"><strong>Week {week.weekNumber} · {week.phase.replaceAll("_", " ")}</strong><p className="mt-1 text-xs text-slate-500">{new Date(week.startsAt).toLocaleString()} – {new Date(week.endsAt).toLocaleString()}</p></div>)}
+          {!data.weeks.length && <Empty text="No season weeks have been configured." />}
+        </div>
+      </section>
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <h3 className="text-lg font-black text-[#081e3a]">Configured events · {data.events.length}</h3>
+        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {data.events.map((event) => <div key={event.id} className="rounded-lg bg-slate-50 p-3 text-sm"><strong>{event.name} · {event.tierName}</strong><p className="mt-1 text-xs font-black text-blue-700">{formatForEvent(event.type)}</p><p className="mt-1 text-xs text-slate-500">{new Date(event.startsAt).toLocaleString()} – {new Date(event.endsAt).toLocaleString()}</p></div>)}
+          {!data.events.length && <Empty text="No official events have been configured." />}
+        </div>
+      </section>
+      <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">{data.matches.length} match schedule record(s) are attached to this season. Create official series from the Matches page after events and teams are configured.</p>
     </div>
   );
 }

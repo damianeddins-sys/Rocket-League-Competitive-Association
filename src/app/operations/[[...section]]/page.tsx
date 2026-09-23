@@ -15,6 +15,7 @@ import {
   OperationsOverview,
   PlayerManager,
   ProductionWorkspace,
+  ScheduleManager,
   SettingsManager,
   StatisticsWorkspace,
   TeamManager,
@@ -37,6 +38,7 @@ import {
   loadOperationsOverview,
   loadPlayerManagement,
   loadProductionWorkspace,
+  loadScheduleManagement,
   loadSettingsManagement,
   loadStatisticsWorkspace,
   loadTeamManagement,
@@ -85,7 +87,7 @@ export default async function OperationsPage({
   searchParams,
 }: {
   params: Promise<{ section?: string[] }>;
-  searchParams: Promise<{ page?: string; tier?: string }>;
+  searchParams: Promise<{ page?: string; tier?: string; season?: string }>;
 }) {
   const { section } = await params;
   const query = await searchParams;
@@ -182,6 +184,9 @@ export default async function OperationsPage({
   const productionWorkspace = ["schedule", "matches", "brackets", "standings"].includes(sectionKey)
     ? await loadProductionWorkspace(tierId)
     : null;
+  const scheduleManagement = sectionKey === "schedule"
+    ? await loadScheduleManagement(query.season)
+    : null;
   const selectedDataStatus = [
     overview,
     transactionManagement,
@@ -193,6 +198,7 @@ export default async function OperationsPage({
     franchiseWorkspace,
     statisticsWorkspace,
     productionWorkspace,
+    scheduleManagement,
     userManagement,
     applicationQueue,
     contentManagement,
@@ -354,6 +360,8 @@ export default async function OperationsPage({
                 replays={statisticsWorkspace.data.replays}
                 tierId={statisticsWorkspace.data.tierId}
               />
+            ) : scheduleManagement?.status === "READY" ? (
+              <ScheduleManager data={scheduleManagement.data} />
             ) : productionWorkspace?.status === "READY" ? (
               <ProductionWorkspace data={productionWorkspace.data} />
             ) : userManagement?.status === "READY" ? (

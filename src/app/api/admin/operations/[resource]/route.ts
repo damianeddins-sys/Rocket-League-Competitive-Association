@@ -23,6 +23,7 @@ import {
   ratingEvents,
   rocketLeagueAccounts,
   rosterMemberships,
+  seasonWeeks,
   seasons,
   teams,
   teamSeasonEntries,
@@ -67,6 +68,7 @@ import {
   type TierThresholds,
   VERIFICATION_DAYS,
 } from "@/services/mmr";
+import { SEASON_ONE_RULES } from "@/services/rules";
 
 export const runtime = "nodejs";
 
@@ -280,6 +282,26 @@ const matchCreateSchema = z.object({
   path: ["teamBId"],
 });
 
+const scheduleWeekSchema = z.object({
+  operation: z.literal("SAVE_WEEK"),
+  seasonId: z.string().uuid(),
+  weekNumber: z.number().int().min(1).max(52),
+  phase: z.enum(["REGULAR_SPLIT_1", "MAJOR_1", "REGULAR_SPLIT_2", "MAJOR_2", "LAST_CHANCE", "CHAMPIONSHIP"]),
+  startsAt: z.coerce.date(),
+  endsAt: z.coerce.date(),
+  reason: z.string().trim().min(3).max(2000),
+});
+const scheduleEventSchema = z.object({
+  operation: z.literal("SAVE_EVENT"),
+  seasonId: z.string().uuid(),
+  tierId: z.enum(TIER_IDS),
+  eventType: z.enum(["REGULAR_SEASON", "MAJOR_1", "MAJOR_2", "LAST_CHANCE", "CHAMPIONSHIP"]),
+  name: z.string().trim().min(2).max(120),
+  startsAt: z.coerce.date(),
+  endsAt: z.coerce.date(),
+  reason: z.string().trim().min(3).max(2000),
+});
+
 const permissions: Record<string, Permission> = {
   transactions: "transaction.approve",
   players: "player.manage",
@@ -292,6 +314,7 @@ const permissions: Record<string, Permission> = {
   "team-tiers": "league.manage",
   "tier-thresholds": "league.manage",
   matches: "matches.manage",
+  schedule: "matches.manage",
 };
 const portals: Record<string, "LEAGUE_OPERATIONS" | "SIGN_UP_MANAGER" | "PRODUCTION" | "STATISTICS"> = {
   transactions: "LEAGUE_OPERATIONS",
@@ -305,6 +328,7 @@ const portals: Record<string, "LEAGUE_OPERATIONS" | "SIGN_UP_MANAGER" | "PRODUCT
   "team-tiers": "LEAGUE_OPERATIONS",
   "tier-thresholds": "LEAGUE_OPERATIONS",
   matches: "PRODUCTION",
+  schedule: "PRODUCTION",
 };
 
 async function contextFor(request: Request, resource: string) {
@@ -1000,6 +1024,66 @@ export async function PATCH(
       if (configuredTiers.length !== TIERS.length) {
         return NextResponse.json({ error: "All four official tiers must be configured before starting the season" }, { status: 409 });
       }
+      const [weekRows, eventRows, entryRows, membershipRows, matchRows] = await Promise.all([
+        db.select().from(seasonWeeks).where(eq(seasonWeeks.seasonId, current.id)),
+        db.select().from(events).where(eq(events.seasonId, current.id)),
+        db.select().from(teamSeasonEntries).where(and(
+          eq(teamSeasonEntries.seasonId, current.id),
+          eq(teamSeasonEntries.active, true),
+          isNull(teamSeasonEntries.endedAt),
+        )),
+        db.select().from(rosterMemberships).where(and(
+          eq(rosterMemberships.seasonId, current.id),
+          isNull(rosterMemberships.endsAt),
+        )),
+        db.select().from(matches).where(eq(matches.seasonId, current.id)),
+      ]);
+      const missing: string[] = [];
+      const requiredRegularWeeks = [1, 2, 3, 4, 7, 8, 9];
+      for (const week of requiredRegularWeeks) {
+        if (!weekRows.some((entry) => entry.weekNumber === week)) missing.push(`Week ${week} dates`);
+      }
+      const requiredEvents = ["REGULAR_SEASON", "MAJOR_1", "MAJOR_2", "LAST_CHANCE", "CHAMPIONSHIP"] as const;
+      for (const tier of configuredTiers) {
+        const tierEntries = entryRows.filter((entry) => entry.divisionId === tier.id);
+        if (tierEntries.length !== SEASON_ONE_RULES.scheduling.teamCount) {
+          missing.push(`${SEASON_ONE_RULES.scheduling.teamCount} teams in tier ${tier.id}`);
+        }
+        for (const type of requiredEvents) {
+          if (!eventRows.some((event) => event.divisionId === tier.id && event.type === type)) {
+            missing.push(`${type.replaceAll("_", " ")} event in tier ${tier.id}`);
+          }
+        }
+        for (const entry of tierEntries) {
+          const roster = membershipRows.filter((membership) =>
+            membership.teamId === entry.teamId && membership.divisionId === tier.id);
+          if (
+            roster.length !== 3
+            || roster.filter((membership) => membership.role === "STARTER").length !== 2
+            || roster.filter((membership) => membership.role === "SUBSTITUTE").length !== 1
+          ) {
+            missing.push(`valid 2-starter/1-substitute roster for team ${entry.teamId}`);
+          }
+        }
+        for (const week of requiredRegularWeeks) {
+          const scheduled = matchRows.filter((match) =>
+            match.divisionId === tier.id && match.week === week && match.bestOf === 5);
+          if (scheduled.length < SEASON_ONE_RULES.scheduling.teamCount) {
+            missing.push(`complete BO5 schedule for week ${week} in tier ${tier.id}`);
+          }
+        }
+      }
+      if (!tierThresholdValuesSchema.safeParse(current.settings.tierThresholds).success) {
+        missing.push("official tier thresholds");
+      }
+      const competitionFormat = current.settings.competitionFormat as { rulebookVersion?: unknown } | undefined;
+      if (!competitionFormat?.rulebookVersion) missing.push("assigned rulebook version");
+      if (missing.length) {
+        return NextResponse.json({
+          error: `Season activation checklist is incomplete: ${missing.slice(0, 12).join("; ")}${missing.length > 12 ? `; and ${missing.length - 12} more` : ""}`,
+          missing,
+        }, { status: 409 });
+      }
     }
     const nextStatus = storedSeasonStatus(nextStage);
     const nextActive = nextStage === "ACTIVE" || nextStage === "PLAYOFFS";
@@ -1363,7 +1447,7 @@ export async function POST(
   { params }: { params: Promise<{ resource: string }> },
 ) {
   const { resource } = await params;
-  if (resource !== "channels" && resource !== "matches" && resource !== "seasons" && resource !== "mmr" && resource !== "teams") {
+  if (resource !== "channels" && resource !== "matches" && resource !== "seasons" && resource !== "mmr" && resource !== "teams" && resource !== "schedule") {
     return NextResponse.json({ error: "Unknown operations resource" }, { status: 404 });
   }
   const context = await contextFor(request, resource);
@@ -1378,6 +1462,93 @@ export async function POST(
   });
   if (!rateLimit.allowed) {
     return NextResponse.json({ error: "Operations write limit reached" }, { status: 429 });
+  }
+  if (resource === "schedule") {
+    const body = await request.json().catch(() => null);
+    const week = scheduleWeekSchema.safeParse(body);
+    const eventInput = scheduleEventSchema.safeParse(body);
+    if (!week.success && !eventInput.success) {
+      const issue = week.error?.issues[0] ?? eventInput.error?.issues[0];
+      return NextResponse.json({ error: issue?.message ?? "Schedule item is invalid" }, { status: 400 });
+    }
+    const selected = week.success ? week.data : eventInput.data!;
+    if (selected.startsAt >= selected.endsAt) {
+      return NextResponse.json({ error: "Schedule item must end after it starts" }, { status: 400 });
+    }
+    const db = getDatabase();
+    const [season] = await db.select().from(seasons).where(eq(seasons.id, selected.seasonId)).limit(1);
+    if (!season) return NextResponse.json({ error: "Season not found" }, { status: 404 });
+    if (selected.startsAt < season.startsAt || selected.endsAt > season.endsAt) {
+      return NextResponse.json({ error: "Schedule dates must remain within the selected season" }, { status: 409 });
+    }
+    const requestId = randomUUID();
+    if (week.success) {
+      const saved = await db.transaction(async (tx) => {
+        const [record] = await tx.insert(seasonWeeks).values({
+          seasonId: season.id,
+          weekNumber: week.data.weekNumber,
+          phase: week.data.phase,
+          startsAt: week.data.startsAt,
+          endsAt: week.data.endsAt,
+        }).onConflictDoUpdate({
+          target: [seasonWeeks.seasonId, seasonWeeks.weekNumber],
+          set: {
+            phase: week.data.phase,
+            startsAt: week.data.startsAt,
+            endsAt: week.data.endsAt,
+          },
+        }).returning();
+        await tx.insert(auditLogs).values(buildAuditLogRecord({
+          actorId: context.user.id,
+          actorDiscordRoleIds: context.access.roleIds,
+          actorFranchiseNumber: context.access.franchiseNumber,
+          action: "SEASON_WEEK_SAVED",
+          entityType: "SEASON_WEEK",
+          entityId: record.id,
+          nextState: toAuditJson(record),
+          reason: week.data.reason,
+          requestId,
+        }));
+        return record;
+      });
+      return NextResponse.json({ id: saved.id, saved: true }, { status: 201 });
+    }
+    const [division] = await db.select().from(divisions).where(and(
+      eq(divisions.seasonId, season.id),
+      eq(divisions.slug, eventInput.data!.tierId),
+      eq(divisions.active, true),
+    )).limit(1);
+    if (!division) return NextResponse.json({ error: "Selected season tier not found" }, { status: 404 });
+    const saved = await db.transaction(async (tx) => {
+      const [record] = await tx.insert(events).values({
+        seasonId: season.id,
+        divisionId: division.id,
+        type: eventInput.data!.eventType,
+        name: eventInput.data!.name,
+        startsAt: eventInput.data!.startsAt,
+        endsAt: eventInput.data!.endsAt,
+      }).onConflictDoUpdate({
+        target: [events.seasonId, events.divisionId, events.type],
+        set: {
+          name: eventInput.data!.name,
+          startsAt: eventInput.data!.startsAt,
+          endsAt: eventInput.data!.endsAt,
+        },
+      }).returning();
+      await tx.insert(auditLogs).values(buildAuditLogRecord({
+        actorId: context.user.id,
+        actorDiscordRoleIds: context.access.roleIds,
+        actorFranchiseNumber: context.access.franchiseNumber,
+        action: "SEASON_EVENT_SAVED",
+        entityType: "EVENT",
+        entityId: record.id,
+        nextState: toAuditJson(record),
+        reason: eventInput.data!.reason,
+        requestId,
+      }));
+      return record;
+    });
+    return NextResponse.json({ id: saved.id, saved: true }, { status: 201 });
   }
   if (resource === "teams") {
     const parsed = createTeamSchema.safeParse(await request.json().catch(() => null));
@@ -1558,6 +1729,12 @@ export async function POST(
     ]);
     if (!season || !event || event.seasonId !== season.id) {
       return NextResponse.json({ error: "Active season event not found" }, { status: 404 });
+    }
+    const requiredBestOf = event.type === "REGULAR_SEASON" ? 5 : 7;
+    if (parsed.data.bestOf !== requiredBestOf) {
+      return NextResponse.json({
+        error: `${event.type.replaceAll("_", " ")} series must be BO${requiredBestOf} under Rulebook 5.4`,
+      }, { status: 409 });
     }
     const [division] = await db.select().from(divisions).where(and(
       eq(divisions.id, event.divisionId),

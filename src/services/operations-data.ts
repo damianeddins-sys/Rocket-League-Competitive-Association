@@ -15,6 +15,7 @@ import {
   replays,
   roleAssignments,
   rosterMemberships,
+  seasonWeeks,
   seasons,
   teams,
   teamSeasonEntries,
@@ -30,6 +31,7 @@ import {
 } from "../db/schema";
 import { DISCORD_NOTIFICATION_EVENTS } from "./discord/notifications";
 import { isVerificationComplete, verificationAttentionStatus } from "./mmr";
+import { SEASON_ONE_RULES } from "./rules";
 import { DEFAULT_TIER_ID, normalizeTierId, TIERS } from "./tiers";
 
 export type OperationsData<T> =
@@ -371,6 +373,48 @@ export function loadTeamManagement() {
   });
 }
 
+export function loadScheduleManagement(selectedSeasonId?: string) {
+  return load(async () => {
+    const db = getDatabase();
+    const seasonRows = await db.select().from(seasons).orderBy(desc(seasons.startsAt));
+    const selected = seasonRows.find((season) => season.id === selectedSeasonId)
+      ?? seasonRows.find((season) => season.active)
+      ?? seasonRows[0]
+      ?? null;
+    if (!selected) return { seasons: [], selectedSeason: null, weeks: [], events: [], matches: [], tiers: [] };
+    const [weekRows, eventRows, matchRows, tierRows] = await Promise.all([
+      db.select().from(seasonWeeks).where(eq(seasonWeeks.seasonId, selected.id)).orderBy(asc(seasonWeeks.weekNumber)),
+      db.select().from(events).where(eq(events.seasonId, selected.id)).orderBy(asc(events.startsAt)),
+      db.select().from(matches).where(eq(matches.seasonId, selected.id)).orderBy(asc(matches.scheduledAt)),
+      db.select().from(divisions).where(eq(divisions.seasonId, selected.id)).orderBy(asc(divisions.ordinal)),
+    ]);
+    const tierNames = new Map(tierRows.map((tier) => [tier.id, tier.displayName]));
+    return {
+      seasons: seasonRows.map((season) => ({ id: season.id, name: season.name, active: season.active })),
+      selectedSeason: { id: selected.id, name: selected.name, status: selected.status, active: selected.active },
+      weeks: weekRows.map((week) => ({
+        ...week,
+        startsAt: week.startsAt.toISOString(),
+        endsAt: week.endsAt.toISOString(),
+      })),
+      events: eventRows.map((event) => ({
+        ...event,
+        tierName: tierNames.get(event.divisionId) ?? "Unknown tier",
+        startsAt: event.startsAt.toISOString(),
+        endsAt: event.endsAt.toISOString(),
+        bracketLockedAt: event.bracketLockedAt?.toISOString() ?? null,
+      })),
+      matches: matchRows.map((match) => ({
+        id: match.id,
+        status: match.status,
+        bestOf: match.bestOf,
+        scheduledAt: match.scheduledAt.toISOString(),
+      })),
+      tiers: tierRows.map((tier) => ({ id: tier.slug, name: tier.displayName })),
+    };
+  });
+}
+
 export function loadDocumentManagement() {
   return load(async () => {
     const db = getDatabase();
@@ -412,6 +456,10 @@ export function loadSettingsManagement() {
       teamRows,
       teamEntryRows,
       seasonPlayerRows,
+      seasonWeekRows,
+      seasonEventRows,
+      seasonMatchRows,
+      seasonMembershipRows,
     ] = await Promise.all([
       db.select().from(seasons).orderBy(desc(seasons.startsAt)),
       db.select().from(discordChannelConfigurations).orderBy(asc(discordChannelConfigurations.category), asc(discordChannelConfigurations.displayName)),
@@ -426,6 +474,10 @@ export function loadSettingsManagement() {
       db.select({ id: teams.id, name: teams.name }).from(teams).orderBy(asc(teams.franchiseNumber)),
       db.select().from(teamSeasonEntries),
       db.select({ seasonId: playerSeasons.seasonId }).from(playerSeasons),
+      db.select().from(seasonWeeks),
+      db.select().from(events),
+      db.select().from(matches),
+      db.select().from(rosterMemberships),
     ]);
     const tierOrder = new Map(TIERS.map((tier) => [tier.code, tier.ordinal]));
     const orderedChannels = [...channels].sort((a, b) =>
@@ -434,15 +486,73 @@ export function loadSettingsManagement() {
         - (tierOrder.get(b.division as typeof TIERS[number]["code"]) ?? 0)
       || a.displayName.localeCompare(b.displayName));
     return {
-      seasons: seasonRows.map((season) => ({
+      seasons: seasonRows.map((season) => {
+        const activeEntries = teamEntryRows.filter((entry) =>
+          entry.seasonId === season.id && entry.active && !entry.endedAt);
+        const activeTiers = tierRows.filter((tier) => tier.seasonId === season.id && tier.active);
+        const requiredWeeks = [1, 2, 3, 4, 7, 8, 9];
+        const configuredWeeks = new Set(seasonWeekRows.filter((week) =>
+          week.seasonId === season.id && requiredWeeks.includes(week.weekNumber)).map((week) => week.weekNumber)).size;
+        const validRosters = activeEntries.filter((entry) => {
+          const roster = seasonMembershipRows.filter((membership) =>
+            membership.seasonId === season.id
+            && membership.teamId === entry.teamId
+            && membership.divisionId === entry.divisionId
+            && !membership.endsAt);
+          return roster.length === 3
+            && roster.filter((member) => member.role === "STARTER").length === 2
+            && roster.filter((member) => member.role === "SUBSTITUTE").length === 1;
+        }).length;
+        const scheduledTierWeeks = activeTiers.flatMap((tier) => requiredWeeks.map((week) => ({
+          tierId: tier.id,
+          week,
+        }))).filter(({ tierId, week }) =>
+          seasonMatchRows.filter((match) =>
+            match.seasonId === season.id
+            && match.divisionId === tierId
+            && match.week === week
+            && match.bestOf === 5).length >= SEASON_ONE_RULES.scheduling.teamCount).length;
+        const requiredEvents = activeTiers.length * 5;
+        const configuredEvents = seasonEventRows.filter((event) =>
+          event.seasonId === season.id && activeTiers.some((tier) => tier.id === event.divisionId)).length;
+        const settings = season.settings as Record<string, unknown>;
+        const thresholds = settings.tierThresholds;
+        const hasThresholds = Boolean(thresholds && typeof thresholds === "object");
+        const format = settings.competitionFormat;
+        const hasRulebook = Boolean(format && typeof format === "object" && "rulebookVersion" in format);
+        const expectedTeams = activeTiers.length * SEASON_ONE_RULES.scheduling.teamCount;
+        const expectedTierWeeks = activeTiers.length * requiredWeeks.length;
+        return {
         ...season,
         startsAt: season.startsAt.toISOString(),
         endsAt: season.endsAt.toISOString(),
         archivedAt: season.archivedAt?.toISOString() ?? null,
-        registeredTeams: new Set(teamEntryRows.filter((entry) => entry.seasonId === season.id && entry.active).map((entry) => entry.teamId)).size,
+        registeredTeams: new Set(activeEntries.map((entry) => entry.teamId)).size,
         registeredPlayers: seasonPlayerRows.filter((entry) => entry.seasonId === season.id).length,
-        configuredTiers: tierRows.filter((tier) => tier.seasonId === season.id && tier.active).length,
-      })),
+        configuredTiers: activeTiers.length,
+        readiness: {
+          configuredWeeks,
+          requiredWeeks: requiredWeeks.length,
+          configuredEvents,
+          requiredEvents,
+          teamEntries: activeEntries.length,
+          expectedTeams,
+          validRosters,
+          scheduledTierWeeks,
+          expectedTierWeeks,
+          hasThresholds,
+          hasRulebook,
+          ready: activeTiers.length === 4
+            && configuredWeeks === requiredWeeks.length
+            && configuredEvents >= requiredEvents
+            && activeEntries.length === expectedTeams
+            && validRosters === activeEntries.length
+            && scheduledTierWeeks === expectedTierWeeks
+            && hasThresholds
+            && hasRulebook,
+        },
+      };
+      }),
       channels: orderedChannels.map((channel) => ({
         id: channel.id,
         key: channel.key,
