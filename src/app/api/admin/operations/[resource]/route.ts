@@ -28,6 +28,7 @@ import {
   teamSeasonEntries,
   tierHistory,
   transactionRequests,
+  users,
   waiverWindows,
 } from "@/db/schema";
 import { buildAuditLogRecord, toAuditJson } from "@/services/audit";
@@ -60,7 +61,12 @@ import {
 import { buildTierHistoryRecord, toTierCode } from "@/services/tier-history";
 import { normalizeTierId, tierDefinition, TIER_IDS, TIERS } from "@/services/tiers";
 import { regularSeasonPoints } from "@/services/points";
-import { VERIFICATION_DAYS } from "@/services/mmr";
+import {
+  configuredTierForMmr,
+  isVerificationComplete,
+  type TierThresholds,
+  VERIFICATION_DAYS,
+} from "@/services/mmr";
 
 export const runtime = "nodejs";
 
@@ -123,6 +129,12 @@ const mmrEvidenceSchema = z.object({
   rankedGamesPlayed: z.coerce.number().int().min(0).max(100_000),
   evidenceMmr: z.coerce.number().int().min(0).max(5000),
   sourceReference: z.url().max(1000).refine((url) => url.startsWith("https://")),
+  reason: z.string().trim().min(3).max(2000),
+});
+
+const mmrPlacementSchema = z.object({
+  operation: z.literal("PLACE_TIER"),
+  playerSeasonId: z.string().uuid(),
   reason: z.string().trim().min(3).max(2000),
 });
 
@@ -212,6 +224,31 @@ const teamTierSchema = z.object({
   reason: z.string().trim().min(3).max(2000),
 });
 
+const tierThresholdValuesSchema = z.object({
+  CONTENDER: z.coerce.number().int().min(0).max(5000),
+  CHALLENGER: z.coerce.number().int().min(0).max(5000),
+  MASTER: z.coerce.number().int().min(0).max(5000),
+  PREMIER: z.coerce.number().int().min(0).max(5000),
+}).refine((value) =>
+  value.CONTENDER < value.CHALLENGER
+  && value.CHALLENGER < value.MASTER
+  && value.MASTER < value.PREMIER, {
+  message: "Thresholds must increase in official tier order",
+});
+const tierThresholdSchema = z.object({
+  seasonId: z.string().uuid(),
+  CONTENDER: z.coerce.number().int().min(0).max(5000),
+  CHALLENGER: z.coerce.number().int().min(0).max(5000),
+  MASTER: z.coerce.number().int().min(0).max(5000),
+  PREMIER: z.coerce.number().int().min(0).max(5000),
+  reason: z.string().trim().min(3).max(2000),
+}).refine((value) =>
+  value.CONTENDER < value.CHALLENGER
+  && value.CHALLENGER < value.MASTER
+  && value.MASTER < value.PREMIER, {
+  message: "Thresholds must increase in official tier order",
+});
+
 const matchResultSchema = z.object({
   id: z.string().uuid(),
   teamAScore: z.number().int().min(0).max(99),
@@ -253,6 +290,7 @@ const permissions: Record<string, Permission> = {
   "notification-routes": "league.full",
   tiers: "league.manage",
   "team-tiers": "league.manage",
+  "tier-thresholds": "league.manage",
   matches: "matches.manage",
 };
 const portals: Record<string, "LEAGUE_OPERATIONS" | "SIGN_UP_MANAGER" | "PRODUCTION" | "STATISTICS"> = {
@@ -265,6 +303,7 @@ const portals: Record<string, "LEAGUE_OPERATIONS" | "SIGN_UP_MANAGER" | "PRODUCT
   "notification-routes": "LEAGUE_OPERATIONS",
   tiers: "LEAGUE_OPERATIONS",
   "team-tiers": "LEAGUE_OPERATIONS",
+  "tier-thresholds": "LEAGUE_OPERATIONS",
   matches: "PRODUCTION",
 };
 
@@ -303,6 +342,40 @@ export async function PATCH(
   const body = await request.json().catch(() => null);
   const db = getDatabase();
   const requestId = randomUUID();
+
+  if (resource === "tier-thresholds") {
+    const parsed = tierThresholdSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Tier thresholds are invalid" }, { status: 400 });
+    }
+    const [season] = await db.select().from(seasons).where(eq(seasons.id, parsed.data.seasonId)).limit(1);
+    if (!season) return NextResponse.json({ error: "Season not found" }, { status: 404 });
+    const thresholds: TierThresholds = {
+      CONTENDER: parsed.data.CONTENDER,
+      CHALLENGER: parsed.data.CHALLENGER,
+      MASTER: parsed.data.MASTER,
+      PREMIER: parsed.data.PREMIER,
+    };
+    configuredTierForMmr(thresholds.CONTENDER, thresholds);
+    await db.transaction(async (tx) => {
+      await tx.update(seasons).set({
+        settings: { ...season.settings, tierThresholds: thresholds },
+      }).where(eq(seasons.id, season.id));
+      await tx.insert(auditLogs).values(buildAuditLogRecord({
+        actorId: context.user.id,
+        actorDiscordRoleIds: context.access.roleIds,
+        actorFranchiseNumber: context.access.franchiseNumber,
+        action: "SEASON_TIER_THRESHOLDS_UPDATED",
+        entityType: "SEASON",
+        entityId: season.id,
+        previousState: { tierThresholds: season.settings.tierThresholds ?? null },
+        nextState: { tierThresholds: thresholds },
+        reason: parsed.data.reason,
+        requestId,
+      }));
+    });
+    return NextResponse.json({ id: season.id, thresholds });
+  }
 
   if (resource === "transactions") {
     const parsed = transactionSchema.safeParse(body);
@@ -657,6 +730,110 @@ export async function PATCH(
   }
 
   if (resource === "mmr") {
+    const placement = mmrPlacementSchema.safeParse(body);
+    if (placement.success) {
+      const [playerSeason] = await db.select().from(playerSeasons)
+        .where(eq(playerSeasons.id, placement.data.playerSeasonId)).limit(1);
+      if (!playerSeason) return NextResponse.json({ error: "Player season record not found" }, { status: 404 });
+      const [[season], verificationRows, [actor]] = await Promise.all([
+        db.select().from(seasons).where(eq(seasons.id, playerSeason.seasonId)).limit(1),
+        db.select().from(mmrVerificationWindows)
+          .where(and(
+            eq(mmrVerificationWindows.seasonId, playerSeason.seasonId),
+            eq(mmrVerificationWindows.playerId, playerSeason.playerId),
+          )).orderBy(desc(mmrVerificationWindows.closesAt)).limit(1),
+        db.select({ name: users.displayName }).from(users).where(eq(users.id, context.user.id)).limit(1),
+      ]);
+      const verification = verificationRows[0];
+      if (!season || !verification || !isVerificationComplete({
+        opensAt: verification.opensAt,
+        evaluatedAt: new Date(),
+        rankedGamesPlayed: verification.rankedGamesPlayed,
+      })) {
+        return NextResponse.json({ error: "Player has not completed the official 14-day and 50-game verification requirements" }, { status: 409 });
+      }
+      const [acceptedEvidence] = await db.select({ id: mmrSnapshots.id }).from(mmrSnapshots)
+        .where(and(eq(mmrSnapshots.windowId, verification.id), eq(mmrSnapshots.accepted, true))).limit(1);
+      if (!acceptedEvidence) {
+        return NextResponse.json({ error: "Accepted Ranked 2v2 evidence is required before placement" }, { status: 409 });
+      }
+      const thresholdResult = tierThresholdValuesSchema.safeParse(season.settings.tierThresholds);
+      if (!thresholdResult.success) {
+        return NextResponse.json({ error: "Official tier thresholds are not configured for this season" }, { status: 409 });
+      }
+      const mmr = Number(playerSeason.currentMmr ?? 1000);
+      let tier: keyof TierThresholds;
+      try {
+        tier = configuredTierForMmr(mmr, thresholdResult.data);
+      } catch (error) {
+        return NextResponse.json({ error: error instanceof Error ? error.message : "Tier could not be calculated" }, { status: 409 });
+      }
+      const [division] = await db.select().from(divisions).where(and(
+        eq(divisions.seasonId, playerSeason.seasonId),
+        eq(divisions.code, tier),
+        eq(divisions.active, true),
+      )).limit(1);
+      if (!division) return NextResponse.json({ error: `Configured ${tier} tier is unavailable` }, { status: 409 });
+      if (playerSeason.divisionId === division.id && playerSeason.currentMmr !== null) {
+        return NextResponse.json({ error: "Player is already placed in the calculated tier" }, { status: 409 });
+      }
+      const [oldDivision] = playerSeason.divisionId
+        ? await db.select({ code: divisions.code }).from(divisions).where(eq(divisions.id, playerSeason.divisionId)).limit(1)
+        : [undefined];
+      await db.transaction(async (tx) => {
+        await tx.update(playerSeasons).set({
+          divisionId: division.id,
+          currentMmr: String(mmr),
+          protectedRosterValue: playerSeason.protectedRosterValue ?? String(mmr),
+          status: "ACTIVE",
+          activatedAt: playerSeason.activatedAt ?? new Date(),
+        }).where(eq(playerSeasons.id, playerSeason.id));
+        if (playerSeason.currentMmr === null) {
+          await tx.insert(ratingEvents).values({
+            seasonId: playerSeason.seasonId,
+            playerId: playerSeason.playerId,
+            previousRating: "1000",
+            delta: "0",
+            nextRating: "1000",
+            protectedRosterValue: "1000",
+            reason: "Official RLCA starting MMR",
+          });
+        }
+        await tx.insert(tierHistory).values(buildTierHistoryRecord({
+          targetType: "PLAYER",
+          targetId: playerSeason.playerId,
+          oldTier: oldDivision?.code ?? null,
+          newTier: tier,
+          seasonId: playerSeason.seasonId,
+          actorId: context.user.id,
+          actorName: actor?.name ?? "Authorized RLCA staff",
+          source: "WEBSITE",
+          reason: placement.data.reason,
+          idempotencyKey: `website-placement:${playerSeason.id}:${requestId}`,
+        }));
+        await tx.insert(playerStatusHistory).values({
+          playerSeasonId: playerSeason.id,
+          fromStatus: playerSeason.status,
+          toStatus: "ACTIVE",
+          effectiveAt: new Date(),
+          reason: placement.data.reason,
+          actorId: context.user.id,
+        });
+        await tx.insert(auditLogs).values(buildAuditLogRecord({
+          actorId: context.user.id,
+          actorDiscordRoleIds: context.access.roleIds,
+          actorFranchiseNumber: context.access.franchiseNumber,
+          action: "PLAYER_TIER_PLACED",
+          entityType: "PLAYER_SEASON",
+          entityId: playerSeason.id,
+          previousState: { divisionId: playerSeason.divisionId, currentMmr: playerSeason.currentMmr },
+          nextState: { divisionId: division.id, tier, currentMmr: mmr },
+          reason: placement.data.reason,
+          requestId,
+        }));
+      });
+      return NextResponse.json({ id: playerSeason.id, tier, currentMmr: mmr });
+    }
     const evidence = mmrEvidenceSchema.safeParse(body);
     if (evidence.success) {
       const [window] = await db.select().from(mmrVerificationWindows)

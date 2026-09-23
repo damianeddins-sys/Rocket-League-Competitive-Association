@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { DISCORD_ROLE_IDS, resolveDiscordAccess } from "./auth/discord-roles";
 import {
+  configuredTierForMmr,
   expectedResult,
   isVerificationComplete,
   rlcaMmrDelta,
@@ -66,6 +67,19 @@ describe("approved RLCA MMR authority", () => {
       hasAcceptedEvidence: true,
       alreadyPlaced: false,
     })).toBe("ELIGIBLE_FOR_PLACEMENT");
+  });
+
+  it("uses only explicitly configured deterministic tier thresholds", () => {
+    const thresholds = {
+      CONTENDER: 1000,
+      CHALLENGER: 1100,
+      MASTER: 1200,
+      PREMIER: 1300,
+    };
+    expect(configuredTierForMmr(1000, thresholds)).toBe("CONTENDER");
+    expect(configuredTierForMmr(1299, thresholds)).toBe("MASTER");
+    expect(configuredTierForMmr(1300, thresholds)).toBe("PREMIER");
+    expect(() => configuredTierForMmr(1200, { ...thresholds, MASTER: 1100 })).toThrow();
   });
 
   it("does not count scrimmages or official series as Ranked 2v2 verification games", () => {

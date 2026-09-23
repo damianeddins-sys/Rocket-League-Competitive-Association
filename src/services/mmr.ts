@@ -6,6 +6,26 @@ export const EVIDENCE_SNAPSHOTS_REQUIRED = SEASON_ONE_RULES.verification.evidenc
 export const COMBINE_SERIES_REQUIRED = SEASON_ONE_RULES.verification.combineSeriesRequired;
 
 export type Division = "CONTENDER" | "CHALLENGER" | "MASTER" | "PREMIER";
+export type TierThresholds = Record<Division, number>;
+
+export function configuredTierForMmr(mmr: number, thresholds: TierThresholds): Division {
+  if (!Number.isFinite(mmr)) throw new Error("MMR must be a finite number");
+  const ordered: Array<[Division, number]> = [
+    ["CONTENDER", thresholds.CONTENDER],
+    ["CHALLENGER", thresholds.CHALLENGER],
+    ["MASTER", thresholds.MASTER],
+    ["PREMIER", thresholds.PREMIER],
+  ];
+  if (ordered.some(([, minimum]) => !Number.isFinite(minimum) || minimum < 0)) {
+    throw new Error("Tier thresholds must be non-negative finite numbers");
+  }
+  if (ordered.some((entry, index) => index > 0 && entry[1] <= ordered[index - 1][1])) {
+    throw new Error("Tier thresholds must increase in official tier order");
+  }
+  const eligible = ordered.filter(([, minimum]) => mmr >= minimum);
+  if (!eligible.length) throw new Error("MMR is below the configured Contender minimum");
+  return eligible.at(-1)![0];
+}
 
 export interface PlacementCandidate {
   playerId: string;

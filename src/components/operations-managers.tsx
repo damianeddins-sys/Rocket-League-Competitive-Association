@@ -463,6 +463,23 @@ export function MmrManager({ players }: { players: PlayerRow[] }) {
     setMessage(response.ok ? "Ranked 2v2 evidence recorded and audited." : result.error ?? "Evidence could not be recorded");
     if (response.ok) router.refresh();
   }
+  async function placeTier(formData: FormData) {
+    const handle = String(formData.get("handle"));
+    if (!window.confirm(`Calculate and apply ${handle}'s tier from the official season thresholds?`)) return;
+    setMessage("Calculating tier from official configured thresholds…");
+    const response = await fetch("/api/admin/operations/mmr", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "PLACE_TIER",
+        playerSeasonId: formData.get("playerSeasonId"),
+        reason: formData.get("reason"),
+      }),
+    });
+    const result = await readApiResult<{ tier?: string; currentMmr?: number }>(response);
+    setMessage(response.ok ? `${handle} placed in ${result.tier} at ${result.currentMmr} RLCA MMR. History and audit records were created.` : result.error ?? "Tier placement failed");
+    if (response.ok) router.refresh();
+  }
   const eligible = players.filter((player) => player.playerSeasonId);
   return (
     <div className="mt-7 space-y-4">
@@ -550,6 +567,15 @@ export function MmrManager({ players }: { players: PlayerRow[] }) {
               <label className="text-sm font-bold">Audit reason<input name="reason" minLength={3} maxLength={2000} required className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
               <button disabled={!player.accounts.length} className="rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-slate-400">Record evidence</button>
               {!player.accounts.length && <p className="text-xs text-red-700 xl:col-span-6">No Rocket League account is linked. Resolve the player account record before adding evidence.</p>}
+            </form>
+          )}
+          {player.attentionStatus === "ELIGIBLE_FOR_PLACEMENT" && (
+            <form action={placeTier} className="grid gap-3 border-t border-emerald-200 bg-emerald-50 p-5 md:grid-cols-[1fr_1.5fr_auto] md:items-end">
+              <input type="hidden" name="playerSeasonId" value={player.playerSeasonId!} />
+              <input type="hidden" name="handle" value={player.handle} />
+              <div><p className="font-black text-emerald-950">Eligible for placement</p><p className="mt-1 text-xs text-emerald-800">Uses the player&apos;s RLCA MMR and the official thresholds configured for this season.</p></div>
+              <label className="text-sm font-bold text-emerald-950">Placement reason<input name="reason" minLength={3} maxLength={2000} required className="mt-2 w-full rounded-lg border border-emerald-300 px-3 py-2.5 font-normal" /></label>
+              <button className="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-black text-white">Calculate & place</button>
             </form>
           )}
           <form action={save} className="grid gap-3 border-t border-slate-200 bg-slate-50 p-5 md:grid-cols-[1fr_10rem_1.5fr_auto] md:items-end">
@@ -749,6 +775,18 @@ type ChannelRow = {
   active: boolean;
 };
 
+function storedTierThresholds(settings: Record<string, unknown>) {
+  const value = settings.tierThresholds;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const thresholds = value as Record<string, unknown>;
+  return {
+    CONTENDER: typeof thresholds.CONTENDER === "number" ? thresholds.CONTENDER : "",
+    CHALLENGER: typeof thresholds.CHALLENGER === "number" ? thresholds.CHALLENGER : "",
+    MASTER: typeof thresholds.MASTER === "number" ? thresholds.MASTER : "",
+    PREMIER: typeof thresholds.PREMIER === "number" ? thresholds.PREMIER : "",
+  };
+}
+
 export function SettingsManager({
   view,
   seasons,
@@ -873,6 +911,14 @@ export function SettingsManager({
     const payload = Object.fromEntries(formData.entries());
     await patch("tiers", { ...payload, active: payload.active === "on" });
   }
+  async function saveTierThresholds(formData: FormData) {
+    const payload = Object.fromEntries(formData.entries());
+    if (!window.confirm("Save these official season tier thresholds? Future website placements will use them deterministically.")) {
+      setMessage("Tier threshold update cancelled.");
+      return;
+    }
+    await patch("tier-thresholds", payload);
+  }
   async function saveTeamTier(formData: FormData) {
     const payload = Object.fromEntries(formData.entries());
     if (!window.confirm("Confirm this franchise tier assignment change. The action will be audited.")) {
@@ -974,6 +1020,32 @@ export function SettingsManager({
       {view === "tiers" && <section>
         <h3 className="text-lg font-black text-[#081e3a]">Season tier configuration</h3>
         <p className="mt-1 text-sm text-slate-600">Competitive order, names, colors, and vector marks are fixed to the official Contender → Challenger → Master → Premier system. Season activation remains auditable.</p>
+        <div className="mt-5 space-y-3">
+          {seasons.map((season) => {
+            const thresholds = storedTierThresholds(season.settings);
+            return (
+              <form key={season.id} action={saveTierThresholds} className="rounded-xl border border-blue-200 bg-blue-50/40 p-5">
+                <input type="hidden" name="seasonId" value={season.id} />
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div><p className="section-kicker">Official placement thresholds</p><h4 className="mt-1 text-lg font-black text-[#081e3a]">{season.name}</h4></div>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-600">{thresholds ? "CONFIGURED" : "NOT CONFIGURED"}</span>
+                </div>
+                <p className="mt-2 text-sm text-slate-600">Enter only approved minimum MMR values. The system does not supply or invent cutoff numbers.</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {(["CONTENDER", "CHALLENGER", "MASTER", "PREMIER"] as const).map((tier) => (
+                    <label key={tier} className="text-sm font-bold">{tier} minimum
+                      <input name={tier} type="number" min={0} max={5000} required defaultValue={thresholds?.[tier] ?? ""} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" />
+                    </label>
+                  ))}
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
+                  <input name="reason" required minLength={3} maxLength={2000} placeholder="Required audit reason" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
+                  <button className="rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Save thresholds</button>
+                </div>
+              </form>
+            );
+          })}
+        </div>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           {tiers.map((tier) => (
             <form key={tier.id} action={saveTier} className="rounded-xl border bg-white p-4" style={{ borderTop: `4px solid ${tier.color}` }}>
