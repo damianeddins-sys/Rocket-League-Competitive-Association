@@ -14,6 +14,7 @@ import {
   divisions,
   playerSeasons,
   players,
+  qualificationPointEvents,
   replays,
   roleAssignments,
   rosterMemberships,
