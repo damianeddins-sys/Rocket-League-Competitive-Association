@@ -1416,12 +1416,123 @@ export function ScheduleManager({
   );
 }
 
-export function ProductionWorkspace({
+export function BracketManager({
   data,
 }: {
   data: {
+    seasons: Array<{ id: string; name: string; active: boolean }>;
+    selectedSeason: { id: string; name: string } | null;
+    events: Array<{
+      id: string;
+      name: string;
+      type: string;
+      tierName: string;
+      requiredTeams: number;
+      suggestedSeeds: Array<{ seed: number; teamId: string; teamName: string; record: string; qualificationPoints: number }>;
+    }>;
+    brackets: Array<{
+      id: string;
+      eventId: string;
+      version: number;
+      format: string;
+      lockedAt: string;
+      seedSnapshot: Array<{ seed: number; teamId: string; teamName: string }>;
+      matches: Array<{ id: string; round: number; position: number; homeSource: string; awaySource: string; sunday: number; bestOf: number }>;
+    }>;
+  };
+}) {
+  const router = useRouter();
+  const [message, setMessage] = useState<string>();
+  async function buildBracket(formData: FormData) {
+    const eventName = String(formData.get("eventName"));
+    if (!window.confirm(`Lock these seeds and create a new immutable version of the ${eventName} bracket?`)) return;
+    const requiredTeams = Number(formData.get("requiredTeams"));
+    const seeds = Array.from({ length: requiredTeams }, (_, index) => ({
+      seed: index + (requiredTeams === 6 ? 3 : 1),
+      teamId: String(formData.get(`seed_${index + (requiredTeams === 6 ? 3 : 1)}`)),
+    }));
+    setMessage("Validating seeds and creating bracket version…");
+    const response = await fetch("/api/admin/operations/brackets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventId: formData.get("eventId"),
+        seeds,
+        reason: formData.get("reason"),
+        confirmed: true,
+      }),
+    });
+    const result = await readApiResult<{ version?: number }>(response);
+    setMessage(response.ok ? `${eventName} bracket version ${result.version} created and audited.` : result.error ?? "Bracket could not be created");
+    if (response.ok) router.refresh();
+  }
+  if (!data.selectedSeason) return <div className="mt-7"><Empty text="Create a season before building brackets." /></div>;
+  return (
+    <div className="mt-7 space-y-6">
+      <Feedback message={message} />
+      <label className="block rounded-xl border border-slate-200 bg-white p-5 text-sm font-black">Season selector
+        <select value={data.selectedSeason.id} onChange={(event) => router.push(`/operations/brackets?season=${event.target.value}`)} className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal">
+          {data.seasons.map((season) => <option key={season.id} value={season.id}>{season.name}{season.active ? " · ACTIVE" : ""}</option>)}
+        </select>
+      </label>
+      {data.events.map((event) => (
+        <section key={event.id} className="rounded-xl border border-blue-200 bg-blue-50/30 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div><p className="section-kicker">{event.tierName} · BO7</p><h3 className="mt-1 text-xl font-black text-[#081e3a]">{event.name}</h3></div>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-black">{event.requiredTeams} TEAMS</span>
+          </div>
+          <p className="mt-2 text-sm text-slate-600">Suggested order is calculated from verified match record and official Qualification Point events. Authorized staff may review seeds before locking a new version.</p>
+          <form action={buildBracket} className="mt-4">
+            <input type="hidden" name="eventId" value={event.id} />
+            <input type="hidden" name="eventName" value={event.name} />
+            <input type="hidden" name="requiredTeams" value={event.requiredTeams} />
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {Array.from({ length: event.requiredTeams }, (_, index) => index + (event.requiredTeams === 6 ? 3 : 1)).map((seed) => (
+                <label key={seed} className="text-sm font-bold">Seed #{seed}
+                  <select name={`seed_${seed}`} required defaultValue={event.suggestedSeeds.find((team) => team.seed === seed)?.teamId ?? ""} className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal">
+                    <option value="">Select team</option>
+                    {event.suggestedSeeds.map((team) => <option key={team.teamId} value={team.teamId}>{team.teamName} · {team.record} · {team.qualificationPoints} QP</option>)}
+                  </select>
+                </label>
+              ))}
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
+              <input name="reason" required minLength={3} maxLength={2000} placeholder="Required seed and bracket audit reason" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
+              <button className="rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Generate bracket version</button>
+            </div>
+          </form>
+          <div className="mt-5 space-y-4">
+            {data.brackets.filter((bracket) => bracket.eventId === event.id).sort((a, b) => b.version - a.version).map((bracket) => (
+              <details key={bracket.id} className="rounded-lg border border-slate-200 bg-white p-4" open={bracket.version === Math.max(...data.brackets.filter((item) => item.eventId === event.id).map((item) => item.version))}>
+                <summary className="cursor-pointer font-black">Version {bracket.version} · locked {new Date(bracket.lockedAt).toLocaleString()}</summary>
+                <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                  {[1, 2, 3].map((round) => (
+                    <div key={round} className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-xs font-black uppercase tracking-wider text-slate-500">Round {round}</p>
+                      <div className="mt-2 space-y-2">{bracket.matches.filter((match) => match.round === round).map((match) => (
+                        <div key={match.id} className="rounded bg-white p-2 text-xs"><strong>{match.homeSource}</strong><span className="mx-2 text-slate-400">vs</span><strong>{match.awaySource}</strong><p className="mt-1 text-slate-400">Sunday {match.sunday} · BO{match.bestOf}</p></div>
+                      ))}</div>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            ))}
+          </div>
+        </section>
+      ))}
+      {!data.events.length && <Empty text="No Major events are configured for this season. Add event dates on the Schedule page first." />}
+    </div>
+  );
+}
+
+export function ProductionWorkspace({
+  data,
+  mode = "matches",
+}: {
+  mode?: "matches" | "standings";
+  data: {
     tierId: TierId;
-    events: Array<{ id: string; name: string; startsAt: string; endsAt: string }>;
+    events: Array<{ id: string; name: string; type: string; startsAt: string; endsAt: string }>;
     teams: Array<{ id: string; name: string }>;
     matches: Array<{
       id: string;
@@ -1431,18 +1542,31 @@ export function ProductionWorkspace({
       teamB: string;
       teamAScore: number | null;
       teamBScore: number | null;
+      officialTie: boolean;
+    }>;
+    standings: Array<{
+      teamId: string;
+      teamName: string;
+      seriesWins: number;
+      seriesLosses: number;
+      gameDifferential: number;
+      qualificationPoints: number;
+      rank: number;
     }>;
   };
 }) {
   const router = useRouter();
   const [message, setMessage] = useState<string>();
   async function verifyResult(formData: FormData) {
-    setMessage("Validating season and tier before publishing result…");
+    const operation = String(formData.get("operation") ?? "SAVE_RESULT");
+    if (operation === "LOCK_RESULT" && !window.confirm("Lock this official result? Locked results require an audited correction to change.")) return;
+    setMessage(operation === "LOCK_RESULT" ? "Locking official result and recalculating standings…" : "Saving result for review…");
     const response = await fetch("/api/admin/operations/matches", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         id: formData.get("id"),
+        operation,
         teamAScore: Number(formData.get("teamAScore")),
         teamBScore: Number(formData.get("teamBScore")),
         officialTie: formData.get("officialTie") === "on",
@@ -1450,7 +1574,9 @@ export function ProductionWorkspace({
       }),
     });
     const result = await readApiResult<object>(response);
-    setMessage(response.ok ? "Result verified in the selected tier." : result.error ?? "Result verification failed");
+    setMessage(response.ok
+      ? operation === "LOCK_RESULT" ? "Official result locked; standings and audit records are updated." : "Result saved for review. It is not official until locked."
+      : result.error ?? "Result update failed");
     if (response.ok) router.refresh();
   }
   async function scheduleMatch(formData: FormData) {
@@ -1476,13 +1602,24 @@ export function ProductionWorkspace({
   }
   return (
     <div className="mt-7 grid gap-5 lg:grid-cols-2">
-      <div className="lg:col-span-2"><TierNavigation current={data.tierId} pathname="/operations/production" /></div>
+      <div className="lg:col-span-2"><TierNavigation current={data.tierId} pathname={`/operations/${mode}`} /></div>
       <div className="lg:col-span-2"><Feedback message={message} /></div>
+      {mode === "standings" ? (
+        <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-5 lg:col-span-2">
+          <h3 className="text-lg font-black text-[#081e3a]">Calculated official standings</h3>
+          <p className="mt-1 text-sm text-slate-600">Derived from verified match results and immutable Qualification Point events; standings cannot be manually typed.</p>
+          <table className="mt-4 w-full min-w-[640px] text-left text-sm">
+            <thead className="text-xs uppercase text-slate-400"><tr><th className="pb-2">Seed</th><th>Team</th><th>Record</th><th>Game diff.</th><th>Qualification Points</th></tr></thead>
+            <tbody>{data.standings.map((standing) => <tr key={standing.teamId} className="border-t border-slate-100"><td className="py-3 font-black">#{standing.rank}</td><td className="font-bold">{standing.teamName}</td><td>{standing.seriesWins}-{standing.seriesLosses}</td><td>{standing.gameDifferential > 0 ? "+" : ""}{standing.gameDifferential}</td><td className="font-black">{standing.qualificationPoints}</td></tr>)}</tbody>
+          </table>
+          {!data.standings.length && <Empty text="No active team entries are available for standings." />}
+        </section>
+      ) : <>
       <form action={scheduleMatch} className="rounded-xl border border-blue-200 bg-blue-50/40 p-5 lg:col-span-2">
         <h3 className="text-lg font-black text-[#081e3a]">Schedule a tier match</h3>
         <p className="mt-1 text-sm text-slate-600">Only teams and events active in the selected tier are accepted by the database.</p>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <select name="eventId" required className="rounded-lg border border-slate-300 bg-white p-2.5"><option value="">Select event</option>{data.events.map((event) => <option key={event.id} value={event.id}>{event.name}</option>)}</select>
+          <select name="eventId" required className="rounded-lg border border-slate-300 bg-white p-2.5"><option value="">Select event</option>{data.events.map((event) => <option key={event.id} value={event.id}>{event.name} · {event.type === "REGULAR_SEASON" ? "BO5" : "BO7"}</option>)}</select>
           <select name="teamAId" required className="rounded-lg border border-slate-300 bg-white p-2.5"><option value="">Team A</option>{data.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select>
           <select name="teamBId" required className="rounded-lg border border-slate-300 bg-white p-2.5"><option value="">Team B</option>{data.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select>
           <input name="scheduledAt" type="datetime-local" required className="rounded-lg border border-slate-300 bg-white p-2.5" aria-label="Scheduled date and time" />
@@ -1495,6 +1632,27 @@ export function ProductionWorkspace({
       </form>
       <section className="rounded-xl border border-slate-200 bg-white p-5"><h3 className="text-lg font-black">Events</h3><div className="mt-3 space-y-2">{data.events.map((event) => <div key={event.id} className="rounded-lg bg-slate-50 p-3 text-sm"><strong>{event.name}</strong><p className="text-xs text-slate-500">{new Date(event.startsAt).toLocaleDateString()}–{new Date(event.endsAt).toLocaleDateString()}</p></div>)}</div></section>
       <section className="rounded-xl border border-slate-200 bg-white p-5"><h3 className="text-lg font-black">Match production queue</h3><div className="mt-3 space-y-3">{data.matches.map((match) => <div key={match.id} className="rounded-lg bg-slate-50 p-3 text-sm"><strong>{match.teamA} vs {match.teamB}</strong><p className="text-xs text-slate-500">{new Date(match.scheduledAt).toLocaleString()} · {match.status}</p>{match.status === "VERIFIED" ? <p className="mt-2 text-lg font-black">{match.teamAScore}–{match.teamBScore}</p> : <form action={verifyResult} className="mt-3 grid grid-cols-2 gap-2"><input type="hidden" name="id" value={match.id} /><input name="teamAScore" type="number" min={0} max={99} required placeholder={`${match.teamA} score`} className="rounded border border-slate-300 p-2" /><input name="teamBScore" type="number" min={0} max={99} required placeholder={`${match.teamB} score`} className="rounded border border-slate-300 p-2" /><input name="reason" minLength={3} required placeholder="Verification reason" className="col-span-2 rounded border border-slate-300 p-2" /><label className="col-span-2 flex items-center gap-2 text-xs font-bold"><input name="officialTie" type="checkbox" /> Official tie</label><button className="col-span-2 rounded bg-[#1683ff] px-3 py-2 font-black text-white">Verify result</button></form>}</div>)}</div></section>
+      {data.matches.some((match) => match.status === "SUBMITTED") && (
+        <section className="rounded-xl border border-amber-200 bg-amber-50/40 p-5 lg:col-span-2">
+          <h3 className="text-lg font-black text-amber-950">Results awaiting lock</h3>
+          <p className="mt-1 text-sm text-amber-900">Review saved scores before making them official. Locking writes points, standings, notifications, and immutable audit evidence.</p>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            {data.matches.filter((match) => match.status === "SUBMITTED").map((match) => (
+              <form key={match.id} action={verifyResult} className="rounded-lg bg-white p-4 text-sm">
+                <input type="hidden" name="id" value={match.id} />
+                <input type="hidden" name="operation" value="LOCK_RESULT" />
+                <input type="hidden" name="teamAScore" value={match.teamAScore ?? 0} />
+                <input type="hidden" name="teamBScore" value={match.teamBScore ?? 0} />
+                <input type="hidden" name="officialTie" value={match.officialTie ? "on" : ""} />
+                <strong>{match.teamA} {match.teamAScore}–{match.teamBScore} {match.teamB}</strong>
+                <input name="reason" required minLength={3} maxLength={2000} placeholder="Required lock reason" className="mt-3 w-full rounded border border-slate-300 p-2" />
+                <button className="mt-2 w-full rounded bg-amber-700 px-3 py-2 font-black text-white">Lock official result</button>
+              </form>
+            ))}
+          </div>
+        </section>
+      )}
+      </>}
     </div>
   );
 }

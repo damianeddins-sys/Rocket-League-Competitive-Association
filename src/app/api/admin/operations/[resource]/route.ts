@@ -6,6 +6,8 @@ import { getDatabase } from "@/db";
 import {
   activationHolds,
   auditLogs,
+  bracketMatches,
+  brackets,
   divisions,
   discordChannelConfigurations,
   discordMembers,
@@ -69,6 +71,7 @@ import {
   VERIFICATION_DAYS,
 } from "@/services/mmr";
 import { SEASON_ONE_RULES } from "@/services/rules";
+import { championshipBracket, lastChanceBracket, majorBracket } from "@/services/brackets";
 
 export const runtime = "nodejs";
 
@@ -253,6 +256,7 @@ const tierThresholdSchema = z.object({
 
 const matchResultSchema = z.object({
   id: z.string().uuid(),
+  operation: z.enum(["SAVE_RESULT", "LOCK_RESULT"]).default("SAVE_RESULT"),
   teamAScore: z.number().int().min(0).max(99),
   teamBScore: z.number().int().min(0).max(99),
   officialTie: z.boolean().default(false),
@@ -301,6 +305,15 @@ const scheduleEventSchema = z.object({
   endsAt: z.coerce.date(),
   reason: z.string().trim().min(3).max(2000),
 });
+const bracketCreateSchema = z.object({
+  eventId: z.string().uuid(),
+  seeds: z.array(z.object({
+    seed: z.number().int().min(1).max(8),
+    teamId: z.string().uuid(),
+  })).min(6).max(8),
+  reason: z.string().trim().min(3).max(2000),
+  confirmed: z.literal(true),
+});
 
 const permissions: Record<string, Permission> = {
   transactions: "transaction.approve",
@@ -315,6 +328,7 @@ const permissions: Record<string, Permission> = {
   "tier-thresholds": "league.manage",
   matches: "matches.manage",
   schedule: "matches.manage",
+  brackets: "matches.manage",
 };
 const portals: Record<string, "LEAGUE_OPERATIONS" | "SIGN_UP_MANAGER" | "PRODUCTION" | "STATISTICS"> = {
   transactions: "LEAGUE_OPERATIONS",
@@ -329,6 +343,7 @@ const portals: Record<string, "LEAGUE_OPERATIONS" | "SIGN_UP_MANAGER" | "PRODUCT
   "tier-thresholds": "LEAGUE_OPERATIONS",
   matches: "PRODUCTION",
   schedule: "PRODUCTION",
+  brackets: "PRODUCTION",
 };
 
 async function contextFor(request: Request, resource: string) {
@@ -1263,6 +1278,38 @@ export async function PATCH(
     if (current.status === "VOID") {
       return NextResponse.json({ error: "A void match cannot receive a result" }, { status: 409 });
     }
+    if (parsed.data.operation === "SAVE_RESULT") {
+      await db.transaction(async (tx) => {
+        await tx.update(matches).set({
+          teamAScore: parsed.data.teamAScore,
+          teamBScore: parsed.data.teamBScore,
+          officialTie: parsed.data.officialTie,
+          status: "SUBMITTED",
+          verifiedAt: null,
+        }).where(eq(matches.id, current.id));
+        await tx.insert(auditLogs).values(buildAuditLogRecord({
+          actorId: context.user.id,
+          actorDiscordRoleIds: context.access.roleIds,
+          actorFranchiseNumber: context.access.franchiseNumber,
+          action: "MATCH_RESULT_SAVED",
+          entityType: "MATCH",
+          entityId: current.id,
+          previousState: toAuditJson(current),
+          nextState: {
+            teamAScore: parsed.data.teamAScore,
+            teamBScore: parsed.data.teamBScore,
+            officialTie: parsed.data.officialTie,
+            status: "SUBMITTED",
+          },
+          reason: parsed.data.reason,
+          requestId,
+        }));
+      });
+      return NextResponse.json({ id: current.id, status: "SUBMITTED" });
+    }
+    if (current.status !== "SUBMITTED") {
+      return NextResponse.json({ error: "Save the result for review before locking it" }, { status: 409 });
+    }
     const [[event], [division], [teamA], [teamB]] = await Promise.all([
       db.select({ type: events.type }).from(events).where(eq(events.id, current.eventId)).limit(1),
       db.select({ slug: divisions.slug, name: divisions.displayName, color: divisions.color }).from(divisions).where(eq(divisions.id, current.divisionId)).limit(1),
@@ -1447,7 +1494,7 @@ export async function POST(
   { params }: { params: Promise<{ resource: string }> },
 ) {
   const { resource } = await params;
-  if (resource !== "channels" && resource !== "matches" && resource !== "seasons" && resource !== "mmr" && resource !== "teams" && resource !== "schedule") {
+  if (resource !== "channels" && resource !== "matches" && resource !== "seasons" && resource !== "mmr" && resource !== "teams" && resource !== "schedule" && resource !== "brackets") {
     return NextResponse.json({ error: "Unknown operations resource" }, { status: 404 });
   }
   const context = await contextFor(request, resource);
@@ -1462,6 +1509,84 @@ export async function POST(
   });
   if (!rateLimit.allowed) {
     return NextResponse.json({ error: "Operations write limit reached" }, { status: 429 });
+  }
+  if (resource === "brackets") {
+    const parsed = bracketCreateSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Bracket configuration is invalid" }, { status: 400 });
+    }
+    const db = getDatabase();
+    const [event] = await db.select().from(events).where(eq(events.id, parsed.data.eventId)).limit(1);
+    if (!event || event.type === "REGULAR_SEASON") {
+      return NextResponse.json({ error: "A Major event is required to build a bracket" }, { status: 404 });
+    }
+    const requiredTeams = event.type === "LAST_CHANCE" ? 6 : 8;
+    if (
+      parsed.data.seeds.length !== requiredTeams
+      || new Set(parsed.data.seeds.map((seed) => seed.teamId)).size !== requiredTeams
+    ) {
+      return NextResponse.json({ error: `${event.type.replaceAll("_", " ")} requires ${requiredTeams} unique teams` }, { status: 400 });
+    }
+    const activeEntries = await db.select({ teamId: teamSeasonEntries.teamId }).from(teamSeasonEntries).where(and(
+      eq(teamSeasonEntries.seasonId, event.seasonId),
+      eq(teamSeasonEntries.divisionId, event.divisionId),
+      eq(teamSeasonEntries.active, true),
+      isNull(teamSeasonEntries.endedAt),
+    ));
+    const activeTeamIds = new Set(activeEntries.map((entry) => entry.teamId));
+    if (parsed.data.seeds.some((seed) => !activeTeamIds.has(seed.teamId))) {
+      return NextResponse.json({ error: "Every bracket seed must be an active team in the event tier" }, { status: 409 });
+    }
+    const orderedSeeds = [...parsed.data.seeds].sort((left, right) => left.seed - right.seed);
+    let slots;
+    try {
+      slots = event.type === "LAST_CHANCE"
+        ? lastChanceBracket(orderedSeeds)
+        : event.type === "CHAMPIONSHIP"
+          ? championshipBracket(orderedSeeds)
+          : majorBracket(orderedSeeds);
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : "Bracket seeds are invalid" }, { status: 400 });
+    }
+    const [latest] = await db.select({ version: brackets.version }).from(brackets)
+      .where(eq(brackets.eventId, event.id)).orderBy(desc(brackets.version)).limit(1);
+    const requestId = randomUUID();
+    const created = await db.transaction(async (tx) => {
+      const [bracket] = await tx.insert(brackets).values({
+        eventId: event.id,
+        version: (latest?.version ?? 0) + 1,
+        format: event.type,
+        seedSnapshot: orderedSeeds,
+        lockedAt: new Date(),
+      }).returning();
+      await tx.insert(bracketMatches).values(slots.map((slot, index) => ({
+        bracketId: bracket.id,
+        round: slot.round === "FIRST_ROUND" ? 1 : slot.round === "QUARTERFINAL" ? 1 : slot.round === "SEMIFINAL" ? 2 : 3,
+        position: index + 1,
+        homeSource: slot.home,
+        awaySource: slot.away,
+        sunday: slot.sunday,
+        bestOf: slot.bestOf,
+      })));
+      await tx.update(events).set({
+        bracketLockedAt: bracket.lockedAt,
+        seedSnapshot: orderedSeeds,
+      }).where(eq(events.id, event.id));
+      await tx.insert(auditLogs).values(buildAuditLogRecord({
+        actorId: context.user.id,
+        actorDiscordRoleIds: context.access.roleIds,
+        actorFranchiseNumber: context.access.franchiseNumber,
+        action: "BRACKET_VERSION_CREATED",
+        entityType: "BRACKET",
+        entityId: bracket.id,
+        previousState: latest ? { version: latest.version } : null,
+        nextState: toAuditJson({ version: bracket.version, eventId: event.id, seeds: orderedSeeds, slots }),
+        reason: parsed.data.reason,
+        requestId,
+      }));
+      return bracket;
+    });
+    return NextResponse.json({ id: created.id, version: created.version }, { status: 201 });
   }
   if (resource === "schedule") {
     const body = await request.json().catch(() => null);

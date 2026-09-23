@@ -4,6 +4,8 @@ import {
   applicationEmailDocuments,
   applications,
   auditLogs,
+  bracketMatches,
+  brackets,
   discordBotRuntime,
   discordChannelConfigurations,
   discordNotificationJobs,
@@ -32,6 +34,7 @@ import {
 import { DISCORD_NOTIFICATION_EVENTS } from "./discord/notifications";
 import { isVerificationComplete, verificationAttentionStatus } from "./mmr";
 import { SEASON_ONE_RULES } from "./rules";
+import { calculateStandings } from "./points";
 import { DEFAULT_TIER_ID, normalizeTierId, TIERS } from "./tiers";
 
 export type OperationsData<T> =
@@ -411,6 +414,91 @@ export function loadScheduleManagement(selectedSeasonId?: string) {
         scheduledAt: match.scheduledAt.toISOString(),
       })),
       tiers: tierRows.map((tier) => ({ id: tier.slug, name: tier.displayName })),
+    };
+  });
+}
+
+export function loadBracketManagement(selectedSeasonId?: string) {
+  return load(async () => {
+    const db = getDatabase();
+    const seasonRows = await db.select().from(seasons).orderBy(desc(seasons.startsAt));
+    const selected = seasonRows.find((season) => season.id === selectedSeasonId)
+      ?? seasonRows.find((season) => season.active)
+      ?? seasonRows[0]
+      ?? null;
+    if (!selected) return { seasons: [], selectedSeason: null, events: [], brackets: [] };
+    const [eventRows, divisionRows, entryRows, teamRows, matchRows, pointRows, bracketRows, bracketMatchRows] = await Promise.all([
+      db.select().from(events).where(eq(events.seasonId, selected.id)).orderBy(asc(events.startsAt)),
+      db.select().from(divisions).where(eq(divisions.seasonId, selected.id)),
+      db.select().from(teamSeasonEntries).where(eq(teamSeasonEntries.seasonId, selected.id)),
+      db.select({ id: teams.id, name: teams.name }).from(teams),
+      db.select().from(matches).where(eq(matches.seasonId, selected.id)),
+      db.select().from(qualificationPointEvents).where(eq(qualificationPointEvents.seasonId, selected.id)),
+      db.select().from(brackets),
+      db.select().from(bracketMatches),
+    ]);
+    const teamNames = new Map(teamRows.map((team) => [team.id, team.name]));
+    const divisionNames = new Map(divisionRows.map((tier) => [tier.id, tier.displayName]));
+    const competitionEvents = eventRows.filter((event) => event.type !== "REGULAR_SEASON");
+    return {
+      seasons: seasonRows.map((season) => ({ id: season.id, name: season.name, active: season.active })),
+      selectedSeason: { id: selected.id, name: selected.name },
+      events: competitionEvents.map((event) => {
+        const teamIds = entryRows.filter((entry) =>
+          entry.divisionId === event.divisionId && entry.active && !entry.endedAt).map((entry) => entry.teamId);
+        const records = teamIds.map((teamId) => {
+          const teamMatches = matchRows.filter((match) =>
+            match.divisionId === event.divisionId
+            && match.status === "VERIFIED"
+            && (match.teamAId === teamId || match.teamBId === teamId));
+          return teamMatches.reduce((record, match) => {
+            const isA = match.teamAId === teamId;
+            const own = isA ? match.teamAScore ?? 0 : match.teamBScore ?? 0;
+            const opponent = isA ? match.teamBScore ?? 0 : match.teamAScore ?? 0;
+            if (own > opponent) record.seriesWins += 1;
+            else if (own < opponent) record.seriesLosses += 1;
+            record.gameWins += own;
+            record.gameLosses += opponent;
+            return record;
+          }, { teamId, seriesWins: 0, seriesLosses: 0, gameWins: 0, gameLosses: 0 });
+        });
+        const standings = calculateStandings(records, pointRows
+          .filter((point) => point.divisionId === event.divisionId)
+          .map((point) => ({
+            teamId: point.teamId,
+            points: Number(point.points),
+            category: point.category,
+            idempotencyKey: point.idempotencyKey,
+          })));
+        return {
+          id: event.id,
+          name: event.name,
+          type: event.type,
+          tierName: divisionNames.get(event.divisionId) ?? "Unknown tier",
+          requiredTeams: event.type === "LAST_CHANCE" ? 6 : 8,
+          suggestedSeeds: standings.map((standing) => ({
+            seed: standing.rank,
+            teamId: standing.teamId,
+            teamName: teamNames.get(standing.teamId) ?? "Unknown team",
+            record: `${standing.seriesWins}-${standing.seriesLosses}`,
+            qualificationPoints: standing.qualificationPoints,
+          })),
+        };
+      }),
+      brackets: bracketRows
+        .filter((bracket) => competitionEvents.some((event) => event.id === bracket.eventId))
+        .map((bracket) => ({
+          id: bracket.id,
+          eventId: bracket.eventId,
+          version: bracket.version,
+          format: bracket.format,
+          seedSnapshot: bracket.seedSnapshot.map((seed) => ({
+            ...seed,
+            teamName: teamNames.get(seed.teamId) ?? "Unknown team",
+          })),
+          lockedAt: bracket.lockedAt.toISOString(),
+          matches: bracketMatchRows.filter((match) => match.bracketId === bracket.id),
+        })),
     };
   });
 }
@@ -803,7 +891,7 @@ export function loadProductionWorkspace(tierInput?: string) {
         eq(divisions.slug, tierId),
       )).limit(1)
       : [];
-    const [eventRows, matchRows, teamRows, teamEntryRows] = await Promise.all([
+    const [eventRows, matchRows, teamRows, teamEntryRows, pointRows] = await Promise.all([
       tier ? db.select().from(events).where(eq(events.divisionId, tier.id)).orderBy(asc(events.startsAt)) : Promise.resolve([]),
       tier ? db.select().from(matches).where(eq(matches.divisionId, tier.id)).orderBy(asc(matches.scheduledAt)).limit(250) : Promise.resolve([]),
       db.select({ id: teams.id, name: teams.name }).from(teams),
@@ -813,13 +901,34 @@ export function loadProductionWorkspace(tierInput?: string) {
         eq(teamSeasonEntries.active, true),
         isNull(teamSeasonEntries.endedAt),
       )) : Promise.resolve([]),
+      tier ? db.select().from(qualificationPointEvents).where(eq(qualificationPointEvents.divisionId, tier.id)) : Promise.resolve([]),
     ]);
     const names = new Map(teamRows.map((team) => [team.id, team.name]));
+    const standings = calculateStandings(teamEntryRows.map((entry) => {
+      const teamMatches = matchRows.filter((match) =>
+        match.status === "VERIFIED" && (match.teamAId === entry.teamId || match.teamBId === entry.teamId));
+      return teamMatches.reduce((record, match) => {
+        const isA = match.teamAId === entry.teamId;
+        const own = isA ? match.teamAScore ?? 0 : match.teamBScore ?? 0;
+        const opponent = isA ? match.teamBScore ?? 0 : match.teamAScore ?? 0;
+        if (own > opponent) record.seriesWins += 1;
+        else if (own < opponent) record.seriesLosses += 1;
+        record.gameWins += own;
+        record.gameLosses += opponent;
+        return record;
+      }, { teamId: entry.teamId, seriesWins: 0, seriesLosses: 0, gameWins: 0, gameLosses: 0 });
+    }), pointRows.map((point) => ({
+      teamId: point.teamId,
+      points: Number(point.points),
+      category: point.category,
+      idempotencyKey: point.idempotencyKey,
+    })));
     return {
       tierId,
       events: eventRows.map((event) => ({
         id: event.id,
         name: event.name,
+        type: event.type,
         startsAt: event.startsAt.toISOString(),
         endsAt: event.endsAt.toISOString(),
       })),
@@ -835,6 +944,11 @@ export function loadProductionWorkspace(tierInput?: string) {
         teamB: names.get(match.teamBId) ?? "Unknown",
         teamAScore: match.teamAScore,
         teamBScore: match.teamBScore,
+        officialTie: match.officialTie,
+      })),
+      standings: standings.map((standing) => ({
+        ...standing,
+        teamName: names.get(standing.teamId) ?? "Unknown team",
       })),
     };
   });

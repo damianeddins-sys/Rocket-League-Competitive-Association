@@ -8,6 +8,7 @@ import { MediaUploader } from "@/components/media-uploader";
 import { OperationsSidebar } from "@/components/operations-sidebar";
 import {
   AuditManager,
+  BracketManager,
   BotControl,
   DocumentManager,
   FranchiseWorkspace,
@@ -33,6 +34,7 @@ import { loadStorageHealth } from "@/services/storage-health";
 import { RLCA_FORMAT, RLCA_FULL_NAME } from "@/services/brand";
 import {
   loadAuditManagement,
+  loadBracketManagement,
   loadDocumentManagement,
   loadFranchiseWorkspace,
   loadOperationsOverview,
@@ -187,6 +189,9 @@ export default async function OperationsPage({
   const scheduleManagement = sectionKey === "schedule"
     ? await loadScheduleManagement(query.season)
     : null;
+  const bracketManagement = sectionKey === "brackets"
+    ? await loadBracketManagement(query.season)
+    : null;
   const selectedDataStatus = [
     overview,
     transactionManagement,
@@ -199,6 +204,7 @@ export default async function OperationsPage({
     statisticsWorkspace,
     productionWorkspace,
     scheduleManagement,
+    bracketManagement,
     userManagement,
     applicationQueue,
     contentManagement,
@@ -362,8 +368,13 @@ export default async function OperationsPage({
               />
             ) : scheduleManagement?.status === "READY" ? (
               <ScheduleManager data={scheduleManagement.data} />
+            ) : bracketManagement?.status === "READY" ? (
+              <BracketManager data={bracketManagement.data} />
             ) : productionWorkspace?.status === "READY" ? (
-              <ProductionWorkspace data={productionWorkspace.data} />
+              <ProductionWorkspace
+                data={productionWorkspace.data}
+                mode={sectionKey === "standings" ? "standings" : "matches"}
+              />
             ) : userManagement?.status === "READY" ? (
               <UserPermissionManager
                 users={userManagement.users}
