@@ -35,7 +35,7 @@ import {
 import { DISCORD_NOTIFICATION_EVENTS } from "./discord/notifications";
 import { isVerificationComplete, verificationAttentionStatus } from "./mmr";
 import { SEASON_ONE_RULES } from "./rules";
-import { calculateStandings } from "./points";
+import { calculateStandings, type PointEvent } from "./points";
 import { DEFAULT_TIER_ID, normalizeTierId, TIERS } from "./tiers";
 
 export type OperationsData<T> =
@@ -52,6 +52,13 @@ async function load<T>(query: () => Promise<T>): Promise<OperationsData<T>> {
     });
     return { status: "DATABASE_UNAVAILABLE", data: null };
   }
+}
+
+function qualificationPointCategory(type: string): PointEvent["category"] {
+  if (type.includes("LAST_CHANCE")) return "LAST_CHANCE";
+  if (type.includes("MAJOR")) return "MAJOR";
+  if (type.includes("CORRECTION")) return "CORRECTION";
+  return "REGULAR_SEASON";
 }
 
 export function loadOperationsOverview() {
@@ -468,7 +475,7 @@ export function loadBracketManagement(selectedSeasonId?: string) {
           .map((point) => ({
             teamId: point.teamId,
             points: Number(point.points),
-            category: point.category,
+            category: qualificationPointCategory(point.type),
             idempotencyKey: point.idempotencyKey,
           })));
         return {
@@ -921,7 +928,7 @@ export function loadProductionWorkspace(tierInput?: string) {
     }), pointRows.map((point) => ({
       teamId: point.teamId,
       points: Number(point.points),
-      category: point.category,
+      category: qualificationPointCategory(point.type),
       idempotencyKey: point.idempotencyKey,
     })));
     return {
