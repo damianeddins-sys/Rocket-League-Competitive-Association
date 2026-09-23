@@ -1200,7 +1200,7 @@ export function FranchiseWorkspace({
   data: {
     team: { name: string; primaryColor: string } | null;
     tiers: Array<{ name: string; slug: string }>;
-    roster: Array<{ id: string; playerId: string; handle: string; tier: { name: string; slug: string }; startsAt: string }>;
+    roster: Array<{ id: string; playerId: string; handle: string; role: string | null; tier: { name: string; slug: string }; startsAt: string }>;
     transactions: Array<{ id: string; type: string; status: string; tier: { name: string; slug: string }; createdAt: string }>;
     candidates: Array<{
       playerId: string;
@@ -1238,7 +1238,7 @@ export function FranchiseWorkspace({
       <section className="rounded-xl border border-slate-200 bg-white p-5">
         <div className="h-2 rounded-full" style={{ backgroundColor: data.team.primaryColor }} />
         <h3 className="mt-4 text-xl font-black text-[#081e3a]">{data.team.name} roster</h3>
-        <div className="mt-4 space-y-2">{data.roster.map((member) => <div key={member.id} className="rounded-lg bg-slate-50 p-3 text-sm font-bold">{member.handle}<span className="ml-2 text-xs uppercase text-slate-400">{member.tier.name}</span></div>)}</div>
+        <div className="mt-4 space-y-2">{data.roster.map((member) => <div key={member.id} className="rounded-lg bg-slate-50 p-3 text-sm font-bold">{member.handle}<span className="ml-2 text-xs uppercase text-slate-400">{member.role ?? "Legacy role unassigned"} · {member.tier.name}</span></div>)}</div>
         {!data.roster.length && <p className="mt-4 text-sm text-slate-500">No active roster memberships.</p>}
       </section>
       <section className="rounded-xl border border-slate-200 bg-white p-5">
@@ -1251,7 +1251,7 @@ export function FranchiseWorkspace({
         const tierCandidates = data.candidates.filter((candidate) => candidate.tierId === tier.slug);
         return <section key={tier.slug} className="rounded-xl border border-blue-200 bg-blue-50/40 p-5 lg:col-span-2">
         <h3 className="text-xl font-black text-[#081e3a]">Submit roster transaction</h3>
-        <p className="mt-2 text-sm text-slate-600">Propose exactly three {tier.name} players. The backend enforces season and tier isolation before saving.</p>
+        <p className="mt-2 text-sm text-slate-600">Propose exactly three {tier.name} players in lineup order: two starters, then one substitute. The backend enforces season and tier isolation before saving.</p>
         <form action={submitTransaction} className="mt-5 grid gap-3 md:grid-cols-3">
           <input type="hidden" name="tierId" value={tier.slug} />
           {[0, 1, 2].map((slot) => (
@@ -1261,9 +1261,9 @@ export function FranchiseWorkspace({
               required
               defaultValue={tierRoster[slot]?.playerId ?? ""}
               className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
-              aria-label={`Proposed roster player ${slot + 1}`}
+              aria-label={slot < 2 ? `Starter ${slot + 1}` : "Substitute"}
             >
-              <option value="">Select player</option>
+              <option value="">{slot < 2 ? `Select starter ${slot + 1}` : "Select substitute"}</option>
               {tierCandidates.map((candidate) => (
                 <option key={candidate.playerId} value={candidate.playerId} disabled={candidate.rosteredByOtherTeam || !candidate.eligibleForProposal}>
                   {candidate.handle} · {candidate.division} · {candidate.protectedRosterValue} PRV{candidate.rosteredByOtherTeam ? " · rostered elsewhere" : !candidate.eligibleForProposal ? ` · ${candidate.status.toLowerCase().replaceAll("_", " ")}` : ""}

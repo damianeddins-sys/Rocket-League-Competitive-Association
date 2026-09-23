@@ -616,6 +616,7 @@ export const rosterMemberships = pgTable(
     teamId: uuid("team_id").notNull().references(() => teams.id),
     playerId: uuid("player_id").notNull().references(() => players.id),
     divisionId: uuid("division_id").notNull().references(() => divisions.id),
+    role: text("role"),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }),
     acquiredBy: text("acquired_by").notNull(),

@@ -563,6 +563,7 @@ export async function PATCH(
               teamId: current.teamId,
               playerId,
               divisionId: playerSeason.divisionId!,
+              role: proposedIds.indexOf(playerId) < 2 ? "STARTER" : "SUBSTITUTE",
               startsAt: now,
               acquiredBy: "APPROVED_TRANSACTION",
             });
@@ -596,6 +597,27 @@ export async function PATCH(
                 sourceEntityId: current.id,
                 idempotencyKey: `transaction-role-sync:${current.id}:${playerId}:rostered`,
               })).onConflictDoNothing();
+            }
+          }
+          for (const [index, playerId] of proposedIds.entries()) {
+            if (addedIds.includes(playerId)) continue;
+            const membership = currentTeamMemberships.find((entry) => entry.playerId === playerId);
+            if (!membership) continue;
+            const role = index < 2 ? "STARTER" : "SUBSTITUTE";
+            if (membership.role === role) continue;
+            if (membership.role === null) {
+              await tx.update(rosterMemberships).set({ role }).where(eq(rosterMemberships.id, membership.id));
+            } else {
+              await tx.update(rosterMemberships).set({ endsAt: now }).where(eq(rosterMemberships.id, membership.id));
+              await tx.insert(rosterMemberships).values({
+                seasonId: membership.seasonId,
+                teamId: membership.teamId,
+                playerId: membership.playerId,
+                divisionId: membership.divisionId,
+                role,
+                startsAt: now,
+                acquiredBy: "ROLE_CHANGE_TRANSACTION",
+              });
             }
           }
           appliedRoster = proposedIds;

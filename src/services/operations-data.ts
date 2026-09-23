@@ -610,6 +610,7 @@ export function loadFranchiseWorkspace(franchiseNumber: number | null) {
         id: entry.id,
         playerId: entry.playerId,
         handle: handles.get(entry.playerId) ?? "Unknown player",
+        role: entry.role,
         tier: divisionNames.get(entry.divisionId) ?? { name: "Unknown", slug: "unknown" },
         startsAt: entry.startsAt.toISOString(),
       })),
