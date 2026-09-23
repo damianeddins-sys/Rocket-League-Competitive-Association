@@ -3,6 +3,7 @@ import {
   type AnyPgColumn,
   boolean,
   check,
+  customType,
   foreignKey,
   index,
   integer,
@@ -19,6 +20,11 @@ import {
 
 const id = () => uuid("id").defaultRandom().primaryKey();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).defaultNow().notNull();
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
 
 export const divisionCode = pgEnum("division_code", [
   "CONTENDER",
@@ -546,6 +552,32 @@ export const applicationEmailDocuments = pgTable(
     sentAt: createdAt(),
   },
   (table) => [index("application_email_document_application").on(table.applicationId, table.sentAt)],
+);
+
+export const leagueDocuments = pgTable(
+  "league_documents",
+  {
+    id: id(),
+    title: text("title").notNull(),
+    fileName: text("file_name").notNull(),
+    contentType: text("content_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    content: bytea("content").notNull(),
+    applicationId: uuid("application_id").references(() => applications.id),
+    playerId: uuid("player_id").references(() => players.id),
+    teamId: uuid("team_id").references(() => teams.id),
+    seasonId: uuid("season_id").references(() => seasons.id),
+    replacesDocumentId: uuid("replaces_document_id").references((): AnyPgColumn => leagueDocuments.id),
+    uploadedBy: uuid("uploaded_by").notNull().references(() => users.id),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("league_document_application").on(table.applicationId, table.createdAt),
+    index("league_document_player").on(table.playerId, table.createdAt),
+    index("league_document_team").on(table.teamId, table.createdAt),
+    index("league_document_season").on(table.seasonId, table.createdAt),
+  ],
 );
 
 export const siteContent = pgTable(

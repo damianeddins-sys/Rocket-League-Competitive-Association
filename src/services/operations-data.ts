@@ -24,6 +24,7 @@ import {
   teamSeasonEntries,
   tierHistory,
   events,
+  leagueDocuments,
   matches,
   mmrSnapshots,
   mmrVerificationWindows,
@@ -514,10 +515,28 @@ export function loadBracketManagement(selectedSeasonId?: string) {
 export function loadDocumentManagement() {
   return load(async () => {
     const db = getDatabase();
-    const [documents, applicationRows, userRows] = await Promise.all([
+    const [documents, applicationRows, userRows, leagueDocumentRows, playerRows, teamRows, seasonRows] = await Promise.all([
       db.select().from(applicationEmailDocuments).orderBy(desc(applicationEmailDocuments.sentAt)).limit(250),
       db.select({ id: applications.id, name: applications.fullName }).from(applications),
       db.select({ id: users.id, name: users.displayName }).from(users),
+      db.select({
+        id: leagueDocuments.id,
+        title: leagueDocuments.title,
+        fileName: leagueDocuments.fileName,
+        contentType: leagueDocuments.contentType,
+        sizeBytes: leagueDocuments.sizeBytes,
+        applicationId: leagueDocuments.applicationId,
+        playerId: leagueDocuments.playerId,
+        teamId: leagueDocuments.teamId,
+        seasonId: leagueDocuments.seasonId,
+        replacesDocumentId: leagueDocuments.replacesDocumentId,
+        uploadedBy: leagueDocuments.uploadedBy,
+        archivedAt: leagueDocuments.archivedAt,
+        createdAt: leagueDocuments.createdAt,
+      }).from(leagueDocuments).orderBy(desc(leagueDocuments.createdAt)).limit(500),
+      db.select({ id: players.id, name: players.handle }).from(players).orderBy(asc(players.handle)),
+      db.select({ id: teams.id, name: teams.name }).from(teams).orderBy(asc(teams.name)),
+      db.select({ id: seasons.id, name: seasons.name }).from(seasons).orderBy(desc(seasons.startsAt)),
     ]);
     const applicationNames = new Map(applicationRows.map((entry) => [entry.id, entry.name]));
     const userNames = new Map(userRows.map((entry) => [entry.id, entry.name]));
@@ -534,6 +553,24 @@ export function loadDocumentManagement() {
         id: application.id,
         name: application.name,
       })),
+      leagueDocuments: leagueDocumentRows.map((document) => ({
+        ...document,
+        association: document.applicationId
+          ? `Application · ${applicationNames.get(document.applicationId) ?? document.applicationId}`
+          : document.playerId
+            ? `Player · ${playerRows.find((player) => player.id === document.playerId)?.name ?? document.playerId}`
+            : document.teamId
+              ? `Team · ${teamRows.find((team) => team.id === document.teamId)?.name ?? document.teamId}`
+              : document.seasonId
+                ? `Season · ${seasonRows.find((season) => season.id === document.seasonId)?.name ?? document.seasonId}`
+                : "League-wide",
+        uploadedByName: userNames.get(document.uploadedBy) ?? "Unknown staff",
+        archivedAt: document.archivedAt?.toISOString() ?? null,
+        createdAt: document.createdAt.toISOString(),
+      })),
+      players: playerRows,
+      teams: teamRows,
+      seasons: seasonRows,
     };
   });
 }

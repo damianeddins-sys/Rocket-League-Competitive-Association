@@ -705,9 +705,28 @@ type DocumentRow = {
 export function DocumentManager({
   documents,
   applications,
+  leagueDocuments,
+  players,
+  teams,
+  seasons,
 }: {
   documents: DocumentRow[];
   applications: Array<{ id: string; name: string }>;
+  leagueDocuments: Array<{
+    id: string;
+    title: string;
+    fileName: string;
+    contentType: string;
+    sizeBytes: number;
+    association: string;
+    uploadedByName: string;
+    replacesDocumentId: string | null;
+    archivedAt: string | null;
+    createdAt: string;
+  }>;
+  players: Array<{ id: string; name: string }>;
+  teams: Array<{ id: string; name: string }>;
+  seasons: Array<{ id: string; name: string }>;
 }) {
   const router = useRouter();
   const [message, setMessage] = useState<string>();
@@ -721,9 +740,63 @@ export function DocumentManager({
     setMessage(response.ok ? "Document sent and recorded in the delivery ledger." : result.error ?? "Document delivery failed");
     if (response.ok) router.refresh();
   }
+  async function upload(formData: FormData) {
+    setMessage("Encrypting transport and storing private league document…");
+    const association = String(formData.get("association") ?? "NONE:");
+    const [associationType, associationId = ""] = association.split(":");
+    formData.set("associationType", associationType);
+    formData.set("associationId", associationId);
+    formData.delete("association");
+    const response = await fetch("/api/admin/documents", { method: "POST", body: formData });
+    const result = await readApiResult<object>(response);
+    setMessage(response.ok ? "Private league document stored and audited." : result.error ?? "Document upload failed");
+    if (response.ok) router.refresh();
+  }
+  async function archive(formData: FormData) {
+    if (!window.confirm("Archive this document? Its protected history and replacement chain will be preserved.")) return;
+    const response = await fetch("/api/admin/documents", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.fromEntries(formData.entries())),
+    });
+    const result = await readApiResult<object>(response);
+    setMessage(response.ok ? "Document archived and audited." : result.error ?? "Document could not be archived");
+    if (response.ok) router.refresh();
+  }
   return (
     <div className="mt-7 space-y-3">
       <Feedback message={message} />
+      <form action={upload} className="rounded-xl border border-blue-200 bg-blue-50/50 p-5">
+        <h3 className="font-black text-blue-950">Private league document storage</h3>
+        <p className="mt-1 text-sm text-blue-900">Files are stored in the protected database and downloaded only through an authenticated, permission-checked endpoint.</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <input name="title" required minLength={2} maxLength={160} placeholder="Document title" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
+          <select name="association" required className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">
+            <option value="NONE:">League-wide document</option>
+            <optgroup label="Applications">{applications.map((item) => <option key={item.id} value={`APPLICATION:${item.id}`}>{item.name}</option>)}</optgroup>
+            <optgroup label="Players">{players.map((item) => <option key={item.id} value={`PLAYER:${item.id}`}>{item.name}</option>)}</optgroup>
+            <optgroup label="Teams / Franchises">{teams.map((item) => <option key={item.id} value={`TEAM:${item.id}`}>{item.name}</option>)}</optgroup>
+            <optgroup label="Seasons">{seasons.map((item) => <option key={item.id} value={`SEASON:${item.id}`}>{item.name}</option>)}</optgroup>
+          </select>
+          <input name="document" type="file" required accept=".pdf,.docx,image/png,image/jpeg" className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm" />
+          <select name="replacesDocumentId" className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="">New document</option>{leagueDocuments.filter((document) => !document.archivedAt).map((document) => <option key={document.id} value={document.id}>Replace · {document.title}</option>)}</select>
+          <input name="reason" required minLength={3} maxLength={2000} placeholder="Required upload or replacement reason" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
+          <button className="rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Upload private document</button>
+        </div>
+      </form>
+      <section className="space-y-3">
+        <h3 className="text-lg font-black text-[#081e3a]">Stored league documents</h3>
+        {leagueDocuments.map((document) => (
+          <article key={document.id} className="grid gap-3 rounded-xl border border-slate-200 bg-white p-5 md:grid-cols-[1fr_auto]">
+            <div><h4 className="font-black text-[#081e3a]">{document.title}</h4><p className="mt-1 text-sm text-slate-600">{document.fileName} · {document.association}</p><p className="mt-1 text-xs text-slate-400">{(document.sizeBytes / 1024).toFixed(1)} KB · {document.uploadedByName} · {new Date(document.createdAt).toLocaleString()}</p>{document.replacesDocumentId && <p className="mt-1 text-xs font-bold text-blue-700">Replacement for {document.replacesDocumentId}</p>}</div>
+            <div className="flex flex-wrap items-start gap-2">
+              <a href={`/api/admin/documents/${document.id}`} className="rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-black text-blue-800">Download</a>
+              {document.archivedAt ? <span className="rounded-full bg-slate-100 px-3 py-2 text-xs font-black text-slate-500">ARCHIVED</span> : <form action={archive}><input type="hidden" name="id" value={document.id} /><input name="reason" required minLength={3} maxLength={2000} placeholder="Archive reason" className="rounded-lg border border-slate-300 px-3 py-2 text-xs" /><button className="ml-2 rounded-lg bg-slate-800 px-3 py-2 text-xs font-black text-white">Archive</button></form>}
+            </div>
+          </article>
+        ))}
+        {!leagueDocuments.length && <Empty text="No private league documents are stored." />}
+      </section>
       <form action={send} className="rounded-xl border border-blue-200 bg-blue-50/50 p-5">
         <h3 className="font-black text-blue-950">Send signup document</h3>
         <p className="mt-1 text-sm text-blue-900">Delivery occurs only after Resend confirms the request. Every successful delivery is stored below.</p>
