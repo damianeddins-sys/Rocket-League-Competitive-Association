@@ -50,35 +50,118 @@ async function load<T>(query: () => Promise<T>): Promise<OperationsData<T>> {
 export function loadOperationsOverview() {
   return load(async () => {
     const db = getDatabase();
+    const now = new Date();
     const [
       [applicationCount],
       [transactionCount],
       [playerCount],
       [teamCount],
       [userCount],
+      applicationRows,
+      transactionRows,
       divisionRows,
       entryRows,
       matchRows,
       activeSeasonRows,
+      eventRows,
+      verificationRows,
+      activePlayerSeasonRows,
+      recentAuditRows,
+      auditUserRows,
     ] = await Promise.all([
       db.select({ value: count() }).from(applications),
       db.select({ value: count() }).from(transactionRequests),
       db.select({ value: count() }).from(players),
       db.select({ value: count() }).from(teams),
       db.select({ value: count() }).from(users),
+      db.select({ status: applications.status }).from(applications),
+      db.select({ status: transactionRequests.status }).from(transactionRequests),
       db.select().from(divisions),
       db.select().from(teamSeasonEntries),
       db.select().from(matches),
-      db.select({ id: seasons.id }).from(seasons).where(eq(seasons.active, true)).limit(1),
+      db.select({
+        id: seasons.id,
+        name: seasons.name,
+        status: seasons.status,
+        startsAt: seasons.startsAt,
+        endsAt: seasons.endsAt,
+      }).from(seasons).where(eq(seasons.active, true)).limit(1),
+      db.select().from(events),
+      db.select().from(mmrVerificationWindows),
+      db.select().from(playerSeasons),
+      db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(8),
+      db.select({ id: users.id, name: users.displayName }).from(users),
     ]);
+    const activeSeason = activeSeasonRows[0] ?? null;
+    const activeSeasonId = activeSeason?.id;
+    const activeMatches = matchRows.filter((match) => match.seasonId === activeSeasonId);
+    const nextMatch = activeMatches
+      .filter((match) => match.scheduledAt >= now && match.status === "SCHEDULED")
+      .sort((left, right) => left.scheduledAt.getTime() - right.scheduledAt.getTime())[0];
+    const upcomingEvents = eventRows
+      .filter((event) => event.seasonId === activeSeasonId && event.endsAt >= now)
+      .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime())
+      .slice(0, 4)
+      .map((event) => ({
+        id: event.id,
+        name: event.name,
+        type: event.type,
+        startsAt: event.startsAt.toISOString(),
+      }));
+    const activeVerifications = verificationRows.filter((window) => window.seasonId === activeSeasonId);
+    const playersNeedingVerification = activePlayerSeasonRows
+      .filter((entry) => entry.seasonId === activeSeasonId && entry.currentMmr === null)
+      .filter((entry) => {
+        const verification = activeVerifications.find((window) => window.playerId === entry.playerId);
+        return !verification || !isVerificationComplete({
+          opensAt: verification.opensAt,
+          evaluatedAt: now,
+          rankedGamesPlayed: verification.rankedGamesPlayed,
+        });
+      }).length;
+    const auditUserNames = new Map(auditUserRows.map((user) => [user.id, user.name]));
     return {
       applications: applicationCount.value,
       transactions: transactionCount.value,
       players: playerCount.value,
       franchises: teamCount.value,
       members: userCount.value,
+      activeSeason: activeSeason
+        ? {
+            name: activeSeason.name,
+            status: activeSeason.status,
+            startsAt: activeSeason.startsAt.toISOString(),
+            endsAt: activeSeason.endsAt.toISOString(),
+          }
+        : null,
+      nextMatch: nextMatch
+        ? {
+            scheduledAt: nextMatch.scheduledAt.toISOString(),
+            bestOf: nextMatch.bestOf,
+            status: nextMatch.status,
+          }
+        : null,
+      attention: {
+        applications: applicationRows.filter((application) =>
+          ["SUBMITTED", "UNDER_REVIEW", "MORE_INFO_REQUIRED"].includes(application.status)).length,
+        mmr: playersNeedingVerification,
+        transactions: transactionRows.filter((transaction) =>
+          ["PENDING", "MORE_INFO_REQUIRED", "ON_HOLD", "EXCEPTION_REQUIRED"].includes(transaction.status)).length,
+      },
+      upcomingEvents,
+      standings: {
+        verifiedMatches: activeMatches.filter((match) => match.status === "VERIFIED").length,
+        totalMatches: activeMatches.length,
+      },
+      recentActivity: recentAuditRows.map((entry) => ({
+        id: entry.id,
+        action: entry.action,
+        entityType: entry.entityType,
+        actor: entry.actorId ? auditUserNames.get(entry.actorId) ?? "Authorized staff" : "System",
+        createdAt: entry.createdAt.toISOString(),
+      })),
+      systemStatus: "DATABASE_CONNECTED" as const,
       tiers: TIERS.map((tier) => {
-        const activeSeasonId = activeSeasonRows[0]?.id;
         const divisionIds = new Set(
           divisionRows
             .filter((division) => division.slug === tier.id && division.seasonId === activeSeasonId)

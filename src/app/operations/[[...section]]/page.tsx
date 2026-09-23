@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Activity, Bot, CalendarDays, Database, FileClock, HardDrive, Image, Settings, ShieldAlert, UserRoundCheck, Users } from "lucide-react";
 import { ApplicationManager } from "@/components/application-manager";
 import { ContentManager } from "@/components/content-manager";
 import { MediaUploader } from "@/components/media-uploader";
+import { OperationsSidebar } from "@/components/operations-sidebar";
 import {
   AuditManager,
   BotControl,
@@ -47,32 +49,35 @@ export const metadata: Metadata = { title: "Operations" };
 export const dynamic = "force-dynamic";
 
 const sections = {
-  overview: { label: "Operations Dashboard", portal: "LEAGUE_OPERATIONS" as Portal, icon: Activity },
-  applications: { label: "Applications", portal: "SIGN_UP_MANAGER" as Portal, permission: "applications.manage" as Permission, icon: UserRoundCheck },
-  transactions: { label: "Rosters & Transactions", portal: "LEAGUE_OPERATIONS" as Portal, permission: "transaction.approve" as Permission, icon: FileClock },
-  players: { label: "Players & Members", portal: "SIGN_UP_MANAGER" as Portal, permission: "player.manage" as Permission, icon: Users },
-  mmr: { label: "MMR Management", portal: "STATISTICS" as Portal, permission: "statistics.review" as Permission, icon: Activity },
-  teams: { label: "Teams & Franchises", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: ShieldAlert },
-  matches: { label: "Matches", portal: "PRODUCTION" as Portal, permission: "matches.manage" as Permission, icon: Activity },
-  standings: { label: "Standings & Results", portal: "PRODUCTION" as Portal, permission: "matches.manage" as Permission, icon: Activity },
-  tiers: { label: "Tier Management", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: Settings },
-  seasons: { label: "Seasons", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: CalendarDays },
-  staff: { label: "Staff", portal: "LEAGUE_OPERATIONS" as Portal, permission: "users.manage" as Permission, icon: Users },
-  documents: { label: "Documents", portal: "SIGN_UP_MANAGER" as Portal, permission: "applications.manage" as Permission, icon: FileClock },
-  media: { label: "Photos & Media", portal: "LEAGUE_OPERATIONS" as Portal, permission: "media.manage" as Permission, icon: Image },
-  content: { label: "Website Content", portal: "LEAGUE_OPERATIONS" as Portal, permission: "content.manage" as Permission, icon: FileClock },
-  news: { label: "News", portal: "LEAGUE_OPERATIONS" as Portal, permission: "content.manage" as Permission, icon: FileClock },
-  "site-info": { label: "Site Information", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: FileClock },
-  rules: { label: "Rules", portal: "LEAGUE_OPERATIONS" as Portal, permission: "rules.manage" as Permission, icon: FileClock },
-  settings: { label: "Settings", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: Settings },
-  permissions: { label: "Permissions & RBAC", portal: "LEAGUE_OPERATIONS" as Portal, permission: "users.manage" as Permission, icon: ShieldAlert },
-  health: { label: "System Health", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.full" as Permission, icon: Activity },
-  storage: { label: "Storage Health", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.full" as Permission, icon: HardDrive },
-  bot: { label: "Discord Bot", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.full" as Permission, icon: Bot },
-  audit: { label: "Audit Log", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.full" as Permission, icon: Database },
-  franchise: { label: "Franchise Manager", portal: "FRANCHISE_MANAGER" as Portal, permission: "franchise.view" as Permission, icon: Users },
-  statistics: { label: "Statistics & Replays", portal: "STATISTICS" as Portal, permission: "statistics.review" as Permission, icon: Database },
-  production: { label: "Production", portal: "PRODUCTION" as Portal, permission: "production.view" as Permission, icon: Activity },
+  overview: { label: "Operations Dashboard", description: "Live priorities, upcoming competition, recent activity, and system status.", portal: "LEAGUE_OPERATIONS" as Portal, icon: Activity },
+  seasons: { label: "Seasons", description: "Create, configure, activate, complete, and preserve league seasons.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: CalendarDays },
+  schedule: { label: "Schedule", description: "Manage weeks, match nights, official series, and event dates.", portal: "PRODUCTION" as Portal, permission: "matches.manage" as Permission, icon: CalendarDays },
+  matches: { label: "Matches", description: "Schedule official series, enter results, and lock verified outcomes.", portal: "PRODUCTION" as Portal, permission: "matches.manage" as Permission, icon: Activity },
+  brackets: { label: "Brackets", description: "Build and publish Major brackets from official seeding.", portal: "PRODUCTION" as Portal, permission: "matches.manage" as Permission, icon: Activity },
+  standings: { label: "Standings", description: "Review calculated records, Qualification Points, and event seeds.", portal: "PRODUCTION" as Portal, permission: "matches.manage" as Permission, icon: Activity },
+  statistics: { label: "Statistics", description: "Review official match and player statistics.", portal: "STATISTICS" as Portal, permission: "statistics.review" as Permission, icon: Database },
+  replays: { label: "Replays", description: "Review replay submissions attached to official matches.", portal: "STATISTICS" as Portal, permission: "statistics.review" as Permission, icon: Database },
+  applications: { label: "Applications", description: "Assign, review, approve, deny, or request changes with a full audit trail.", portal: "SIGN_UP_MANAGER" as Portal, permission: "applications.manage" as Permission, icon: UserRoundCheck },
+  players: { label: "Players & Members", description: "Search official members and inspect their complete league history.", portal: "SIGN_UP_MANAGER" as Portal, permission: "player.manage" as Permission, icon: Users },
+  teams: { label: "Teams & Franchises", description: "Manage official team identities, franchise assignments, and season entries.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: ShieldAlert },
+  rosters: { label: "Rosters", description: "Review current lineups, pending changes, and preserved roster history.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "transaction.approve" as Permission, icon: Users },
+  transactions: { label: "Transactions", description: "Review and complete audited roster transactions.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "transaction.approve" as Permission, icon: FileClock },
+  mmr: { label: "MMR Management", description: "Track verification eligibility, evidence, rating changes, and placement.", portal: "STATISTICS" as Portal, permission: "statistics.review" as Permission, icon: Activity },
+  tiers: { label: "Tier Management", description: "Manage official configured tier rules without hardcoded cutoffs.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: Settings },
+  "player-history": { label: "Player History", description: "Trace player seasons, tiers, teams, matches, and transactions.", portal: "SIGN_UP_MANAGER" as Portal, permission: "player.manage" as Permission, icon: FileClock },
+  franchise: { label: "Franchise Manager", description: "Manage franchise ownership, contacts, teams, documents, and notes.", portal: "FRANCHISE_MANAGER" as Portal, permission: "franchise.view" as Permission, icon: Users },
+  documents: { label: "Documents", description: "Manage protected documents and their league record associations.", portal: "SIGN_UP_MANAGER" as Portal, permission: "applications.manage" as Permission, icon: FileClock },
+  "league-logs": { label: "League Logs", description: "Follow the operational timeline separately from immutable security audit.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: FileClock },
+  audit: { label: "Audit Log", description: "Inspect immutable records of privileged system changes.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.full" as Permission, icon: Database },
+  content: { label: "News & Website Content", description: "Publish official news and maintain public website content.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "content.manage" as Permission, icon: FileClock },
+  media: { label: "Photos & Media", description: "Upload and manage approved public media assets.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "media.manage" as Permission, icon: Image },
+  rules: { label: "Rules", description: "Publish the official rulebook and policy content.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "rules.manage" as Permission, icon: FileClock },
+  "site-info": { label: "Site Information", description: "Maintain official league information shown on the website.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: FileClock },
+  permissions: { label: "Staff Permissions & RBAC", description: "Manage staff access while preserving server-side role enforcement.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "users.manage" as Permission, icon: ShieldAlert },
+  health: { label: "System Health", description: "Review production configuration and live service checks.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.full" as Permission, icon: Activity },
+  storage: { label: "Storage Health", description: "Review protected storage usage and report-only cleanup candidates.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.full" as Permission, icon: HardDrive },
+  bot: { label: "Discord Bot", description: "Monitor the optional Discord integration without coupling core operations.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.full" as Permission, icon: Bot },
+  settings: { label: "Settings", description: "Manage league-wide operational configuration.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: Settings },
 } as const;
 
 export default async function OperationsPage({
@@ -84,6 +89,9 @@ export default async function OperationsPage({
 }) {
   const { section } = await params;
   const query = await searchParams;
+  if (section?.[0] === "staff") redirect("/operations/permissions");
+  if (section?.[0] === "news") redirect("/operations/content");
+  if (section?.[0] === "production") redirect("/operations/matches");
   const rawPage = query.page;
   const tierId = normalizeTierId(query.tier) ?? DEFAULT_TIER_ID;
   const page = rawPage && /^\d+$/.test(rawPage) ? Math.max(1, Number(rawPage)) : 1;
@@ -121,34 +129,25 @@ export default async function OperationsPage({
   const quickActions = OPERATIONS_QUICK_ACTIONS.flatMap(([label, key, description]) => canSeeSection(key as keyof typeof sections)
     ? [{ label, href: `/operations/${key}`, description }]
     : []);
-  const navigationGroups = OPERATIONS_SECTION_GROUPS.map((group) => {
+  const navigationGroups = OPERATIONS_SECTION_GROUPS.flatMap((group) => {
     const visible = group.keys.filter((key) => canSeeSection(key as keyof typeof sections));
-    if (!visible.length) return null;
-    return (
-      <div key={group.label} className="border-b border-white/10 py-2 last:border-0">
-        <p className="px-3 pb-2 pt-1 text-[10px] font-black uppercase tracking-[.18em] text-slate-500">{group.label}</p>
-        {visible.map((key) => {
-          const item = sections[key];
-          const Icon = item.icon;
-          return (
-            <Link
-              key={key}
-              href={key === "overview" ? "/operations" : `/operations/${key}`}
-              className={`flex items-center gap-3 rounded-r-md border-l-2 px-4 py-2.5 text-sm font-bold ${key === sectionKey ? "border-[#1683ff] bg-blue-500/15 text-blue-200" : "border-transparent text-slate-400 hover:bg-white/[0.06] hover:text-white"}`}
-            >
-              <Icon size={17} /> {item.label}
-            </Link>
-          );
-        })}
-      </div>
-    );
+    if (!visible.length) return [];
+    return [{
+      label: group.label,
+      items: visible.map((key) => ({
+        key,
+        label: sections[key].label,
+        href: key === "overview" ? "/operations" : `/operations/${key}`,
+        icon: sections[key].icon,
+      })),
+    }];
   });
   const botHealth = sectionKey === "bot"
     ? await getDiscordBotHealth()
     : null;
   const systemHealth = sectionKey === "health"
     ? await getSystemHealth(
-      `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/staff/system-health`,
+      `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/operations/health`,
     )
     : null;
   const storageHealth = sectionKey === "storage"
@@ -166,21 +165,21 @@ export default async function OperationsPage({
   const contentManagement = contentCategory
     ? await loadSiteContentManagement(contentCategory)
     : null;
-  const userManagement = sectionKey === "staff" || sectionKey === "permissions"
+  const userManagement = sectionKey === "permissions"
     ? await loadUserManagement()
     : null;
   const overview = sectionKey === "overview" ? await loadOperationsOverview() : null;
-  const transactionManagement = sectionKey === "transactions" ? await loadTransactionManagement(page) : null;
-  const playerManagement = sectionKey === "players" || sectionKey === "mmr" ? await loadPlayerManagement() : null;
+  const transactionManagement = sectionKey === "transactions" || sectionKey === "rosters" ? await loadTransactionManagement(page) : null;
+  const playerManagement = sectionKey === "players" || sectionKey === "mmr" || sectionKey === "player-history" ? await loadPlayerManagement() : null;
   const teamManagement = sectionKey === "teams" ? await loadTeamManagement() : null;
   const documentManagement = sectionKey === "documents" ? await loadDocumentManagement() : null;
   const settingsManagement = sectionKey === "settings" || sectionKey === "tiers" || sectionKey === "seasons"
     ? await loadSettingsManagement()
     : null;
-  const auditManagement = sectionKey === "audit" ? await loadAuditManagement() : null;
+  const auditManagement = sectionKey === "audit" || sectionKey === "league-logs" ? await loadAuditManagement() : null;
   const franchiseWorkspace = sectionKey === "franchise" ? await loadFranchiseWorkspace(access.franchiseNumber) : null;
-  const statisticsWorkspace = sectionKey === "statistics" ? await loadStatisticsWorkspace(tierId) : null;
-  const productionWorkspace = sectionKey === "production" || sectionKey === "matches" || sectionKey === "standings"
+  const statisticsWorkspace = sectionKey === "statistics" || sectionKey === "replays" ? await loadStatisticsWorkspace(tierId) : null;
+  const productionWorkspace = ["schedule", "matches", "brackets", "standings"].includes(sectionKey)
     ? await loadProductionWorkspace(tierId)
     : null;
   const selectedDataStatus = [
@@ -218,21 +217,14 @@ export default async function OperationsPage({
         </div>
       </section>
       <main className="mx-auto grid max-w-7xl gap-7 px-5 py-10 lg:grid-cols-[18rem_minmax(0,1fr)] lg:px-8">
-        <aside className="h-fit lg:sticky lg:top-28">
-          <details className="overflow-hidden rounded-xl border border-white/10 bg-[#07172b] text-white shadow-xl lg:hidden">
-            <summary className="cursor-pointer list-none px-5 py-4 font-black">Operations navigation · {current.label}</summary>
-            <nav className="max-h-[65vh] overflow-y-auto p-2" aria-label="Operations sections">{navigationGroups}</nav>
-          </details>
-          <nav className="hidden overflow-hidden rounded-xl border border-white/10 bg-[#07172b] p-2 text-white shadow-xl lg:block" aria-label="Operations sections">
-            {navigationGroups}
-          </nav>
-        </aside>
+        <OperationsSidebar groups={navigationGroups} currentKey={sectionKey} currentLabel={current.label} />
         <section className="min-w-0">
           <div className="operations-shell p-6 sm:p-8 xl:p-10">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="eyebrow text-[#1683ff]">Secure workspace</p>
                 <h2 className="mt-2 text-2xl font-black text-[#081e3a]">{current.label}</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{current.description}</p>
               </div>
               <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-600">OFFICIAL DATABASE</span>
             </div>

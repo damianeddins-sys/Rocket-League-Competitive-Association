@@ -54,6 +54,19 @@ export function OperationsOverview({
   quickActions,
 }: {
   counts: Record<"applications" | "transactions" | "players" | "franchises" | "members", number> & {
+    activeSeason: { name: string; status: string; startsAt: string; endsAt: string } | null;
+    nextMatch: { scheduledAt: string; bestOf: number; status: string } | null;
+    attention: { applications: number; mmr: number; transactions: number };
+    upcomingEvents: Array<{ id: string; name: string; type: string; startsAt: string }>;
+    standings: { verifiedMatches: number; totalMatches: number };
+    recentActivity: Array<{
+      id: string;
+      action: string;
+      entityType: string;
+      actor: string;
+      createdAt: string;
+    }>;
+    systemStatus: "DATABASE_CONNECTED";
     tiers: Array<{
       id: TierId;
       name: string;
@@ -70,7 +83,7 @@ export function OperationsOverview({
     transactions: "/operations/transactions",
     players: "/operations/players",
     franchises: "/operations/teams",
-    members: "/operations/staff",
+    members: "/operations/permissions",
   };
   const summary = {
     applications: counts.applications,
@@ -84,8 +97,48 @@ export function OperationsOverview({
     <div className="mb-6 rounded-xl bg-[#061426] p-6 text-white">
       <p className="eyebrow text-blue-300">Season operations snapshot</p>
       <h3 className="mt-2 text-3xl font-black">League control center</h3>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Live totals from the official database. Select a metric to open its protected management workspace.</p>
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Live priorities from the official database. Empty cards mean there is no stored work to display.</p>
     </div>
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <article className="rounded-xl border border-slate-200 bg-white p-5">
+        <p className="section-kicker">Active season</p>
+        <h4 className="mt-2 text-xl font-black text-[#081e3a]">{counts.activeSeason?.name ?? "No active season"}</h4>
+        <p className="mt-2 text-sm text-slate-600">{counts.activeSeason ? `${counts.activeSeason.status} · ${new Date(counts.activeSeason.startsAt).toLocaleDateString()}–${new Date(counts.activeSeason.endsAt).toLocaleDateString()}` : "Create and configure a season before activation."}</p>
+      </article>
+      <article className="rounded-xl border border-slate-200 bg-white p-5">
+        <p className="section-kicker">Upcoming match night</p>
+        <h4 className="mt-2 text-xl font-black text-[#081e3a]">{counts.nextMatch ? new Date(counts.nextMatch.scheduledAt).toLocaleString() : "Nothing scheduled"}</h4>
+        <p className="mt-2 text-sm text-slate-600">{counts.nextMatch ? `Official BO${counts.nextMatch.bestOf} · ${counts.nextMatch.status}` : "No future official match is stored."}</p>
+      </article>
+      <article className="rounded-xl border border-slate-200 bg-white p-5">
+        <p className="section-kicker">Standings status</p>
+        <h4 className="mt-2 text-xl font-black text-[#081e3a]">{counts.standings.verifiedMatches} / {counts.standings.totalMatches} results</h4>
+        <p className="mt-2 text-sm text-slate-600">{counts.standings.totalMatches ? "Standings derive from verified official results." : "No official matches exist for the active season."}</p>
+      </article>
+      <article className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+        <p className="section-kicker text-emerald-700">System status</p>
+        <h4 className="mt-2 text-xl font-black text-emerald-950">Official database connected</h4>
+        <p className="mt-2 text-sm text-emerald-800">This snapshot contains no mock or fallback records.</p>
+      </article>
+    </div>
+    <section className="mt-7">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div><p className="section-kicker">Needs attention</p><h3 className="mt-2 text-2xl font-black text-[#081e3a]">Operations queue</h3></div>
+      </div>
+      <div className="mt-3 grid gap-4 md:grid-cols-3">
+        {[
+          { label: "Applications needing review", value: counts.attention.applications, href: "/operations/applications" },
+          { label: "Players needing MMR verification", value: counts.attention.mmr, href: "/operations/mmr" },
+          { label: "Pending roster transactions", value: counts.attention.transactions, href: "/operations/transactions" },
+        ].map((item) => (
+          <Link key={item.href} href={item.href} className="metric-tile hover:border-blue-300">
+            <p className="stat-number text-4xl text-[#081e3a]">{item.value}</p>
+            <p className="mt-1 text-xs font-black uppercase tracking-wider text-slate-500">{item.label}</p>
+            <p className="mt-4 text-[10px] font-black uppercase tracking-[.1em] text-[#168bff]">Open queue →</p>
+          </Link>
+        ))}
+      </div>
+    </section>
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
       {Object.entries(summary).map(([label, value]) => (
         <Link key={label} href={links[label as keyof typeof links]} className="metric-tile hover:border-blue-300">
@@ -94,6 +147,35 @@ export function OperationsOverview({
           <p className="mt-4 text-[10px] font-black uppercase tracking-[.1em] text-[#168bff]">Manage →</p>
         </Link>
       ))}
+    </div>
+    <div className="mt-7 grid gap-5 lg:grid-cols-2">
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <h3 className="text-lg font-black text-[#081e3a]">Upcoming events</h3>
+        <div className="mt-3 space-y-3">
+          {counts.upcomingEvents.map((event) => (
+            <div key={event.id} className="rounded-lg bg-slate-50 p-3 text-sm">
+              <strong>{event.name}</strong>
+              <p className="mt-1 text-xs text-slate-500">{event.type.replaceAll("_", " ")} · {new Date(event.startsAt).toLocaleString()}</p>
+            </div>
+          ))}
+          {!counts.upcomingEvents.length && <Empty text="No upcoming season events are stored." />}
+        </div>
+      </section>
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-lg font-black text-[#081e3a]">Recent league activity</h3>
+          <Link href="/operations/audit" className="text-xs font-black text-[#0765c9]">Full audit →</Link>
+        </div>
+        <div className="mt-3 space-y-3">
+          {counts.recentActivity.map((entry) => (
+            <div key={entry.id} className="rounded-lg bg-slate-50 p-3 text-sm">
+              <strong>{entry.action.replaceAll("_", " ")}</strong>
+              <p className="mt-1 text-xs text-slate-500">{entry.entityType} · {entry.actor} · {new Date(entry.createdAt).toLocaleString()}</p>
+            </div>
+          ))}
+          {!counts.recentActivity.length && <Empty text="No audited activity is stored yet." />}
+        </div>
+      </section>
     </div>
     <section className="mt-7">
       <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="section-kicker">Competition structure</p><h3 className="mt-2 text-2xl font-black text-[#081e3a]">Active season by tier</h3></div><Link href="/operations/tiers" className="text-sm font-black text-[#0765c9]">Manage tiers →</Link></div>
