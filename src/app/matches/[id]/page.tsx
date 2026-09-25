@@ -9,10 +9,11 @@ export const dynamic = "force-dynamic";
 export default async function MatchDetailPage({
   params,
   searchParams,
-}: PageProps<"/matches/[id]"> & { searchParams: Promise<{ tier?: string }> }) {
+}: PageProps<"/matches/[id]"> & { searchParams: Promise<{ tier?: string; season?: string }> }) {
   const { id } = await params;
-  const tierId = normalizeTierId((await searchParams).tier) ?? DEFAULT_TIER_ID;
-  const data = await loadPublicLeagueData({ tier: tierId });
+  const query = await searchParams;
+  const tierId = normalizeTierId(query.tier) ?? DEFAULT_TIER_ID;
+  const data = await loadPublicLeagueData({ tier: tierId, season: query.season });
   if (data.status !== "ready") {
     return (
       <section className="min-h-[70vh] bg-[#f4f7fa] px-5 py-16">

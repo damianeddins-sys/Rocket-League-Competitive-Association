@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { SeasonSwitcher } from "@/components/season-switcher";
 import { TierBadge, TierIcon, TierNavigation } from "@/components/tier-navigation";
 import { readApiResult } from "@/services/api-response";
 import { normalizeTierId, tierDefinition, type TierId } from "@/services/tiers";
@@ -1688,6 +1689,8 @@ export function ProductionWorkspace({
   mode?: "matches" | "standings";
   data: {
     tierId: TierId;
+    season: { id: string; name: string; slug: string; active: boolean } | null;
+    availableSeasons: Array<{ id: string; name: string; slug: string; active: boolean }>;
     events: Array<{ id: string; name: string; type: string; startsAt: string; endsAt: string }>;
     teams: Array<{ id: string; name: string }>;
     matches: Array<{
@@ -1758,7 +1761,8 @@ export function ProductionWorkspace({
   }
   return (
     <div className="mt-7 grid gap-5 lg:grid-cols-2">
-      <div className="lg:col-span-2"><TierNavigation current={data.tierId} pathname={`/operations/${mode}`} /></div>
+      {data.season && <div className="lg:col-span-2"><SeasonSwitcher seasons={data.availableSeasons} currentSlug={data.season.slug} pathname={`/operations/${mode}`} searchParams={{ tier: data.tierId }} /></div>}
+      <div className="lg:col-span-2"><TierNavigation current={data.tierId} pathname={`/operations/${mode}`} searchParams={{ season: data.season?.slug }} /></div>
       <div className="lg:col-span-2"><Feedback message={message} /></div>
       {mode === "standings" ? (
         <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-5 lg:col-span-2">
@@ -1771,7 +1775,7 @@ export function ProductionWorkspace({
           {!data.standings.length && <Empty text="No active team entries are available for standings." />}
         </section>
       ) : <>
-      <form action={scheduleMatch} className="rounded-xl border border-blue-200 bg-blue-50/40 p-5 lg:col-span-2">
+      {data.season?.active ? <form action={scheduleMatch} className="rounded-xl border border-blue-200 bg-blue-50/40 p-5 lg:col-span-2">
         <h3 className="text-lg font-black text-[#081e3a]">Schedule a tier match</h3>
         <p className="mt-1 text-sm text-slate-600">Only teams and events active in the selected tier are accepted by the database.</p>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -1785,10 +1789,32 @@ export function ProductionWorkspace({
           <input name="reason" minLength={3} required placeholder="Required audit reason" className="rounded-lg border border-slate-300 p-2.5" />
         </div>
         <button className="mt-4 rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Schedule match</button>
-      </form>
+      </form> : <section className="rounded-xl border border-amber-200 bg-amber-50 p-5 lg:col-span-2"><h3 className="font-black text-amber-950">Archived season · Read only</h3><p className="mt-2 text-sm text-amber-900">Historical matches, results, and standings remain visible, but new matches and result changes are restricted to the active season.</p></section>}
       <section className="rounded-xl border border-slate-200 bg-white p-5"><h3 className="text-lg font-black">Events</h3><div className="mt-3 space-y-2">{data.events.map((event) => <div key={event.id} className="rounded-lg bg-slate-50 p-3 text-sm"><strong>{event.name}</strong><p className="text-xs text-slate-500">{new Date(event.startsAt).toLocaleDateString()}–{new Date(event.endsAt).toLocaleDateString()}</p></div>)}</div></section>
-      <section className="rounded-xl border border-slate-200 bg-white p-5"><h3 className="text-lg font-black">Match production queue</h3><div className="mt-3 space-y-3">{data.matches.map((match) => <div key={match.id} className="rounded-lg bg-slate-50 p-3 text-sm"><strong>{match.teamA} vs {match.teamB}</strong><p className="text-xs text-slate-500">{new Date(match.scheduledAt).toLocaleString()} · {match.status}</p>{match.status === "VERIFIED" ? <p className="mt-2 text-lg font-black">{match.teamAScore}–{match.teamBScore}</p> : <form action={verifyResult} className="mt-3 grid grid-cols-2 gap-2"><input type="hidden" name="id" value={match.id} /><input name="teamAScore" type="number" min={0} max={99} required placeholder={`${match.teamA} score`} className="rounded border border-slate-300 p-2" /><input name="teamBScore" type="number" min={0} max={99} required placeholder={`${match.teamB} score`} className="rounded border border-slate-300 p-2" /><input name="reason" minLength={3} required placeholder="Verification reason" className="col-span-2 rounded border border-slate-300 p-2" /><label className="col-span-2 flex items-center gap-2 text-xs font-bold"><input name="officialTie" type="checkbox" /> Official tie</label><button className="col-span-2 rounded bg-[#1683ff] px-3 py-2 font-black text-white">Verify result</button></form>}</div>)}</div></section>
-      {data.matches.some((match) => match.status === "SUBMITTED") && (
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <h3 className="text-lg font-black">Match production queue</h3>
+        <div className="mt-3 space-y-3">
+          {data.matches.map((match) => (
+            <div key={match.id} className="rounded-lg bg-slate-50 p-3 text-sm">
+              <strong>{match.teamA} vs {match.teamB}</strong>
+              <p className="text-xs text-slate-500">{new Date(match.scheduledAt).toLocaleString()} · {match.status}</p>
+              {match.status === "VERIFIED" || !data.season?.active ? (
+                <p className="mt-2 text-lg font-black">{match.teamAScore ?? "—"}–{match.teamBScore ?? "—"}</p>
+              ) : (
+                <form action={verifyResult} className="mt-3 grid grid-cols-2 gap-2">
+                  <input type="hidden" name="id" value={match.id} />
+                  <input name="teamAScore" type="number" min={0} max={99} required placeholder={`${match.teamA} score`} className="rounded border border-slate-300 p-2" />
+                  <input name="teamBScore" type="number" min={0} max={99} required placeholder={`${match.teamB} score`} className="rounded border border-slate-300 p-2" />
+                  <input name="reason" minLength={3} required placeholder="Verification reason" className="col-span-2 rounded border border-slate-300 p-2" />
+                  <label className="col-span-2 flex items-center gap-2 text-xs font-bold"><input name="officialTie" type="checkbox" /> Official tie</label>
+                  <button className="col-span-2 rounded bg-[#1683ff] px-3 py-2 font-black text-white">Verify result</button>
+                </form>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+      {data.season?.active && data.matches.some((match) => match.status === "SUBMITTED") && (
         <section className="rounded-xl border border-amber-200 bg-amber-50/40 p-5 lg:col-span-2">
           <h3 className="text-lg font-black text-amber-950">Results awaiting lock</h3>
           <p className="mt-1 text-sm text-amber-900">Review saved scores before making them official. Locking writes points, standings, notifications, and immutable audit evidence.</p>

@@ -58,7 +58,7 @@ export default async function StatisticsPage({
             <div className="flex items-center gap-3"><TierBadge tierId={tierId} /><h2 className="text-2xl font-black">Team statistics</h2></div>
             <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {teamRows.map((team) => (
-                <Link href={`/teams/${team.slug}?tier=${tierId}`} key={team.id} className="panel p-6">
+                <Link href={`/teams/${team.slug}?tier=${tierId}&season=${data.season.slug}`} key={team.id} className="panel p-6">
                   <p className="eyebrow text-slate-400">Team performance</p>
                   <h3 className="mt-2 text-xl font-black">{team.name}</h3>
                   <dl className="mt-5 grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 text-center text-sm">
@@ -75,7 +75,7 @@ export default async function StatisticsPage({
             <h2 className="text-2xl font-black">Player statistics</h2>
             <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {playerRows.map((player) => (
-                <Link href={`/players/${player.id}?tier=${tierId}`} key={player.id} className="panel p-6">
+                <Link href={`/players/${player.id}?tier=${tierId}&season=${data.season.slug}`} key={player.id} className="panel p-6">
                   <p className="eyebrow text-[#168bff]">Player performance</p>
                   <h3 className="mt-2 text-xl font-black">{player.handle}</h3>
                   <p className="mt-2 text-sm text-slate-500">{player.team ?? "Free agent"} · {player.status.replaceAll("_", " ")}</p>

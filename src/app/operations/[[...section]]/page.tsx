@@ -181,7 +181,7 @@ export default async function OperationsPage({
   const franchiseWorkspace = sectionKey === "franchise" ? await loadFranchiseWorkspace(access.franchiseNumber) : null;
   const statisticsWorkspace = sectionKey === "statistics" || sectionKey === "replays" ? await loadStatisticsWorkspace(tierId) : null;
   const productionWorkspace = ["schedule", "matches", "brackets", "standings"].includes(sectionKey)
-    ? await loadProductionWorkspace(tierId)
+    ? await loadProductionWorkspace(tierId, query.season)
     : null;
   const scheduleManagement = sectionKey === "schedule"
     ? await loadScheduleManagement(query.season)

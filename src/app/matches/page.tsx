@@ -71,7 +71,7 @@ export default async function MatchesPage({
               const stage = seasonWeekLabel(match.week);
               const bestOf = stage === "Regular Season" ? 5 : 7;
               return (
-              <Link key={match.id} href={`/matches/${match.id}?tier=${tierId}`} className="panel group overflow-hidden">
+              <Link key={match.id} href={`/matches/${match.id}?tier=${tierId}&season=${data.season.slug}`} className="panel group overflow-hidden">
                 <div className="h-1.5" style={{ backgroundColor: data.tier.color }} />
                 <div className="p-6">
                   <div className="flex items-center justify-between gap-3"><TierBadge tierId={tierId} compact /><span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[.08em] ${match.status === "VERIFIED" ? "bg-emerald-50 text-emerald-700" : match.status === "SUBMITTED" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{match.status}</span></div>

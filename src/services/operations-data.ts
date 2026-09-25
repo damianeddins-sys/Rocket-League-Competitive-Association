@@ -16,7 +16,6 @@ import {
   players,
   qualificationPointEvents,
   replays,
-  roleAssignments,
   rosterMemberships,
   seasonWeeks,
   seasons,
@@ -855,20 +854,6 @@ export function loadLeagueLogManagement() {
   });
 }
 
-export function loadStaffSummary() {
-  return load(async () => {
-    const db = getDatabase();
-    const [userRows, assignmentRows] = await Promise.all([
-      db.select().from(users).orderBy(asc(users.displayName)),
-      db.select().from(roleAssignments),
-    ]);
-    return {
-      members: userRows.length,
-      activeAssignments: assignmentRows.filter((entry) => !entry.revokedAt).length,
-    };
-  });
-}
-
 export function loadFranchiseWorkspace(franchiseNumber: number | null) {
   return load(async () => {
     if (!franchiseNumber) return { team: null, tiers: [], roster: [], transactions: [], candidates: [] };
@@ -988,14 +973,31 @@ export function loadStatisticsWorkspace(tierInput?: string) {
   });
 }
 
-export function loadProductionWorkspace(tierInput?: string) {
+export function loadProductionWorkspace(tierInput?: string, seasonSlug?: string) {
   return load(async () => {
     const db = getDatabase();
     const tierId = normalizeTierId(tierInput) ?? DEFAULT_TIER_ID;
-    const [activeSeason] = await db.select({ id: seasons.id }).from(seasons).where(eq(seasons.active, true)).limit(1);
-    const [tier] = activeSeason
+    const [[selectedSeason], availableSeasons] = await Promise.all([
+      db.select({
+        id: seasons.id,
+        name: seasons.name,
+        slug: seasons.slug,
+        active: seasons.active,
+      }).from(seasons).where(seasonSlug
+        ? eq(seasons.slug, seasonSlug)
+        : eq(seasons.active, true)).limit(1),
+      db.select({
+        id: seasons.id,
+        name: seasons.name,
+        slug: seasons.slug,
+        active: seasons.active,
+      }).from(seasons)
+        .where(inArray(seasons.status, ["ACTIVE", "ARCHIVED"]))
+        .orderBy(desc(seasons.startsAt)),
+    ]);
+    const [tier] = selectedSeason
       ? await db.select({ id: divisions.id }).from(divisions).where(and(
-        eq(divisions.seasonId, activeSeason.id),
+        eq(divisions.seasonId, selectedSeason.id),
         eq(divisions.slug, tierId),
       )).limit(1)
       : [];
@@ -1004,7 +1006,7 @@ export function loadProductionWorkspace(tierInput?: string) {
       tier ? db.select().from(matches).where(eq(matches.divisionId, tier.id)).orderBy(asc(matches.scheduledAt)).limit(250) : Promise.resolve([]),
       db.select({ id: teams.id, name: teams.name }).from(teams),
       tier ? db.select({ teamId: teamSeasonEntries.teamId }).from(teamSeasonEntries).where(and(
-        eq(teamSeasonEntries.seasonId, activeSeason!.id),
+        eq(teamSeasonEntries.seasonId, selectedSeason!.id),
         eq(teamSeasonEntries.divisionId, tier.id),
         eq(teamSeasonEntries.active, true),
         isNull(teamSeasonEntries.endedAt),
@@ -1033,6 +1035,8 @@ export function loadProductionWorkspace(tierInput?: string) {
     })));
     return {
       tierId,
+      season: selectedSeason ?? null,
+      availableSeasons,
       events: eventRows.map((event) => ({
         id: event.id,
         name: event.name,

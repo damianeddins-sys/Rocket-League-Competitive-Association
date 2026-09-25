@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Trophy, Users } from "lucide-react";
 import { LeagueDataState } from "@/components/league-data-state";
+import { SeasonSwitcher } from "@/components/season-switcher";
 import { TierBadge, TierNavigation } from "@/components/tier-navigation";
 import { loadPublicLeagueData } from "@/services/public-league-data";
 import { DEFAULT_TIER_ID, normalizeTierId } from "@/services/tiers";
@@ -36,13 +37,14 @@ export default async function EventsPage({
           <LeagueDataState state={data.reason} />
         ) : (
           <>
-          <TierNavigation current={tierId} pathname="/events" searchParams={{ season: query.season }} />
+          <SeasonSwitcher seasons={data.availableSeasons} currentSlug={data.season.slug} pathname="/events" searchParams={{ tier: tierId }} />
+          <TierNavigation current={tierId} pathname="/events" searchParams={{ season: data.season.slug }} />
           <div className="mt-7 grid gap-5 md:grid-cols-2">
             {data.events.map((event) => {
               const championship = event.type === "CHAMPIONSHIP";
               return (
                 <Link
-                  href={`/events/${event.slug}?tier=${tierId}`}
+                  href={`/events/${event.slug}?tier=${tierId}&season=${data.season.slug}`}
                   key={event.id}
                   className={`panel group overflow-hidden p-7 hover:-translate-y-1 hover:shadow-xl ${championship ? "border-blue-300 bg-[#0b1f3a] text-white" : ""}`}
                 >

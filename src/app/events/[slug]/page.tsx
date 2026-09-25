@@ -22,13 +22,14 @@ export async function generateMetadata({
 export default async function EventDetailPage({
   params,
   searchParams,
-}: PageProps<"/events/[slug]"> & { searchParams: Promise<{ tier?: string }> }) {
+}: PageProps<"/events/[slug]"> & { searchParams: Promise<{ tier?: string; season?: string }> }) {
   const { slug } = await params;
-  const tierId = normalizeTierId((await searchParams).tier) ?? DEFAULT_TIER_ID;
+  const query = await searchParams;
+  const tierId = normalizeTierId(query.tier) ?? DEFAULT_TIER_ID;
   const configured = competitionEventBySlug(slug);
   if (!configured) notFound();
   const [eventType, presentation] = configured;
-  const data = await loadPublicLeagueData({ tier: tierId });
+  const data = await loadPublicLeagueData({ tier: tierId, season: query.season });
   const event = data.status === "ready"
     ? data.events.find((item) => item.type === eventType)
     : null;
@@ -50,7 +51,7 @@ export default async function EventDetailPage({
     <div className="min-h-screen bg-[#f4f7fa]">
       <section className="hero-grid bg-[#07172b] px-5 py-14 text-white">
         <div className="mx-auto max-w-7xl lg:px-3">
-          <Link href={`/events?tier=${tierId}`} className="inline-flex items-center gap-2 text-sm font-bold text-blue-200 hover:text-white">
+          <Link href={`/events?tier=${tierId}${data.status === "ready" ? `&season=${data.season.slug}` : ""}`} className="inline-flex items-center gap-2 text-sm font-bold text-blue-200 hover:text-white">
             <ArrowLeft size={16} /> All events
           </Link>
           <div className="mt-10 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
@@ -122,7 +123,7 @@ export default async function EventDetailPage({
                       <p className="eyebrow border-b border-slate-200 pb-3 text-slate-500">Round {round}</p>
                       <div className="mt-4 space-y-4">
                         {eventMatches.filter((match) => match.sundaySlot === round).map((match) => (
-                          <Link key={match.id} href={`/matches/${match.id}?tier=${tierId}`} className="panel block p-4 hover:border-blue-300">
+                          <Link key={match.id} href={`/matches/${match.id}?tier=${tierId}&season=${data.season.slug}`} className="panel block p-4 hover:border-blue-300">
                             <div className="mb-2 flex items-center justify-between border-b border-slate-100 pb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
                               <span>Official Major match</span>
                               <span className="text-blue-700">Best of 7</span>

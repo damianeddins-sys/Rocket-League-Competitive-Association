@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CalendarDays, ChevronRight, Clock3, Dumbbell, Swords, Trophy } from "lucide-react";
 import { LeagueDataState } from "@/components/league-data-state";
+import { SeasonSwitcher } from "@/components/season-switcher";
 import { TierBadge, TierNavigation } from "@/components/tier-navigation";
 import { seasonWeekLabel } from "@/services/competition-events";
 import { loadPublicLeagueData } from "@/services/public-league-data";
@@ -11,9 +12,9 @@ import { DEFAULT_TIER_ID, normalizeTierId } from "@/services/tiers";
 export const metadata: Metadata = { title: "Schedule" };
 export const dynamic = "force-dynamic";
 
-function MatchCard({ match }: { match: PublicMatch }) {
+function MatchCard({ match, season }: { match: PublicMatch; season: string }) {
   return (
-    <Link href={`/matches/${match.id}?tier=${match.tierId}`} className="panel group block p-5 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg">
+    <Link href={`/matches/${match.id}?tier=${match.tierId}&season=${season}`} className="panel group block p-5 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg">
       <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-slate-500">
         <span>Match {match.id.slice(0, 8)}</span>
         <span className="rounded-full bg-slate-100 px-2.5 py-1">{match.status.replaceAll("_", " ")}</span>
@@ -39,7 +40,7 @@ function MatchCard({ match }: { match: PublicMatch }) {
   );
 }
 
-function MatchBlock({ title, time, matches }: { title: string; time: string; matches: PublicMatch[] }) {
+function MatchBlock({ title, time, matches, season }: { title: string; time: string; matches: PublicMatch[]; season: string }) {
   return (
     <section className="mt-8">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -53,7 +54,7 @@ function MatchBlock({ title, time, matches }: { title: string; time: string; mat
       </div>
       {matches.length ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {matches.map((match) => <MatchCard key={match.id} match={match} />)}
+          {matches.map((match) => <MatchCard key={match.id} match={match} season={season} />)}
         </div>
       ) : (
         <div className="panel border-dashed p-7 text-sm text-slate-500">No official series have been published for this block.</div>
@@ -104,6 +105,7 @@ export default async function SchedulePage({
           <LeagueDataState state={data.reason} />
         ) : (
           selectedWeek ? <>
+            <SeasonSwitcher seasons={data.availableSeasons} currentSlug={data.season.slug} pathname="/schedule" searchParams={{ tier: tierId, week: selectedWeek.number }} />
             <TierNavigation
               current={tierId}
               pathname="/schedule"
@@ -160,8 +162,8 @@ export default async function SchedulePage({
                     <Link href="/scrims" className="rounded-lg border border-cyan-300 bg-white px-4 py-2 text-sm font-bold text-cyan-800">View scrims</Link>
                   </div>
                 </section>
-                <MatchBlock title="Match Block A" time="8:00 PM league time" matches={scheduled.filter((match) => match.sundaySlot === 1)} />
-                <MatchBlock title="Match Block B" time="After Block A transition" matches={scheduled.filter((match) => match.sundaySlot !== 1)} />
+                <MatchBlock title="Match Block A" time="8:00 PM league time" matches={scheduled.filter((match) => match.sundaySlot === 1)} season={data.season.slug} />
+                <MatchBlock title="Match Block B" time="After Block A transition" matches={scheduled.filter((match) => match.sundaySlot !== 1)} season={data.season.slug} />
               </>
             ) : event ? (
               <section className="hero-grid mt-8 overflow-hidden rounded-2xl bg-[#081b33] p-8 text-white sm:p-10">
@@ -172,7 +174,7 @@ export default async function SchedulePage({
                     <h3 className="mt-2 text-3xl font-black">{event.name}</h3>
                     <p className="mt-3 text-slate-300">{event.teams} teams · Every match Best of 7 · {event.award}</p>
                   </div>
-                  <Link href={`/events/${event.slug}`} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#1677ff] px-5 py-3 font-bold">
+                  <Link href={`/events/${event.slug}?tier=${tierId}&season=${data.season.slug}`} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#1677ff] px-5 py-3 font-bold">
                     Open clickable bracket <Swords size={18} />
                   </Link>
                 </div>

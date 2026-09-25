@@ -118,7 +118,7 @@ export default async function FranchiseDetailPage({
             </div></div>
             <div><h3 className="font-black text-[#0b1f3a]">Official results</h3><div className="mt-3 grid gap-3">
             {completedMatches.slice(0, 6).map((match) => (
-              <Link key={match.id} href={`/matches/${match.id}?tier=${tierId}`} className="rounded-xl border border-slate-200 p-4">
+              <Link key={match.id} href={`/matches/${match.id}?tier=${tierId}&season=${data.season.slug}`} className="rounded-xl border border-slate-200 p-4">
                 <p className="font-black">{match.teamA.shortName} {match.teamAScore ?? "–"} : {match.teamBScore ?? "–"} {match.teamB.shortName}</p>
                 <p className="mt-2 text-xs text-slate-500">Week {match.week} · {match.status}</p>
               </Link>

@@ -72,7 +72,7 @@ export default async function StandingsPage({
               </div>
               <div className="divide-y divide-slate-100 md:hidden">
                 {data.standings.map((team, index) => (
-                  <Link key={team.id} href={`/teams/${team.slug}?tier=${tierId}`} className="block p-5 hover:bg-slate-50">
+                  <Link key={team.id} href={`/teams/${team.slug}?tier=${tierId}&season=${data.season.slug}`} className="block p-5 hover:bg-slate-50">
                     <div className="flex items-center gap-3">
                       <span className="font-mono text-xl font-black text-slate-400">{index + 1}</span>
                       <span className="flex h-9 w-9 items-center justify-center rounded-md text-[10px] text-white" style={{ backgroundColor: team.color }}>{team.shortName}</span>
@@ -101,7 +101,7 @@ export default async function StandingsPage({
                     <tr key={team.id} className="border-b border-slate-100 last:border-0">
                       <td className="px-5 py-4 text-xl font-black text-slate-400">{index + 1}</td>
                       <td className="px-5 py-4">
-                        <Link href={`/teams/${team.slug}?tier=${tierId}`} className="flex items-center gap-3 font-bold">
+                        <Link href={`/teams/${team.slug}?tier=${tierId}&season=${data.season.slug}`} className="flex items-center gap-3 font-bold">
                           <span
                             className="flex h-9 w-9 items-center justify-center rounded-md text-[10px] text-white"
                             style={{ backgroundColor: team.color }}
