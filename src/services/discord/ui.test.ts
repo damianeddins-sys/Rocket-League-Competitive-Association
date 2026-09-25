@@ -30,6 +30,7 @@ describe("Discord UI privacy and navigation", () => {
       currentMmr: "1142",
       status: "ACTIVE",
       team: "Franchise #1",
+      rosterRole: "STARTER",
     }, "rlca:players:master:0"));
 
     expect(profile).toContain("PublicHandle");

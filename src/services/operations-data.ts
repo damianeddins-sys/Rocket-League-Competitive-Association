@@ -244,7 +244,7 @@ export function loadTransactionManagement(page = 1) {
         .map((membership) => ({
           id: membership.playerId,
           handle: playerNames.get(membership.playerId) ?? "Unknown player",
-          role: membership.role === "SUBSTITUTE" ? "SUBSTITUTE" : "STARTER",
+          role: (membership.role === "SUBSTITUTE" ? "SUBSTITUTE" : "STARTER") as "SUBSTITUTE" | "STARTER",
         }))
         .sort((a, b) => (a.role === "STARTER" ? 0 : 1) - (b.role === "STARTER" ? 0 : 1)),
     })).filter((team) => team.players.length > 0);

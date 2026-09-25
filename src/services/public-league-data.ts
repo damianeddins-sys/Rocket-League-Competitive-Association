@@ -448,7 +448,11 @@ export async function loadPublicLeagueData(
         teamId: membership?.teamId ?? null,
         teamSlug: team?.slug ?? null,
         team: team?.name ?? null,
-        rosterRole: membership?.role === "SUBSTITUTE" ? "SUBSTITUTE" : membership ? "STARTER" : null,
+        rosterRole: (membership?.role === "SUBSTITUTE"
+          ? "SUBSTITUTE"
+          : membership
+            ? "STARTER"
+            : null) as PublicPlayer["rosterRole"],
       }];
     }).sort((a, b) => a.handle.localeCompare(b.handle));
     standings = standings.map((team) => {
