@@ -224,11 +224,19 @@ type TransactionRow = {
 
 export function TransactionManager({
   transactions,
+  currentRosters,
+  activeSeason,
   page,
   pages,
   total,
 }: {
   transactions: TransactionRow[];
+  currentRosters: Array<{
+    teamId: string;
+    teamName: string;
+    players: Array<{ id: string; handle: string; role: "STARTER" | "SUBSTITUTE" }>;
+  }>;
+  activeSeason: { id: string; name: string } | undefined;
   page: number;
   pages: number;
   total: number;
@@ -246,47 +254,61 @@ export function TransactionManager({
     setMessage(response.ok ? "Transaction decision saved and audited." : result.error ?? "Decision failed");
     if (response.ok) router.refresh();
   }
+  const completedStatuses = ["APPROVED", "DENIED", "EXPIRED", "CANCELLED"];
+  const pending = transactions.filter((transaction) => !completedStatuses.includes(transaction.status));
+  const completed = transactions.filter((transaction) => completedStatuses.includes(transaction.status));
+  function transactionCard(transaction: TransactionRow) {
+    return (
+      <article key={transaction.id} className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="flex flex-wrap justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wider text-blue-600">{transaction.type.replaceAll("_", " ")}</p>
+            <h4 className="mt-1 text-lg font-black text-[#081e3a]">{transaction.teamName}</h4>
+            <p className="mt-1 text-xs font-black uppercase tracking-wider text-slate-600">{transaction.tier.name} tier</p>
+            <p className="text-sm text-slate-500">Submitted by {transaction.submittedByName} · {new Date(transaction.createdAt).toLocaleString()}</p>
+            <p className="mt-1 font-mono text-xs text-slate-400">Transaction {transaction.id}</p>
+          </div>
+          <span className="h-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-black">{transaction.status.replaceAll("_", " ")}</span>
+        </div>
+        <details className="mt-4 rounded-lg bg-slate-50 p-4 text-sm">
+          <summary className="cursor-pointer font-bold">Request and roster comparison</summary>
+          <pre className="mt-3 overflow-auto whitespace-pre-wrap text-xs">{JSON.stringify({
+            request: transaction.requestData,
+            before: transaction.beforeState,
+            proposed: transaction.proposedState,
+          }, null, 2)}</pre>
+        </details>
+        {!completedStatuses.includes(transaction.status) && (
+          <form action={decide} className="mt-4 grid gap-3 sm:grid-cols-[12rem_1fr_auto]">
+            <input type="hidden" name="id" value={transaction.id} />
+            <select name="status" defaultValue={transaction.status === "PENDING" ? "ON_HOLD" : transaction.status} className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">
+              <option value="MORE_INFO_REQUIRED">More information</option>
+              <option value="ON_HOLD">On hold</option>
+              <option value="EXCEPTION_REQUIRED">Exception required</option>
+              <option value="APPROVED">Approve and apply roster</option>
+              <option value="DENIED">Denied</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+            <input name="reason" required minLength={3} maxLength={2000} placeholder="Required decision reason" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
+            <button className="rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Save decision</button>
+          </form>
+        )}
+      </article>
+    );
+  }
   return (
     <div className="mt-7 space-y-4">
       <Feedback message={message} />
-      {transactions.map((transaction) => (
-        <article key={transaction.id} className="rounded-xl border border-slate-200 bg-white p-5">
-          <div className="flex flex-wrap justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase tracking-wider text-blue-600">{transaction.type.replaceAll("_", " ")}</p>
-              <h3 className="mt-1 text-lg font-black text-[#081e3a]">{transaction.teamName}</h3>
-              <p className="mt-1 text-xs font-black uppercase tracking-wider text-slate-600">{transaction.tier.name} tier</p>
-              <p className="text-sm text-slate-500">Submitted by {transaction.submittedByName} · {new Date(transaction.createdAt).toLocaleString()}</p>
-              <p className="mt-1 font-mono text-xs text-slate-400">Transaction {transaction.id}</p>
-            </div>
-            <span className="h-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-black">{transaction.status.replaceAll("_", " ")}</span>
-          </div>
-          <details className="mt-4 rounded-lg bg-slate-50 p-4 text-sm">
-            <summary className="cursor-pointer font-bold">Request and roster comparison</summary>
-            <pre className="mt-3 overflow-auto whitespace-pre-wrap text-xs">{JSON.stringify({
-              request: transaction.requestData,
-              before: transaction.beforeState,
-              proposed: transaction.proposedState,
-            }, null, 2)}</pre>
-          </details>
-          {!["APPROVED", "DENIED", "EXPIRED", "CANCELLED"].includes(transaction.status) && (
-            <form action={decide} className="mt-4 grid gap-3 sm:grid-cols-[12rem_1fr_auto]">
-              <input type="hidden" name="id" value={transaction.id} />
-              <select name="status" defaultValue={transaction.status === "PENDING" ? "ON_HOLD" : transaction.status} className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">
-                <option value="MORE_INFO_REQUIRED">More information</option>
-                <option value="ON_HOLD">On hold</option>
-                <option value="EXCEPTION_REQUIRED">Exception required</option>
-                <option value="APPROVED">Approve and apply roster</option>
-                <option value="DENIED">Denied</option>
-                <option value="CANCELLED">Cancelled</option>
-              </select>
-              <input name="reason" required minLength={3} maxLength={2000} placeholder="Required decision reason" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
-              <button className="rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Save decision</button>
-            </form>
-          )}
-        </article>
-      ))}
-      {!transactions.length && <Empty text="No transaction requests are stored yet." />}
+      <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+        <h3 className="text-xl font-black text-[#081e3a]">Current Rosters</h3>
+        <p className="mt-1 text-sm text-slate-500">{activeSeason?.name ?? "No active season"}</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {currentRosters.map((roster) => <article key={roster.teamId} className="rounded-lg border border-slate-200 bg-white p-4"><h4 className="font-black">{roster.teamName}</h4><ul className="mt-3 space-y-2 text-sm">{roster.players.map((player) => <li key={player.id} className="flex justify-between gap-3"><span>{player.handle}</span><span className="text-xs font-black text-slate-400">{player.role}</span></li>)}</ul></article>)}
+          {!currentRosters.length && <p className="text-sm text-slate-500">No current roster memberships are stored.</p>}
+        </div>
+      </section>
+      <section className="space-y-3"><h3 className="text-xl font-black text-[#081e3a]">Pending Transactions</h3>{pending.map(transactionCard)}{!pending.length && <Empty text="No transactions are awaiting review." />}</section>
+      <section className="space-y-3"><h3 className="text-xl font-black text-[#081e3a]">Completed Transactions</h3>{completed.map(transactionCard)}{!completed.length && <Empty text="No completed transaction history is stored yet." />}</section>
       {pages > 1 && (
         <div className="flex items-center justify-between rounded-lg bg-slate-50 p-4 text-sm">
           <span>{total} transactions · Page {page} of {pages}</span>
@@ -626,11 +648,11 @@ export function TeamManager({
       body: JSON.stringify({ ...payload, active: payload.active === "on" }),
     });
     const result = await readApiResult<object>(response);
-    setMessage(response.ok ? "Franchise settings saved and audited." : result.error ?? "Franchise update failed");
+    setMessage(response.ok ? "Team and franchise settings saved and audited." : result.error ?? "Team update failed");
     if (response.ok) router.refresh();
   }
   async function create(formData: FormData) {
-    setMessage("Creating franchise…");
+    setMessage("Creating team and franchise record…");
     const payload = Object.fromEntries(formData.entries());
     const response = await fetch("/api/admin/operations/teams", {
       method: "POST",
@@ -638,17 +660,17 @@ export function TeamManager({
       body: JSON.stringify(payload),
     });
     const result = await readApiResult<object>(response);
-    setMessage(response.ok ? "Franchise created and audited." : result.error ?? "Franchise could not be created");
+    setMessage(response.ok ? "Team and franchise record created and audited." : result.error ?? "Team could not be created");
     if (response.ok) router.refresh();
   }
   return (
     <div className="mt-7 space-y-4">
       <Feedback message={message} />
       <details className="rounded-xl border border-blue-200 bg-blue-50/40 p-5">
-        <summary className="cursor-pointer text-lg font-black text-[#081e3a]">Create franchise</summary>
+        <summary className="cursor-pointer text-lg font-black text-[#081e3a]">Create team and franchise</summary>
         <form action={create} className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label className="text-sm font-bold">Franchise number<input name="franchiseNumber" type="number" min={1} required className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
-          <label className="text-sm font-bold">Franchise / team name<input name="name" required minLength={2} maxLength={120} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+          <label className="text-sm font-bold">Team name<input name="name" required minLength={2} maxLength={120} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
           <label className="text-sm font-bold">Short name<input name="shortName" required minLength={2} maxLength={12} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal uppercase" /></label>
           <label className="text-sm font-bold">Primary color<input name="primaryColor" type="color" defaultValue="#1683ff" className="mt-2 h-11 w-full rounded-lg border border-slate-300 p-1" /></label>
           <label className="text-sm font-bold">Logo URL<input name="logoUrl" type="url" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
@@ -658,7 +680,7 @@ export function TeamManager({
           <label className="text-sm font-bold md:col-span-2">Contact information<textarea name="contactInformation" maxLength={1000} rows={2} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
           <label className="text-sm font-bold md:col-span-2">Internal notes<textarea name="notes" maxLength={3000} rows={2} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
           <label className="text-sm font-bold md:col-span-2 xl:col-span-3">Required audit reason<input name="reason" required minLength={3} maxLength={2000} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
-          <button className="self-end rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Create franchise</button>
+          <button className="self-end rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Create team / franchise</button>
         </form>
       </details>
       {teams.map((team) => (
@@ -681,10 +703,10 @@ export function TeamManager({
             <label className="text-sm font-bold md:col-span-2">Internal notes<textarea name="notes" maxLength={3000} rows={2} defaultValue={team.notes ?? ""} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
             <input name="reason" required minLength={3} maxLength={2000} placeholder="Required audit reason" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm md:col-span-2 xl:col-span-4" />
           </div>
-          <button className="mt-4 rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Save franchise</button>
+          <button className="mt-4 rounded-lg bg-[#1683ff] px-4 py-2.5 text-sm font-black text-white">Save team / franchise</button>
         </form>
       ))}
-      {!teams.length && <Empty text="No franchises are stored. Create or activate official franchise records before assigning them to a season." />}
+      {!teams.length && <Empty text="No teams or franchises are stored. Create an official record before assigning it to a season." />}
     </div>
   );
 }

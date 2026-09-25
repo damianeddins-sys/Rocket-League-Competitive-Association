@@ -1,9 +1,9 @@
 export const OPERATIONS_SECTION_GROUPS = [
   { label: "Overview", keys: ["overview"] },
   { label: "Competition", keys: ["seasons", "schedule", "matches", "brackets", "standings", "statistics", "replays"] },
-  { label: "People", keys: ["applications", "players", "teams", "rosters", "transactions"] },
+  { label: "People", keys: ["applications", "players", "teams", "franchise", "transactions"] },
   { label: "Player Management", keys: ["mmr", "tiers", "player-history"] },
-  { label: "League Operations", keys: ["franchise", "documents", "league-logs", "audit"] },
+  { label: "League Operations", keys: ["documents", "league-logs", "audit"] },
   { label: "Content", keys: ["content", "media", "rules", "site-info"] },
   { label: "System", keys: ["permissions", "health", "storage", "bot", "settings"] },
 ] as const;

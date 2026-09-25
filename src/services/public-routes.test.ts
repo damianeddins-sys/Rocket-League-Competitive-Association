@@ -16,6 +16,7 @@ describe("public route contract", () => {
       "Home",
       "Tiers",
       "Teams",
+      "Franchises",
       "Players",
       "Standings",
       "Matches",
@@ -38,6 +39,7 @@ describe("public route contract", () => {
     [
       "tiers/[tier]/page.tsx",
       "teams/[slug]/page.tsx",
+      "franchises/[slug]/page.tsx",
       "players/[id]/page.tsx",
       "matches/[id]/page.tsx",
       "loading.tsx",

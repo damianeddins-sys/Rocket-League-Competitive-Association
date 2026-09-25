@@ -38,6 +38,9 @@ export type PublicTeamStanding = {
   color: string;
   logoUrl: string | null;
   tierId: TierId;
+  franchiseName: string;
+  franchiseSlug: string;
+  franchiseShortName: string;
   wins: number;
   losses: number;
   ties: number;
@@ -84,6 +87,7 @@ export type PublicPlayer = {
   teamId?: string | null;
   teamSlug?: string | null;
   team: string | null;
+  rosterRole: "STARTER" | "SUBSTITUTE" | null;
 };
 
 export type PublicEvent = {
@@ -289,12 +293,15 @@ export async function loadPublicLeagueData(
         return [[team.id, {
           id: team.id,
           franchiseNumber: franchise.number,
-          slug: franchise.slug,
-          name: franchise.name,
-          shortName: franchise.shortName,
+          slug: team.slug,
+          name: team.name,
+          shortName: team.shortName,
           color: team.primaryColor,
           logoUrl: team.logoUrl,
           tierId: selectedTierId,
+          franchiseName: franchise.name,
+          franchiseSlug: franchise.slug,
+          franchiseShortName: franchise.shortName,
           wins: 0,
           losses: 0,
           ties: 0,
@@ -422,8 +429,7 @@ export async function loadPublicLeagueData(
 
     const playersById = new Map(playerRows.map((player) => [player.id, player]));
     const teamIdentities = new Map(teamRows.map((team) => {
-      const franchise = team.franchiseNumber ? seasonOneFranchise(team.franchiseNumber) : null;
-      return [team.id, { name: team.name, slug: franchise?.slug ?? null }] as const;
+      return [team.id, { name: team.name, slug: team.slug }] as const;
     }));
     const activeRosterByPlayer = new Map(activeRosterRows.map((entry) => [entry.playerId, entry]));
     const publicPlayers = seasonPlayerRows.flatMap((entry) => {
@@ -442,6 +448,7 @@ export async function loadPublicLeagueData(
         teamId: membership?.teamId ?? null,
         teamSlug: team?.slug ?? null,
         team: team?.name ?? null,
+        rosterRole: membership?.role === "SUBSTITUTE" ? "SUBSTITUTE" : membership ? "STARTER" : null,
       }];
     }).sort((a, b) => a.handle.localeCompare(b.handle));
     standings = standings.map((team) => {

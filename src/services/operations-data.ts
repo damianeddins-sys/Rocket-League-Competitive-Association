@@ -208,7 +208,11 @@ export function loadTransactionManagement(page = 1) {
   return load(async () => {
     const db = getDatabase();
     const pageSize = 50;
-    const [requests, teamRows, userRows, divisionRows, [totalRow]] = await Promise.all([
+    const [activeSeason] = await db.select({ id: seasons.id, name: seasons.name })
+      .from(seasons)
+      .where(eq(seasons.active, true))
+      .limit(1);
+    const [requests, teamRows, userRows, divisionRows, playerRows, rosterRows, [totalRow]] = await Promise.all([
       db.select().from(transactionRequests)
         .orderBy(desc(transactionRequests.createdAt))
         .limit(pageSize)
@@ -216,6 +220,13 @@ export function loadTransactionManagement(page = 1) {
       db.select({ id: teams.id, name: teams.name }).from(teams),
       db.select({ id: users.id, name: users.displayName }).from(users),
       db.select({ id: divisions.id, name: divisions.displayName, slug: divisions.slug }).from(divisions),
+      db.select({ id: players.id, handle: players.handle }).from(players),
+      activeSeason
+        ? db.select().from(rosterMemberships).where(and(
+          eq(rosterMemberships.seasonId, activeSeason.id),
+          isNull(rosterMemberships.endsAt),
+        ))
+        : Promise.resolve([]),
       db.select({ value: count() }).from(transactionRequests),
     ]);
     const teamNames = new Map(teamRows.map((team) => [team.id, team.name]));
@@ -224,6 +235,19 @@ export function loadTransactionManagement(page = 1) {
       division.id,
       { name: division.name, slug: division.slug },
     ]));
+    const playerNames = new Map(playerRows.map((player) => [player.id, player.handle]));
+    const currentRosters = teamRows.map((team) => ({
+      teamId: team.id,
+      teamName: team.name,
+      players: rosterRows
+        .filter((membership) => membership.teamId === team.id)
+        .map((membership) => ({
+          id: membership.playerId,
+          handle: playerNames.get(membership.playerId) ?? "Unknown player",
+          role: membership.role === "SUBSTITUTE" ? "SUBSTITUTE" : "STARTER",
+        }))
+        .sort((a, b) => (a.role === "STARTER" ? 0 : 1) - (b.role === "STARTER" ? 0 : 1)),
+    })).filter((team) => team.players.length > 0);
     return {
       items: requests.map((request) => ({
         ...request,
@@ -236,6 +260,8 @@ export function loadTransactionManagement(page = 1) {
       page,
       pages: Math.max(1, Math.ceil(totalRow.value / pageSize)),
       total: totalRow.value,
+      activeSeason,
+      currentRosters,
     };
   });
 }
