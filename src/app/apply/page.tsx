@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function LegacyApplyPage() {
-  redirect("/applications");
+  redirect("/login?returnTo=/applications");
 }

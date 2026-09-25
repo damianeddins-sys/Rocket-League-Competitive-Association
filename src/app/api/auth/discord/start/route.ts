@@ -5,6 +5,7 @@ import {
   canonicalOAuthStartUrl,
   getDiscordOAuthConfig,
   resolveDiscordRedirectUri,
+  safeReturnTo,
 } from "@/services/auth/discord-oauth";
 import {
   consumeAuthRateLimit,
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
   }
 
   const state = randomBytes(32).toString("base64url");
-  const returnTo = request.nextUrl.searchParams.get("returnTo");
+  const returnTo = safeReturnTo(request.nextUrl.searchParams.get("returnTo"), "");
   const authorizationUrl = new URL("https://discord.com/oauth2/authorize");
   authorizationUrl.searchParams.set("response_type", "code");
   authorizationUrl.searchParams.set("client_id", config.value.clientId);
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
     path: "/",
     maxAge: 10 * 60,
   });
-  if (returnTo?.startsWith("/") && !returnTo.startsWith("//")) {
+  if (returnTo) {
     response.cookies.set("rlca_oauth_return", returnTo, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

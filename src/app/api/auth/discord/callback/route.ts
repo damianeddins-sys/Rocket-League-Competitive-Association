@@ -11,6 +11,7 @@ import {
   discordTokenSchema,
   discordUserSchema,
   getDiscordOAuthConfig,
+  safeReturnTo,
 } from "@/services/auth/discord-oauth";
 import { resolveDiscordAccess } from "@/services/auth/discord-roles";
 import { consumeAuthRateLimit, requestClientIp } from "@/services/auth/rate-limit";
@@ -247,7 +248,7 @@ async function handleCallback(request: NextRequest) {
     rolesCheckedAt: new Date().toISOString(),
   };
   const token = await createSessionToken(user);
-  const returnTo = request.cookies.get("rlca_oauth_return")?.value ?? "/";
+  const returnTo = safeReturnTo(request.cookies.get("rlca_oauth_return")?.value);
   const response = NextResponse.redirect(new URL(returnTo, request.url));
   response.headers.set("Cache-Control", "no-store");
   response.cookies.set(sessionCookie.name, token, sessionCookie.options);

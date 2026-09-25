@@ -8,6 +8,18 @@ export type OAuthConfigurationError =
 
 type Environment = Record<string, string | undefined>;
 
+export function safeReturnTo(value: string | null | undefined, fallback = "/") {
+  if (!value?.startsWith("/") || value.startsWith("//")) return fallback;
+  try {
+    const parsed = new URL(value, "https://rlca.invalid");
+    return parsed.origin === "https://rlca.invalid"
+      ? `${parsed.pathname}${parsed.search}${parsed.hash}`
+      : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export const discordTokenSchema = z.object({ access_token: z.string().min(1) });
 export const discordUserSchema = z.object({
   id: z.string().min(1),
@@ -46,8 +58,8 @@ export function canonicalOAuthStartUrl(requestUrl: string, redirectUri: string) 
   const callback = new URL(redirectUri);
   if (request.origin === callback.origin) return null;
   const canonicalStart = new URL("/api/auth/discord/start", callback.origin);
-  const returnTo = request.searchParams.get("returnTo");
-  if (returnTo?.startsWith("/") && !returnTo.startsWith("//")) {
+  const returnTo = safeReturnTo(request.searchParams.get("returnTo"), "");
+  if (returnTo) {
     canonicalStart.searchParams.set("returnTo", returnTo);
   }
   return canonicalStart.toString();

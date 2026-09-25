@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, ShieldCheck, Trophy, Users } from "lucide-react";
 import { RlcaLogo } from "@/components/rlca-logo";
+import { safeReturnTo } from "@/services/auth/discord-oauth";
 import { getSession } from "@/services/auth/session";
 import { RLCA_FORMAT, RLCA_FULL_NAME } from "@/services/brand";
 
@@ -31,11 +32,17 @@ const errorMessages: Record<string, string> = {
   database_not_ready: "The RLCA database is not ready for sign-in. League staff must apply the latest database migration.",
 };
 
-export default async function LoginPage({ searchParams }: PageProps<"/login">) {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; returnTo?: string }>;
+}) {
   const session = await getSession();
-  if (session?.user) redirect("/");
-  const { error } = await searchParams;
+  const { error, returnTo } = await searchParams;
+  const destination = safeReturnTo(returnTo);
+  if (session?.user) redirect(destination);
   const errorCode = typeof error === "string" ? error : undefined;
+  const oauthHref = `/api/auth/discord/start?returnTo=${encodeURIComponent(destination)}`;
 
   return (
     <section className="login-grid min-h-[calc(100vh-4.5rem)] bg-[#061326] px-5 py-10 sm:py-16">
@@ -101,7 +108,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
               </div>
             )}
             <a
-              href="/api/auth/discord/start"
+              href={oauthHref}
               className="mt-7 flex w-full items-center justify-center rounded-lg bg-[#5865f2] px-5 py-3.5 font-bold text-white shadow-lg shadow-[#5865f2]/20 hover:-translate-y-0.5 hover:bg-[#4752c4]"
             >
               Continue with Discord

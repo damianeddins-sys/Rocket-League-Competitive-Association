@@ -29,9 +29,9 @@ export default async function ApplyPage({
     : null;
   if (!type) redirect("/applications");
   const session = await getSession();
-  const existingResult = session?.user
-    ? await loadApplicantStatus(session.user.id, type)
-    : null;
+  const returnTo = `/applications/apply?type=${type.toLowerCase().replace("_", "-")}`;
+  if (!session?.user) redirect(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+  const existingResult = await loadApplicantStatus(session.user.id, type);
   const existing = existingResult?.application ?? null;
   const canSubmit = !existing
     || existing.status === "DENIED"
@@ -48,15 +48,7 @@ export default async function ApplyPage({
         actions={<Link href="/applications" className="rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-sm font-black text-blue-100">← All applications</Link>}
       />
       <main className="mx-auto max-w-6xl px-5 py-12">
-        {!session?.user ? (
-          <div className="panel p-8 text-center">
-            <h2 className="text-2xl font-black text-[#081e3a]">Connect Discord to continue</h2>
-            <p className="mt-3 text-slate-600">Discord identity verification prevents impersonation and duplicate applications.</p>
-            <Link href={`/login?returnTo=${encodeURIComponent(`/applications/apply?type=${type.toLowerCase().replace("_", "-")}`)}`} className="mt-6 inline-flex rounded-lg bg-[#5865f2] px-5 py-3 font-black text-white">
-              Sign in with Discord
-            </Link>
-          </div>
-        ) : existingResult?.status !== "READY" ? (
+        {existingResult?.status !== "READY" ? (
           <div className="panel border border-red-200 p-8 text-center">
             <h2 className="text-2xl font-black text-red-950">Application records are temporarily unavailable.</h2>
             <p className="mt-3 text-red-800">The official database could not be read. Submission is disabled to prevent a duplicate or untracked application.</p>

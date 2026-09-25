@@ -118,12 +118,24 @@ export function PublicNavigation({
           <Search size={18} />
         </Link>
         {signedIn ? (
-          <Link href="/dashboard" className="rounded-md border border-white/20 px-3 py-2.5 text-xs font-bold 2xl:px-4 2xl:text-sm">
-            My RLCA
-          </Link>
+          <details className="group relative">
+            <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md border border-white/20 px-3 py-2.5 text-xs font-bold 2xl:px-4 2xl:text-sm">
+              <span className="max-w-32 truncate">{userName ?? "Discord member"}</span>
+              <ChevronDown size={14} className="transition group-open:rotate-180" />
+            </summary>
+            <div className="absolute right-0 top-[calc(100%+.65rem)] w-56 overflow-hidden rounded-xl border border-white/10 bg-[#091b31] p-2 shadow-2xl shadow-black/40">
+              <p className="border-b border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[.13em] text-blue-300">Authenticated Discord account</p>
+              <Link href="/dashboard" className="mt-1 block rounded-md px-3 py-2.5 font-bold hover:bg-white/10">Dashboard</Link>
+              <Link href="/profile" className="block rounded-md px-3 py-2.5 font-bold hover:bg-white/10">My Account</Link>
+              {hasOperations && <Link href={operationsHref} className="block rounded-md px-3 py-2.5 font-bold text-blue-200 hover:bg-white/10">Operations {isOwner ? "· Owner" : ""}</Link>}
+              <form action="/api/auth/logout" method="post" className="mt-1 border-t border-white/10 pt-2">
+                <button className="w-full rounded-md px-3 py-2.5 text-left font-bold text-slate-200 hover:bg-white/10">Sign Out</button>
+              </form>
+            </div>
+          </details>
         ) : (
-          <Link href="/login" className="px-2 py-2.5 text-xs font-bold text-slate-200 2xl:px-3 2xl:text-sm">
-            Sign In
+          <Link href="/login" className="rounded-md border border-[#5865f2]/70 bg-[#5865f2] px-3 py-2.5 text-xs font-black text-white hover:bg-[#4752c4] 2xl:px-4 2xl:text-sm">
+            Sign in with Discord
           </Link>
         )}
       </div>
@@ -194,6 +206,7 @@ export function PublicNavigation({
                     </Link>
                   ))}
                   <Link href="/dashboard" onClick={closeMobile} className="block rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/10">My RLCA</Link>
+                  <Link href="/profile" onClick={closeMobile} className="block rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/10">My Account</Link>
                   {hasOperations && (
                     <Link href={operationsHref} onClick={closeMobile} className="mt-1 block rounded-lg bg-blue-500/15 px-4 py-2.5 text-sm font-black text-blue-200">
                       Operations {isOwner ? "· Owner" : ""}
@@ -205,7 +218,7 @@ export function PublicNavigation({
                 </form>
               </>
             ) : (
-              <Link href="/login" onClick={closeMobile} className="rounded-lg border border-white/15 px-4 py-3 text-center text-sm font-bold">Sign In</Link>
+              <Link href="/login" onClick={closeMobile} className="rounded-lg bg-[#5865f2] px-4 py-3 text-center text-sm font-black">Sign in with Discord</Link>
             )}
           </div>
         </div>

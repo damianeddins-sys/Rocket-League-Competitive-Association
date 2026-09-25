@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    authInterrupts: true,
+  },
   async headers() {
     if (process.env.NODE_ENV !== "production") return [];
     return [

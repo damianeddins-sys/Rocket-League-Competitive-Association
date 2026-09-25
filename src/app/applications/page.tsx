@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRight, BriefcaseBusiness, ExternalLink, Gamepad2, ShieldCheck, Users } from "lucide-react";
+import { getSession } from "@/services/auth/session";
 import { RLCA_FORMAT, RLCA_FULL_NAME } from "@/services/brand";
 import { SEASON_ONE_RULES } from "@/services/rules";
 
@@ -65,6 +66,7 @@ export default async function ApplicationsPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
+  const session = await getSession();
 
   return (
     <div className="min-h-screen bg-[#f4f7fa]">
@@ -146,8 +148,13 @@ export default async function ApplicationsPage({
                   {application.details}
                 </p>
                 <div className="mt-6 grid gap-2">
-                  <Link href={application.href} className="flex items-center justify-center gap-2 rounded-lg bg-[#1677ff] px-4 py-3 text-sm font-black text-white hover:bg-blue-700">
-                    Start application <ArrowRight size={16} />
+                  <Link
+                    href={session?.user
+                      ? application.href
+                      : `/login?returnTo=${encodeURIComponent(application.href)}`}
+                    className="flex items-center justify-center gap-2 rounded-lg bg-[#1677ff] px-4 py-3 text-sm font-black text-white hover:bg-blue-700"
+                  >
+                    {session?.user ? "Start application" : "Sign in with Discord"} <ArrowRight size={16} />
                   </Link>
                   <a href={application.discordHref} className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 hover:border-[#5865f2] hover:text-[#5865f2]">
                     Open Discord channel <ExternalLink size={15} />

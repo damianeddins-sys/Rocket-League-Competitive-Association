@@ -7,6 +7,7 @@ import {
   getDiscordOAuthHealth,
   getSessionSecret,
   resolveDiscordRedirectUri,
+  safeReturnTo,
 } from "./discord-oauth";
 
 const configuredEnvironment = {
@@ -84,6 +85,15 @@ describe("Discord OAuth configuration", () => {
       "https://rlca.example/api/auth/discord/start",
       "https://rlca.example/api/auth/discord/callback",
     )).toBeNull();
+  });
+
+  it("allows only same-origin relative post-login destinations", () => {
+    expect(safeReturnTo("/dashboard/team?season=season-1#roster")).toBe(
+      "/dashboard/team?season=season-1#roster",
+    );
+    expect(safeReturnTo("//evil.example/phish")).toBe("/");
+    expect(safeReturnTo("https://evil.example/phish")).toBe("/");
+    expect(safeReturnTo(null, "/dashboard")).toBe("/dashboard");
   });
 
   it("accepts Discord timestamps with timezone offsets and normalizes empty email", () => {

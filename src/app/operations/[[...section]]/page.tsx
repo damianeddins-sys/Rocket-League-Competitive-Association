@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { forbidden, redirect } from "next/navigation";
 import { Activity, Bot, CalendarDays, Database, FileClock, HardDrive, Image, Settings, ShieldAlert, UserRoundCheck, Users } from "lucide-react";
 import { ApplicationManager } from "@/components/application-manager";
 import { ContentManager } from "@/components/content-manager";
@@ -66,8 +66,8 @@ const sections = {
   applications: { label: "Applications", description: "Assign, review, approve, deny, or request changes with a full audit trail.", portal: "SIGN_UP_MANAGER" as Portal, permission: "applications.manage" as Permission, icon: UserRoundCheck },
   players: { label: "Players & Members", description: "Search official members and inspect their complete league history.", portal: "SIGN_UP_MANAGER" as Portal, permission: "player.manage" as Permission, icon: Users },
   teams: { label: "Teams & Franchises", description: "Manage official team identities, franchise assignments, and season entries.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: ShieldAlert },
-  rosters: { label: "Rosters", description: "Review current lineups, pending changes, and preserved roster history.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "transaction.approve" as Permission, icon: Users },
-  transactions: { label: "Transactions", description: "Review and complete audited roster transactions.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "transaction.approve" as Permission, icon: FileClock },
+  rosters: { label: "Rosters & Transactions", description: "Review current lineups, pending transactions, completed decisions, and preserved history.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "transaction.approve" as Permission, icon: Users },
+  transactions: { label: "Rosters & Transactions", description: "Review current lineups, pending transactions, completed decisions, and preserved history.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "transaction.approve" as Permission, icon: FileClock },
   mmr: { label: "MMR Management", description: "Track verification eligibility, evidence, rating changes, and placement.", portal: "STATISTICS" as Portal, permission: "statistics.review" as Permission, icon: Activity },
   tiers: { label: "Tier Management", description: "Manage official configured tier rules without hardcoded cutoffs.", portal: "LEAGUE_OPERATIONS" as Portal, permission: "league.manage" as Permission, icon: Settings },
   "player-history": { label: "Player History", description: "Trace player seasons, tiers, teams, matches, and transactions.", portal: "SIGN_UP_MANAGER" as Portal, permission: "player.manage" as Permission, icon: FileClock },
@@ -98,6 +98,7 @@ export default async function OperationsPage({
   if (section?.[0] === "staff") redirect("/operations/permissions");
   if (section?.[0] === "news") redirect("/operations/content");
   if (section?.[0] === "production") redirect("/operations/matches");
+  if (section?.[0] === "rosters") redirect("/operations/transactions");
   const rawPage = query.page;
   const tierId = normalizeTierId(query.tier) ?? DEFAULT_TIER_ID;
   const page = rawPage && /^\d+$/.test(rawPage) ? Math.max(1, Number(rawPage)) : 1;
@@ -105,6 +106,9 @@ export default async function OperationsPage({
     ? section[0] as keyof typeof sections
     : "overview";
   const current = sections[sectionKey];
+  const requestedPath = section?.length
+    ? `/operations/${section.map(encodeURIComponent).join("/")}`
+    : "/operations";
   const access = await checkPortalAccess(
     current.portal,
     undefined,
@@ -112,20 +116,10 @@ export default async function OperationsPage({
   );
 
   if (!access.allowed) {
-    return (
-      <main className="min-h-[70vh] bg-[#f3f6fa] px-5 py-20">
-        <div className="panel mx-auto max-w-xl p-8 text-center">
-          <ShieldAlert className="mx-auto text-red-500" size={34} />
-          <p className="eyebrow mt-6 text-red-600">Protected RLCA system</p>
-          <h1 className="mt-2 text-3xl font-black text-[#081e3a]">Operations access denied</h1>
-          <p className="mt-4 leading-7 text-slate-600">{access.reason}</p>
-          <p className="mt-3 font-mono text-xs text-slate-400">{access.code}</p>
-          <Link href={access.code === "AUTHENTICATION_REQUIRED" ? "/login?returnTo=/operations" : "/dashboard"} className="mt-7 inline-flex rounded-lg bg-[#1683ff] px-5 py-3 font-black text-white">
-            {access.code === "AUTHENTICATION_REQUIRED" ? "Sign in with Discord" : "Return to dashboard"}
-          </Link>
-        </div>
-      </main>
-    );
+    if (access.code === "AUTHENTICATION_REQUIRED") {
+      redirect(`/login?returnTo=${encodeURIComponent(requestedPath)}`);
+    }
+    forbidden();
   }
   const canSeeSection = (key: keyof typeof sections) => {
     const item = sections[key];
@@ -244,6 +238,13 @@ export default async function OperationsPage({
               </div>
               <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-600">OFFICIAL DATABASE</span>
             </div>
+            {["teams", "franchise", "transactions"].includes(sectionKey) && (
+              <nav className="mt-6 flex flex-wrap gap-2 border-y border-slate-200 py-3" aria-label="Teams and franchises management">
+                <Link href="/operations/teams" className={`rounded-lg px-4 py-2 text-sm font-black ${sectionKey === "teams" ? "bg-[#1683ff] text-white" : "bg-slate-100 text-slate-700"}`}>Teams & Franchises</Link>
+                <Link href="/operations/franchise" className={`rounded-lg px-4 py-2 text-sm font-black ${sectionKey === "franchise" ? "bg-[#1683ff] text-white" : "bg-slate-100 text-slate-700"}`}>Franchise Manager</Link>
+                <Link href="/operations/transactions" className={`rounded-lg px-4 py-2 text-sm font-black ${sectionKey === "transactions" ? "bg-[#1683ff] text-white" : "bg-slate-100 text-slate-700"}`}>Rosters & Transactions</Link>
+              </nav>
+            )}
             {storageHealth ? (
               <div className="mt-7 space-y-6">
                 <div className="rounded-lg border border-blue-200 bg-blue-50 p-5">
@@ -340,6 +341,8 @@ export default async function OperationsPage({
             ) : transactionManagement?.status === "READY" ? (
               <TransactionManager
                 transactions={transactionManagement.data.items}
+                currentRosters={transactionManagement.data.currentRosters}
+                activeSeason={transactionManagement.data.activeSeason}
                 page={transactionManagement.data.page}
                 pages={transactionManagement.data.pages}
                 total={transactionManagement.data.total}
