@@ -53,7 +53,11 @@ import { verificationReadiness, VERIFICATION_DAYS } from "@/services/mmr";
 import {
   buildSeasonOnePlacementPreview,
 } from "@/services/placement";
-import { type RosterPlayer } from "@/services/rosters";
+import {
+  calculateSeasonOneCap,
+  validateSeasonOneRosterMutation,
+  type RosterPlayer,
+} from "@/services/rosters";
 import { validateFreeAgentSigning, waiverPriority } from "@/services/free-agency";
 import { seasonActivationChecklist } from "@/services/season-management";
 import {
@@ -483,6 +487,24 @@ export async function createTransaction(formData: FormData) {
   if (!parsed.success || (!parsed.data.oldTeamId && !parsed.data.newTeamId)) {
     throw new Error("Enter a valid transaction with at least one team");
   }
+  if (["RELEASE", "WAIVER_CLAIM", "FREE_AGENT_SIGNING"].includes(parsed.data.type)) {
+    throw new Error("Use the dedicated Free Agency workflow for this transaction type");
+  }
+  if (parsed.data.type === "SIGNING" && (parsed.data.oldTeamId || !parsed.data.newTeamId)) {
+    throw new Error("A signing requires a destination team and no source team");
+  }
+  if (
+    parsed.data.type === "TRANSFER" &&
+    (!parsed.data.oldTeamId || !parsed.data.newTeamId || parsed.data.oldTeamId === parsed.data.newTeamId)
+  ) throw new Error("A transfer requires different source and destination teams");
+  if (
+    parsed.data.type === "ROLE_CHANGE" &&
+    (!parsed.data.oldTeamId || parsed.data.oldTeamId !== parsed.data.newTeamId)
+  ) throw new Error("A role change must remain on the same team");
+  if (
+    parsed.data.type === "TRADE" &&
+    (!parsed.data.oldTeamId || !parsed.data.newTeamId || parsed.data.oldTeamId === parsed.data.newTeamId)
+  ) throw new Error("An approved trade requires different source and destination teams");
   const session = await getSession();
   if (!session) throw new Error("Authentication required");
   let authorization = await authorizeLiveAction(session.user, {
@@ -532,6 +554,7 @@ export async function createTransaction(formData: FormData) {
     const enrolled = await tx.select().from(teamSeasons).where(and(
       eq(teamSeasons.seasonId, parsed.data.seasonId),
       inArray(teamSeasons.teamId, selectedTeamIds),
+      eq(teamSeasons.active, true),
     ));
     if (enrolled.length !== selectedTeamIds.length) {
       throw new Error("Every selected team must belong to the transaction season");
@@ -642,6 +665,13 @@ export async function transitionTransaction(formData: FormData) {
         ? current.effectiveAt
         : new Date();
       if (current.oldTeamId) {
+        const [sourceMembership] = await tx.select().from(rosterMemberships).where(and(
+          eq(rosterMemberships.seasonId, current.seasonId),
+          eq(rosterMemberships.teamId, current.oldTeamId),
+          eq(rosterMemberships.playerId, current.playerId),
+          isNull(rosterMemberships.endsAt),
+        )).for("update").limit(1);
+        if (!sourceMembership) throw new Error("Active source roster membership not found");
         await tx.update(rosterMemberships).set({ endsAt: now }).where(and(
           eq(rosterMemberships.seasonId, current.seasonId),
           eq(rosterMemberships.teamId, current.oldTeamId),
@@ -654,7 +684,7 @@ export async function transitionTransaction(formData: FormData) {
           eq(rosterMemberships.seasonId, current.seasonId),
           eq(rosterMemberships.teamId, current.newTeamId),
           isNull(rosterMemberships.endsAt),
-        ));
+        )).for("update");
         const sameRole = destination.filter((membership) =>
           membership.playerId !== current.playerId && membership.role === role).length;
         if ((role === "STARTER" && sameRole >= 2) || (role === "SUBSTITUTE" && sameRole >= 1)) {
@@ -664,39 +694,50 @@ export async function transitionTransaction(formData: FormData) {
           eq(playerSeasons.seasonId, current.seasonId),
           eq(playerSeasons.playerId, current.playerId),
         )).limit(1);
-        if (!playerSeason?.divisionId) throw new Error("Player has no tier in this season");
-        if (current.type === "FREE_AGENT_SIGNING") {
-          if (playerSeason.currentMmr === null || playerSeason.protectedRosterValue === null) {
-            throw new Error("Free agent MMR or protected roster value is incomplete");
-          }
-          const [divisionRows, seasonEntries, openWaivers] = await Promise.all([
-            tx.select().from(divisions).where(eq(divisions.seasonId, current.seasonId)),
-            tx.select().from(playerSeasons).where(eq(playerSeasons.seasonId, current.seasonId)),
-            tx.select().from(waiverWindows).where(and(
-              eq(waiverWindows.playerSeasonId, playerSeason.id),
-              eq(waiverWindows.status, "OPEN"),
-            )),
-          ]);
-          const divisionById = new Map(divisionRows.map((division) => [division.id, division.code]));
-          const seasonByPlayer = new Map(seasonEntries.map((entry) => [entry.playerId, entry]));
-          const toRosterPlayer = (entry: typeof playerSeason): RosterPlayer | null => {
-            const code = entry.divisionId ? divisionById.get(entry.divisionId) : null;
-            if (!code || code === "PREMIER" || entry.protectedRosterValue === null) return null;
-            return {
-              playerId: entry.playerId,
-              division: code,
-              protectedValue: Number(entry.protectedRosterValue),
-            };
+        if (!playerSeason?.divisionId || playerSeason.currentMmr === null || playerSeason.protectedRosterValue === null) {
+          throw new Error("Player tier, MMR, or protected roster value is incomplete");
+        }
+        if (season.settings.rosterLocked === true) throw new Error("Season roster lock is active");
+        if (current.type === "ROLE_CHANGE" && current.oldTeamId !== current.newTeamId) {
+          throw new Error("Role changes must remain on the same team");
+        }
+        if (current.type === "TRANSFER" && playerSeason.status !== "ROSTERED") {
+          throw new Error("Only a rostered player can be transferred");
+        }
+        if (current.type === "SIGNING" && ["FREE_AGENT", "WAIVER"].includes(playerSeason.status)) {
+          throw new Error("Use the dedicated Free Agency workflow for this player");
+        }
+        const [divisionRows, seasonEntries, openWaivers] = await Promise.all([
+          tx.select().from(divisions).where(eq(divisions.seasonId, current.seasonId)),
+          tx.select().from(playerSeasons).where(eq(playerSeasons.seasonId, current.seasonId)),
+          tx.select().from(waiverWindows).where(and(
+            eq(waiverWindows.playerSeasonId, playerSeason.id),
+            eq(waiverWindows.status, "OPEN"),
+          )),
+        ]);
+        const divisionById = new Map(divisionRows.map((division) => [division.id, division.code]));
+        const seasonByPlayer = new Map(seasonEntries.map((entry) => [entry.playerId, entry]));
+        const toRosterPlayer = (entry: typeof playerSeason): RosterPlayer | null => {
+          const code = entry.divisionId ? divisionById.get(entry.divisionId) : null;
+          if (!code || code === "PREMIER" || entry.protectedRosterValue === null) return null;
+          return {
+            playerId: entry.playerId,
+            division: code,
+            protectedValue: Number(entry.protectedRosterValue),
           };
-          const placedPlayers = seasonEntries.map(toRosterPlayer)
-            .filter((entry): entry is RosterPlayer => Boolean(entry));
-          const currentRoster = destination.map((membership) => {
-            const entry = seasonByPlayer.get(membership.playerId);
-            const rosterPlayer = entry ? toRosterPlayer(entry) : null;
-            return rosterPlayer ? { ...rosterPlayer, role: membership.role } : null;
-          }).filter((entry): entry is RosterPlayer & { role: string } => Boolean(entry));
-          const rosterPlayer = toRosterPlayer(playerSeason);
-          if (!rosterPlayer) throw new Error("Free agent tier or protected roster value is incomplete");
+        };
+        const placedPlayers = seasonEntries.map(toRosterPlayer)
+          .filter((entry): entry is RosterPlayer => Boolean(entry));
+        const currentRoster = destination
+          .filter((membership) => membership.playerId !== current.playerId)
+          .map((membership) => {
+          const entry = seasonByPlayer.get(membership.playerId);
+          const rosterPlayer = entry ? toRosterPlayer(entry) : null;
+          return rosterPlayer ? { ...rosterPlayer, role: membership.role } : null;
+        }).filter((entry): entry is RosterPlayer & { role: string } => Boolean(entry));
+        const rosterPlayer = toRosterPlayer(playerSeason);
+        if (!rosterPlayer) throw new Error("Player tier or protected roster value is incomplete");
+        if (current.type === "FREE_AGENT_SIGNING") {
           const validation = validateFreeAgentSigning({
             player: { ...rosterPlayer, status: playerSeason.status },
             currentRoster,
@@ -706,6 +747,13 @@ export async function transitionTransaction(formData: FormData) {
             rosterLocked: season.settings.rosterLocked === true,
             waiverOpen: openWaivers.some((window) => window.endsAt > new Date()),
           });
+          if (!validation.legal) throw new Error(validation.reasons.join("; "));
+        } else {
+          const capRange = calculateSeasonOneCap(placedPlayers);
+          const validation = validateSeasonOneRosterMutation(
+            [...currentRoster, rosterPlayer],
+            capRange,
+          );
           if (!validation.legal) throw new Error(validation.reasons.join("; "));
         }
         await tx.insert(rosterMemberships).values({

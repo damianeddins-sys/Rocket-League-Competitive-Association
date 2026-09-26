@@ -106,6 +106,38 @@ export function validateSeasonOneRoster(
   };
 }
 
+export function validateSeasonOneRosterMutation(
+  roster: readonly RosterPlayer[],
+  capRange: ReturnType<typeof calculateSeasonOneCap>,
+) {
+  const reasons: string[] = [];
+  const value = roster.reduce((sum, player) => sum + player.protectedValue, 0);
+  if (roster.length > 3) reasons.push("Roster cannot exceed 3 players");
+  if (new Set(roster.map((player) => player.playerId)).size !== roster.length) {
+    reasons.push("Roster cannot contain the same player twice");
+  }
+  for (const division of ["MASTER", "CHALLENGER", "CONTENDER"] as const) {
+    if (roster.filter((player) => player.division === division).length > 1) {
+      reasons.push(`Roster cannot contain more than 1 ${division} player`);
+    }
+  }
+  if (!capRange.configured) reasons.push(capRange.reason);
+  if (capRange.configured && value > capRange.cap) {
+    reasons.push(`Team value ${value} exceeds league maximum ${capRange.cap}`);
+  }
+  if (roster.length === 3) {
+    const completed = validateSeasonOneRoster(roster, capRange);
+    reasons.push(...completed.reasons);
+  }
+  return {
+    legal: reasons.length === 0,
+    value,
+    floor: capRange.floor,
+    cap: capRange.cap,
+    reasons: [...new Set(reasons)],
+  };
+}
+
 export function validateRoster(
   roster: RosterPlayer[],
   range: { floor: number; cap: number },

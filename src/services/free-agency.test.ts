@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateFreeAgentSigning, waiverPriority } from "./free-agency";
-import { calculateSeasonOneCap } from "./rosters";
+import { calculateSeasonOneCap, validateSeasonOneRosterMutation } from "./rosters";
 
 const placed = [
   ...Array.from({ length: 8 }, (_, index) => ({ playerId: `m${index}`, division: "MASTER" as const, protectedValue: 1200 })),
@@ -27,6 +27,14 @@ describe("Season 1 team cap", () => {
       floor: null,
       cap: null,
     });
+  });
+
+  it("rejects generic roster mutations that duplicate a tier or exceed the cap", () => {
+    const cap = calculateSeasonOneCap(placed);
+    expect(validateSeasonOneRosterMutation([
+      { playerId: "m1", division: "MASTER", protectedValue: 1600 },
+      { playerId: "m2", division: "MASTER", protectedValue: 1600 },
+    ], cap)).toMatchObject({ legal: false });
   });
 });
 

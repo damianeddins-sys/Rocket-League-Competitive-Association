@@ -11,6 +11,7 @@ import {
   playerSeasons,
   rocketLeagueAccounts,
   seasons,
+  siteSettings,
 } from "@/db/schema";
 import { authorizeLiveAction } from "@/services/auth/authorization";
 import { getSession } from "@/services/auth/session";
@@ -67,6 +68,12 @@ export async function saveApplication(formData: FormData) {
   const db = getDatabase();
   try {
     await db.transaction(async (tx) => {
+    const [applicationSetting] = await tx.select().from(siteSettings)
+      .where(eq(siteSettings.key, "applicationOpen")).limit(1);
+    if (
+      applicationSetting?.value === false &&
+      !authorization.access.permissions.includes("league.full")
+    ) redirect("/apply?error=closed");
     const [season] = await tx.select().from(seasons).where(eq(seasons.active, true)).limit(1);
     if (!season || season.status === "ARCHIVED") redirect("/apply?error=season");
 

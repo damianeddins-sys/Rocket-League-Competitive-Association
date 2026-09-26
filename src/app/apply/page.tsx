@@ -3,7 +3,7 @@ import Link from "next/link";
 import { and, eq } from "drizzle-orm";
 import { CheckCircle2, Gamepad2, ShieldCheck } from "lucide-react";
 import { getDatabase } from "@/db";
-import { playerApplications, players, playerSeasons, rocketLeagueAccounts, seasons } from "@/db/schema";
+import { playerApplications, players, playerSeasons, rocketLeagueAccounts, seasons, siteSettings } from "@/db/schema";
 import { PageHero } from "@/components/league-ui";
 import { getSession } from "@/services/auth/session";
 import { saveApplication } from "./actions";
@@ -19,6 +19,7 @@ const errors: Record<string, string> = {
   season: "There is no open league season accepting applications.",
   membership: "Your live Discord membership could not be verified. Sign in again or contact league staff.",
   locked: "This application is currently under review or has a final decision and can no longer be edited.",
+  closed: "Applications are currently closed by League Operations.",
 };
 
 export default async function ApplyPage({
@@ -30,6 +31,10 @@ export default async function ApplyPage({
   const state = session?.user && process.env.DATABASE_URL
     ? await getExistingApplication(session.user.id)
     : null;
+  const applicationOpen = process.env.DATABASE_URL
+    ? await getApplicationOpen()
+    : false;
+  const staffOverride = session?.user.access.permissions.includes("league.full") ?? false;
   const error = typeof query.error === "string" ? errors[query.error] : null;
   const saved = query.saved === "1";
   const editable = !state?.status || ["PENDING", "NEEDS_CHANGES"].includes(state.status);
@@ -40,6 +45,8 @@ export default async function ApplyPage({
       <main className="mx-auto max-w-4xl px-5 py-10 lg:px-8">
         {!session?.user ? (
           <section className="panel p-8 text-center"><ShieldCheck className="mx-auto text-[#5865f2]" size={34} /><h2 className="mt-4 text-2xl font-black">Discord sign-in required</h2><p className="mt-3 text-slate-600">Authentication is required before application information can be submitted or viewed.</p><Link href="/login?returnTo=%2Fapply" className="mt-6 inline-flex rounded-lg bg-[#5865f2] px-5 py-3 font-bold text-white">Continue with Discord</Link></section>
+        ) : !applicationOpen && !staffOverride ? (
+          <section className="panel p-8 text-center"><ShieldCheck className="mx-auto text-amber-600" size={34} /><h2 className="mt-4 text-2xl font-black">Applications are closed</h2><p className="mt-3 text-slate-600">League Operations has closed player applications for the current season.</p></section>
         ) : !editable ? (
           <section className="panel p-8"><div className="flex items-center gap-3"><ShieldCheck className="text-blue-600" /><div><p className="eyebrow text-slate-500">Application status</p><h2 className="text-2xl font-black">{state?.status.replaceAll("_", " ")}</h2></div></div><p className="mt-5 text-sm leading-6 text-slate-600">This application is under staff review or has reached a final decision. Its reviewed identity and account declaration are now read-only. Staff must request changes before editing is enabled again.</p></section>
         ) : (
@@ -66,6 +73,12 @@ export default async function ApplyPage({
       </main>
     </div>
   );
+}
+
+async function getApplicationOpen() {
+  const [setting] = await getDatabase().select({ value: siteSettings.value })
+    .from(siteSettings).where(eq(siteSettings.key, "applicationOpen")).limit(1);
+  return setting?.value !== false;
 }
 
 async function getExistingApplication(userId: string) {
