@@ -97,7 +97,7 @@ describe("brackets", () => {
     expect(lastChanceBracket(eight.slice(2)).slice(0, 4).map((slot) => [slot.home, slot.away])).toEqual([
       ["t3", "t8"], ["t4", "t7"], ["t5", "WINNER:R1A"], ["t6", "WINNER:R1B"],
     ]);
-    expect(championshipBracket(eight.slice(0, 6)).map((slot) => slot.bestOf)).toEqual([5, 5, 7, 7, 7]);
+    expect(championshipBracket(eight.slice(0, 6)).map((slot) => slot.bestOf)).toEqual([7, 7, 7, 7, 7]);
     expect(resolveChampionshipSemifinals(eight.slice(0, 6), ["t3", "t5"])).toEqual([
       { id: "SF1", home: "t1", away: "t5" },
       { id: "SF2", home: "t2", away: "t3" },
@@ -117,8 +117,8 @@ describe("MMR placement", () => {
   it("requires the full verification evidence", () => {
     expect(isVerificationComplete({
       opensAt: new Date("2026-01-01T00:00:00Z"),
-      closesAt: new Date("2026-01-22T00:00:00Z"),
-      rankedGamesPlayed: 75,
+      closesAt: new Date("2026-01-15T00:00:00Z"),
+      rankedGamesPlayed: 50,
       acceptedCheckpoints: 9,
     })).toBe(true);
   });

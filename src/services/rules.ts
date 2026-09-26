@@ -5,8 +5,8 @@
  */
 export const SEASON_ONE_RULES = Object.freeze({
   verification: Object.freeze({
-    windowDays: 21,
-    rankedGamesRequired: 75,
+    windowDays: 14,
+    rankedGamesRequired: 50,
     snapshotsRequired: 9,
     combineSeriesRequired: 6,
     medianWeight: 0.5,

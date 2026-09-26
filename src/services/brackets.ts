@@ -25,32 +25,32 @@ function validateSeeds(seeds: Seed[], requiredSeeds: number[]) {
 export function majorBracket(seeds: Seed[]): BracketSlot[] {
   validateSeeds(seeds, [1, 2, 3, 4, 5, 6, 7, 8]);
   return [
-    { id: "QF1", round: "QUARTERFINAL", home: bySeed(seeds, 1), away: bySeed(seeds, 8), sunday: 1, bestOf: 5 },
-    { id: "QF2", round: "QUARTERFINAL", home: bySeed(seeds, 4), away: bySeed(seeds, 5), sunday: 1, bestOf: 5 },
-    { id: "QF3", round: "QUARTERFINAL", home: bySeed(seeds, 2), away: bySeed(seeds, 7), sunday: 1, bestOf: 5 },
-    { id: "QF4", round: "QUARTERFINAL", home: bySeed(seeds, 3), away: bySeed(seeds, 6), sunday: 1, bestOf: 5 },
-    { id: "SF1", round: "SEMIFINAL", home: "WINNER:QF1", away: "WINNER:QF2", sunday: 2, bestOf: 5 },
-    { id: "SF2", round: "SEMIFINAL", home: "WINNER:QF3", away: "WINNER:QF4", sunday: 2, bestOf: 5 },
-    { id: "F", round: "FINAL", home: "WINNER:SF1", away: "WINNER:SF2", sunday: 2, bestOf: 5 },
+    { id: "QF1", round: "QUARTERFINAL", home: bySeed(seeds, 1), away: bySeed(seeds, 8), sunday: 1, bestOf: 7 },
+    { id: "QF2", round: "QUARTERFINAL", home: bySeed(seeds, 4), away: bySeed(seeds, 5), sunday: 1, bestOf: 7 },
+    { id: "QF3", round: "QUARTERFINAL", home: bySeed(seeds, 2), away: bySeed(seeds, 7), sunday: 1, bestOf: 7 },
+    { id: "QF4", round: "QUARTERFINAL", home: bySeed(seeds, 3), away: bySeed(seeds, 6), sunday: 1, bestOf: 7 },
+    { id: "SF1", round: "SEMIFINAL", home: "WINNER:QF1", away: "WINNER:QF2", sunday: 2, bestOf: 7 },
+    { id: "SF2", round: "SEMIFINAL", home: "WINNER:QF3", away: "WINNER:QF4", sunday: 2, bestOf: 7 },
+    { id: "F", round: "FINAL", home: "WINNER:SF1", away: "WINNER:SF2", sunday: 2, bestOf: 7 },
   ];
 }
 
 export function lastChanceBracket(seeds: Seed[]): BracketSlot[] {
   validateSeeds(seeds, [3, 4, 5, 6, 7, 8]);
   return [
-    { id: "R1A", round: "FIRST_ROUND", home: bySeed(seeds, 3), away: bySeed(seeds, 8), sunday: 1, bestOf: 5 },
-    { id: "R1B", round: "FIRST_ROUND", home: bySeed(seeds, 4), away: bySeed(seeds, 7), sunday: 1, bestOf: 5 },
-    { id: "SF1", round: "SEMIFINAL", home: bySeed(seeds, 5), away: "WINNER:R1A", sunday: 1, bestOf: 5 },
-    { id: "SF2", round: "SEMIFINAL", home: bySeed(seeds, 6), away: "WINNER:R1B", sunday: 1, bestOf: 5 },
-    { id: "F", round: "FINAL", home: "WINNER:SF1", away: "WINNER:SF2", sunday: 2, bestOf: 5 },
+    { id: "R1A", round: "FIRST_ROUND", home: bySeed(seeds, 3), away: bySeed(seeds, 8), sunday: 1, bestOf: 7 },
+    { id: "R1B", round: "FIRST_ROUND", home: bySeed(seeds, 4), away: bySeed(seeds, 7), sunday: 1, bestOf: 7 },
+    { id: "SF1", round: "SEMIFINAL", home: bySeed(seeds, 5), away: "WINNER:R1A", sunday: 1, bestOf: 7 },
+    { id: "SF2", round: "SEMIFINAL", home: bySeed(seeds, 6), away: "WINNER:R1B", sunday: 1, bestOf: 7 },
+    { id: "F", round: "FINAL", home: "WINNER:SF1", away: "WINNER:SF2", sunday: 2, bestOf: 7 },
   ];
 }
 
 export function championshipBracket(seeds: Seed[]): BracketSlot[] {
   validateSeeds(seeds, [1, 2, 3, 4, 5, 6]);
   return [
-    { id: "R1A", round: "FIRST_ROUND", home: bySeed(seeds, 3), away: bySeed(seeds, 6), sunday: 1, bestOf: 5 },
-    { id: "R1B", round: "FIRST_ROUND", home: bySeed(seeds, 4), away: bySeed(seeds, 5), sunday: 1, bestOf: 5 },
+    { id: "R1A", round: "FIRST_ROUND", home: bySeed(seeds, 3), away: bySeed(seeds, 6), sunday: 1, bestOf: 7 },
+    { id: "R1B", round: "FIRST_ROUND", home: bySeed(seeds, 4), away: bySeed(seeds, 5), sunday: 1, bestOf: 7 },
     { id: "SF1", round: "SEMIFINAL", home: bySeed(seeds, 1), away: "LOWER_REMAINING_SEED", sunday: 1, bestOf: 7 },
     { id: "SF2", round: "SEMIFINAL", home: bySeed(seeds, 2), away: "OTHER_REMAINING_TEAM", sunday: 1, bestOf: 7 },
     { id: "F", round: "FINAL", home: "WINNER:SF1", away: "WINNER:SF2", sunday: 2, bestOf: 7 },

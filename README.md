@@ -7,7 +7,7 @@ Production-oriented foundation for the RLCA 2v2 league platform. The website is 
 - Responsive Next.js public experience using the supplied transparent RLCA logo
 - PostgreSQL/Drizzle relational schema with append-only point, rating, replay-analysis, and audit history
 - Deterministic league services for:
-  - 21-day / 75-game / 9-checkpoint MMR verification
+  - 14-day / 50-game / 9-checkpoint MMR verification
   - exact V2 Evidence Score, ranked Combine index, 80/20 placement, and 1000–1800 RLCA rating assignment
   - audited player lifecycle, 7 × 24-hour activation holds, and seven-day waivers
   - Protected Roster Value and dynamic roster cap/floor
