@@ -21,6 +21,7 @@ import {
   playerSeasons,
   players,
   ratingEvents,
+  replays,
   roleAssignments,
   rocketLeagueAccounts,
   rosterMemberships,
