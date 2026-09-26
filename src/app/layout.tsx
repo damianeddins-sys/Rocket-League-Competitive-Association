@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
@@ -24,6 +24,14 @@ export const metadata: Metadata = {
   },
   description:
     "The official home of RLCA 2v2 competition, standings, schedules, franchises, and events.",
+  icons: {
+    icon: "/branding/rlca-season-one-crest.png",
+    apple: "/branding/rlca-season-one-crest.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#020b08",
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
@@ -31,16 +39,16 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
 
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full bg-[#f5f7fb] text-slate-900">
-        <header className="sticky top-0 z-50 border-b border-white/10 bg-[#07172b]/95 text-white shadow-lg shadow-slate-950/10 backdrop-blur">
-          <div className="mx-auto flex h-16 max-w-[1500px] items-center gap-5 px-4 lg:px-6">
+      <body className="min-h-full text-slate-900">
+        <header className="sticky top-0 z-50 border-b border-emerald-400/20 bg-[#020b08]/95 text-white shadow-lg shadow-emerald-950/20 backdrop-blur">
+          <div className="mx-auto flex h-20 max-w-[1500px] items-center gap-5 px-4 lg:px-6">
             <Link href="/" className="mr-auto flex shrink-0 items-center gap-3" aria-label="RLCA home">
               <Image
-                src="/branding/rlca-primary-logo-v2.png"
-                alt="RLCA"
-                width={92}
-                height={92}
-                className="h-11 w-auto object-contain"
+                src="/branding/rlca-season-one-crest.png"
+                alt="RLCA Season 1"
+                width={1000}
+                height={1000}
+                className="h-16 w-16 object-contain drop-shadow-[0_0_12px_rgba(0,245,160,0.32)]"
                 priority
               />
               <span className="hidden border-l border-white/20 pl-3 text-[9px] font-semibold uppercase leading-tight tracking-[0.2em] text-slate-300 xl:block">
@@ -86,7 +94,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 <Link href="/login" className="px-2 py-2 text-sm font-bold text-slate-200">
                   Sign in
                 </Link>
-                <Link href="/apply" className="hidden rounded-lg bg-[#1677ff] px-4 py-2 text-sm font-bold sm:block">
+                <Link href="/apply" className="hidden rounded-lg bg-[#00c985] px-4 py-2 text-sm font-black text-[#020b08] hover:bg-[#00f5a0] sm:block">
                   Apply
                 </Link>
               </div>
@@ -108,10 +116,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           </div>
         </header>
         <main>{children}</main>
-        <footer className="bg-[#07172b] text-slate-300">
+        <footer className="border-t border-emerald-400/20 bg-[#020b08] text-slate-300">
           <div className="mx-auto grid max-w-7xl gap-8 px-5 py-10 sm:grid-cols-2 lg:px-8">
             <div>
-              <Image src="/branding/rlca-primary-logo-v2.png" alt="" width={120} height={120} className="h-14 w-auto" />
+              <Image src="/branding/rlca-season-one-crest.png" alt="RLCA Season 1" width={1000} height={1000} className="h-24 w-24 object-contain drop-shadow-[0_0_18px_rgba(0,245,160,0.28)]" />
               <p className="mt-3 max-w-md text-sm leading-6">
                 One league. One official record. Built for competitive Rocket League 2v2.
               </p>

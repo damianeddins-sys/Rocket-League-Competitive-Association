@@ -39,17 +39,18 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       : undefined;
 
   return (
-    <section className="flex min-h-[72vh] items-center bg-[#f4f7fa] px-5 py-16">
-      <div className="panel mx-auto w-full max-w-md p-8 text-center">
+    <section className="relative flex min-h-[72vh] items-center overflow-hidden bg-[#020b08] px-5 py-16">
+      <div className="pointer-events-none absolute inset-0 bg-[url('/branding/rlca-network-field.png')] bg-cover bg-center opacity-40" />
+      <div className="panel relative z-10 mx-auto w-full max-w-md p-8 text-center">
         <Image
-          src="/branding/rlca-primary-logo-v2.png"
-          alt="RLCA"
-          width={180}
-          height={180}
-          className="mx-auto h-24 w-auto"
+          src="/branding/rlca-season-one-crest.png"
+          alt="RLCA Season 1"
+          width={1000}
+          height={1000}
+          className="mx-auto h-36 w-36 object-contain drop-shadow-[0_0_18px_rgba(0,245,160,0.3)]"
         />
-        <p className="eyebrow mt-5 text-[#1677ff]">Official league account</p>
-        <h1 className="mt-3 text-3xl font-black text-[#0b1f3a]">Sign in to RLCA</h1>
+        <p className="eyebrow mt-5 text-[#00a96f]">Official league account</p>
+        <h1 className="mt-3 text-3xl font-black text-[#052e20]">Sign in to RLCA</h1>
         <p className="mt-3 leading-7 text-slate-600">
           Connect Discord to access registration and the league tools authorized for your role.
         </p>

@@ -20,7 +20,7 @@ export default async function StandingsPage({ searchParams }: PageProps<"/standi
           <>
             <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
               <table className="w-full border-collapse text-left">
-                <thead className="bg-[#0b1f3a] text-xs uppercase tracking-wider text-slate-300"><tr>{["Standing", "Team", "Record", "Qualification points", ""].map((label) => <th key={label} className="px-5 py-4">{label}</th>)}</tr></thead>
+                <thead className="bg-[#052e20] text-xs uppercase tracking-wider text-emerald-100"><tr>{["Standing", "Team", "Record", "Qualification points", ""].map((label) => <th key={label} className="px-5 py-4">{label}</th>)}</tr></thead>
                 <tbody>{snapshot.teams.map((team) => <tr key={team.id} className="border-b border-slate-100 last:border-0 hover:bg-blue-50/40"><td className="px-5 py-4 text-xl font-black text-slate-400">{team.standing ? `#${team.standing}` : "—"}</td><td className="px-5 py-4"><Link href={`/teams/${team.slug}${seasonQuery}`}><TeamIdentity team={team} compact /></Link></td><td className="px-5 py-4 font-mono font-bold">{team.wins}–{team.losses}</td><td className="px-5 py-4 font-mono text-lg font-black">{team.points}</td><td className="px-5 py-4"><Link href={`/teams/${team.slug}${seasonQuery}`} aria-label={`Open ${team.name}`}><ArrowRight size={17} className="text-blue-600" /></Link></td></tr>)}</tbody>
               </table>
             </div>

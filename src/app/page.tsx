@@ -9,13 +9,13 @@ export default async function Home() {
   const nextMatches = snapshot.matches.filter((match) => match.scheduledAt > new Date()).slice(0, 2);
   return (
     <>
-      <section className="hero-grid relative overflow-hidden bg-[#0b1f3a] text-white">
+      <section className="hero-grid relative overflow-hidden bg-[#020b08] text-white">
         <Image
-          src="/branding/rlca-primary-logo-v2.png"
+          src="/branding/rlca-season-one-crest.png"
           alt=""
-          width={700}
-          height={700}
-          className="pointer-events-none absolute -right-20 top-1/2 w-[480px] -translate-y-1/2 opacity-[0.09] lg:right-8 lg:w-[620px]"
+          width={1000}
+          height={1000}
+          className="pointer-events-none absolute -right-32 top-1/2 w-[520px] -translate-y-1/2 opacity-[0.18] drop-shadow-[0_0_45px_rgba(0,245,160,0.4)] lg:right-2 lg:w-[680px]"
           priority
         />
         <div className="relative mx-auto grid min-h-[600px] max-w-7xl items-center gap-12 px-5 py-20 lg:grid-cols-[1.15fr_.85fr] lg:px-8">
@@ -28,7 +28,7 @@ export default async function Home() {
               The official, connected home for RLCA teams, players, matches, standings, and league operations.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
-              <Link href="/standings" className="flex items-center gap-2 rounded-md bg-[#1677ff] px-5 py-3 font-bold">
+              <Link href="/standings" className="flex items-center gap-2 rounded-md bg-[#00c985] px-5 py-3 font-black text-[#020b08] hover:bg-[#00f5a0]">
                 View standings <ArrowRight size={17} />
               </Link>
               <Link href="/matches" className="flex items-center gap-2 rounded-md border border-white/25 bg-white/5 px-5 py-3 font-bold">
@@ -64,7 +64,7 @@ export default async function Home() {
         <div className="mx-auto grid max-w-7xl gap-px bg-slate-200 sm:grid-cols-3">
           {[[String(snapshot.teams.length), "Published teams"], [String(snapshot.players.length), "Published players"], [String(snapshot.matches.length), "Official matches"]].map(([value, label]) => (
             <div key={label} className="bg-slate-50 px-6 py-7 text-center">
-              <p className="text-3xl font-black text-[#0b1f3a]">{value}</p>
+              <p className="text-3xl font-black text-[#052e20]">{value}</p>
               <p className="mt-1 text-sm font-semibold text-slate-500">{label}</p>
             </div>
           ))}
@@ -74,15 +74,15 @@ export default async function Home() {
       <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
         <div className="mb-8 flex items-end justify-between">
           <div>
-            <p className="eyebrow text-[#1677ff]">Qualification picture</p>
-            <h2 className="mt-2 text-3xl font-black tracking-tight text-[#0b1f3a]">The race to Championship</h2>
+            <p className="eyebrow text-[#00a96f]">Qualification picture</p>
+            <h2 className="mt-2 text-3xl font-black tracking-tight text-[#052e20]">The race to Championship</h2>
           </div>
-          <Link href="/standings" className="hidden items-center gap-2 font-bold text-[#1677ff] sm:flex">
+          <Link href="/standings" className="hidden items-center gap-2 font-bold text-[#00895a] sm:flex">
             Full table <ArrowRight size={16} />
           </Link>
         </div>
         {snapshot.teams.length === 0 ? <EmptyState title="Standings awaiting official data" message="The qualification picture will appear when teams and point-ledger records are published." /> : <div className="panel overflow-hidden">
-          <div className="hidden grid-cols-[60px_1fr_120px_150px] bg-[#0b1f3a] px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-300 sm:grid">
+          <div className="hidden grid-cols-[60px_1fr_120px_150px] bg-[#052e20] px-6 py-3 text-xs font-bold uppercase tracking-wider text-emerald-100 sm:grid">
             <span>Seed</span><span>Franchise</span><span>Points</span><span>Status</span>
           </div>
           {snapshot.teams.slice(0, 6).map((team, index) => (
@@ -106,9 +106,9 @@ export default async function Home() {
             { icon: ShieldCheck, label: "Trusted records", title: "Official data, clearly identified.", text: "Empty states stay honest. Published totals are derived from league records instead of invented placeholders." },
           ].map(({ icon: Icon, label, title, text }) => (
             <article key={label} className="panel p-7">
-              <Icon className="text-[#1677ff]" />
+              <Icon className="text-[#00a96f]" />
               <p className="eyebrow mt-6 text-slate-500">{label}</p>
-              <h3 className="mt-2 text-xl font-black text-[#0b1f3a]">{title}</h3>
+              <h3 className="mt-2 text-xl font-black text-[#052e20]">{title}</h3>
               <p className="mt-3 leading-7 text-slate-600">{text}</p>
             </article>
           ))}
@@ -116,14 +116,15 @@ export default async function Home() {
       </section>
 
       <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
-        <div className="overflow-hidden rounded-xl bg-[#1677ff] px-7 py-10 text-white sm:px-12 sm:py-14">
-          <p className="eyebrow text-blue-100">Your path starts here</p>
-          <div className="mt-3 flex flex-col justify-between gap-7 sm:flex-row sm:items-end">
+        <div className="relative overflow-hidden rounded-xl bg-[#052e20] px-7 py-10 text-white shadow-2xl shadow-emerald-950/20 sm:px-12 sm:py-14">
+          <div className="pointer-events-none absolute inset-0 bg-[url('/branding/rlca-network-field.png')] bg-cover bg-center opacity-20" />
+          <p className="eyebrow relative text-emerald-100">Your path starts here</p>
+          <div className="relative mt-3 flex flex-col justify-between gap-7 sm:flex-row sm:items-end">
             <div>
               <h2 className="max-w-2xl text-3xl font-black tracking-tight sm:text-4xl">Ready to compete in RLCA 2v2?</h2>
               <p className="mt-3 max-w-2xl text-blue-100">Sign in with Discord to access protected player functions and submit an application.</p>
             </div>
-            <Link href="/apply" className="shrink-0 rounded-md bg-white px-5 py-3 font-bold text-[#0b1f3a]">Start application</Link>
+            <Link href="/apply" className="shrink-0 rounded-md bg-[#00f5a0] px-5 py-3 font-black text-[#020b08]">Start application</Link>
           </div>
         </div>
       </section>
