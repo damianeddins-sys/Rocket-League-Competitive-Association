@@ -16,7 +16,6 @@ import {
   divisions,
   events,
   franchises,
-  matches,
   mmrSnapshots,
   mmrVerificationWindows,
   playerApplications,

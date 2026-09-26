@@ -1,5 +1,7 @@
-import type { Division } from "./mmr";
+import type { Division as OfficialTier } from "./mmr";
 import { SEASON_ONE_RULES } from "./rules";
+
+type Division = Exclude<OfficialTier, "PREMIER">;
 
 export type RosterPlayer = {
   playerId: string;
