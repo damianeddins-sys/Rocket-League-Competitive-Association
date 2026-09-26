@@ -36,18 +36,11 @@ export function validateFreeAgentSigning(input: {
   }
 
   const proposed = [...input.currentRoster, { ...input.player, role: input.requestedRole }];
+  if (proposed.length !== 3) reasons.push("Free-agent signing must result in a complete 3-player roster");
   const slotValidation = validateRosterRoles(proposed);
   reasons.push(...slotValidation.reasons);
   const capRange = calculateSeasonOneCap(input.placedPlayers);
-  const rosterValidation = proposed.length === 3
-    ? validateSeasonOneRoster(proposed, capRange)
-    : {
-        legal: capRange.configured,
-        value: proposed.reduce((sum, player) => sum + player.protectedValue, 0),
-        floor: capRange.floor,
-        cap: capRange.cap,
-        reasons: capRange.configured ? [] : [capRange.reason],
-      };
+  const rosterValidation = validateSeasonOneRoster(proposed, capRange);
   reasons.push(...rosterValidation.reasons);
 
   return {

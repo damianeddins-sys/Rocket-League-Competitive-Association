@@ -1321,9 +1321,7 @@ export async function reviewWaiverClaim(formData: FormData) {
     if (!claim || claim.status !== "PENDING") throw new Error("Pending waiver claim not found");
     const [window] = await tx.select().from(waiverWindows)
       .where(eq(waiverWindows.id, claim.waiverWindowId)).for("update").limit(1);
-    if (!window || window.status !== "OPEN" || window.endsAt < new Date()) {
-      throw new Error("Waiver window is no longer reviewable");
-    }
+    if (!window || window.status !== "OPEN") throw new Error("Waiver window is no longer reviewable");
     if (parsed.data.decision === "DENY") {
       await tx.update(waiverClaims).set({
         status: "DENIED",
@@ -1342,6 +1340,9 @@ export async function reviewWaiverClaim(formData: FormData) {
         reason: parsed.data.reason,
       });
       return;
+    }
+    if (window.endsAt > new Date()) {
+      throw new Error("Published waiver deadline has not passed");
     }
     const pendingClaims = await tx.select().from(waiverClaims).where(and(
       eq(waiverClaims.waiverWindowId, window.id),
