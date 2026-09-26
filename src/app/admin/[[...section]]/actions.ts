@@ -405,8 +405,11 @@ export async function activateSeason(formData: FormData) {
         (await tx.select({ id: franchises.id }).from(franchises).where(eq(franchises.active, true)))
           .map((row) => row.id),
       ).size,
-      ineligiblePlayerCount: seasonPlayers.filter((entry) =>
-        !["ACTIVE", "ROSTERED"].includes(entry.status)).length,
+      ineligiblePlayerCount: memberships.filter((membership) =>
+        !seasonPlayers.some((entry) =>
+          entry.playerId === membership.playerId &&
+          ["ACTIVE", "ROSTERED"].includes(entry.status),
+        )).length,
       tierCodes: divisionRows.map((division) => division.code),
       rosters: rosterFacts,
       scheduledMatchCount: matchRows.length,

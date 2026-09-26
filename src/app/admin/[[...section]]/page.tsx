@@ -207,7 +207,13 @@ async function SeasonsSection() {
         hasValidDates: season.endsAt > season.startsAt,
         teamCount: seasonEntries.length,
         franchiseCount: franchiseRows.length,
-        ineligiblePlayerCount: seasonPlayers.filter((entry) => entry.seasonId === season.id && !["ACTIVE", "ROSTERED"].includes(entry.status)).length,
+        ineligiblePlayerCount: memberships.filter((membership) =>
+          membership.seasonId === season.id &&
+          !seasonPlayers.some((entry) =>
+            entry.playerId === membership.playerId &&
+            entry.seasonId === season.id &&
+            ["ACTIVE", "ROSTERED"].includes(entry.status),
+          )).length,
         tierCodes: tierRows.filter((tier) => tier.seasonId === season.id).map((tier) => tier.code),
         rosters: rosterFacts,
         scheduledMatchCount: matchRows.filter((match) => match.seasonId === season.id).length,
