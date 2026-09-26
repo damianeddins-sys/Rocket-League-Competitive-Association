@@ -69,7 +69,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             <div className="hidden w-64 xl:block"><SearchBox /></div>
             {session?.user ? (
               <div className="flex items-center gap-3">
-                {session.user.access.portals.includes("LEAGUE_OPERATIONS") && (
+                {session.user.access.portals.some((portal) =>
+                  ["LEAGUE_OPERATIONS", "SIGN_UP_MANAGER", "STATISTICS"].includes(portal),
+                ) && (
                   <Link href="/admin" className="hidden items-center gap-1.5 text-xs font-bold text-blue-200 sm:flex">
                     <ShieldCheck size={15} /> Admin
                   </Link>

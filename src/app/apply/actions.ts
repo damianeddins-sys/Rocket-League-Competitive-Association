@@ -95,6 +95,13 @@ export async function saveApplication(formData: FormData) {
       .select()
       .from(rocketLeagueAccounts)
       .where(eq(rocketLeagueAccounts.playerId, player.id));
+    // Clear the existing primary first. PostgreSQL enforces one primary account
+    // per player, so promoting a different account before this update would
+    // violate the partial unique index.
+    await tx
+      .update(rocketLeagueAccounts)
+      .set({ isPrimary: false })
+      .where(eq(rocketLeagueAccounts.playerId, player.id));
     const retainedIds: string[] = [];
     for (const account of accounts) {
       const existing = beforeAccounts.find(

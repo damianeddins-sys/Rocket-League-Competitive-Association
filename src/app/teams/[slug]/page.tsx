@@ -31,6 +31,7 @@ export default async function TeamDetailPage({
   );
   const upcoming = teamMatches.filter((match) => match.scheduledAt > new Date());
   const completed = teamMatches.filter((match) => match.status === "VERIFIED");
+  const seasonQuery = snapshot.season ? `?season=${encodeURIComponent(snapshot.season.slug)}` : "";
 
   return (
     <div className="min-h-screen">
@@ -49,8 +50,9 @@ export default async function TeamDetailPage({
           <Link href="/teams">Teams</Link><ChevronRight size={14} /><span className="text-slate-900">{team.name}</span>
         </nav>
 
-        <section className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {[
+            ["Tier", team.tier ?? "Pending"],
             ["Standing", team.standing ? `#${team.standing}` : "Not ranked"],
             ["Record", `${team.wins}–${team.losses}`],
             ["Qualification points", String(team.points)],
@@ -67,9 +69,9 @@ export default async function TeamDetailPage({
               <div className="mt-5"><EmptyState title="No roster published" message="No active roster memberships are recorded for this team and season." /></div>
             ) : (
               <div className="mt-5 divide-y divide-slate-100">
-                {roster.map((player, index) => (
-                  <Link key={player.id} href={`/players/${encodeURIComponent(player.handle)}`} className="group flex items-center justify-between gap-4 py-4">
-                    <div><p className="stat-label">{index < 2 ? `Starter ${index + 1}` : "Substitute"}</p><p className="mt-1 font-black group-hover:text-blue-700">{player.handle}</p></div>
+                {roster.map((player) => (
+                  <Link key={player.id} href={`/players/${encodeURIComponent(player.handle)}${seasonQuery}`} className="group flex items-center justify-between gap-4 py-4">
+                    <div><p className="stat-label">Active roster</p><p className="mt-1 font-black group-hover:text-blue-700">{player.handle}</p></div>
                     <div className="text-right"><p className="text-sm font-bold">{player.tier ?? "Tier pending"}</p><p className="text-xs text-slate-500">{player.mmr == null ? "MMR not published" : `${player.mmr} MMR`}</p></div>
                   </Link>
                 ))}
@@ -84,7 +86,7 @@ export default async function TeamDetailPage({
             ) : (
               <div className="mt-5 space-y-3">
                 {upcoming.slice(0, 3).map((match) => (
-                  <Link key={match.id} href={`/matches/${match.id}`} className="entity-link group border border-slate-200 p-4 hover:border-blue-300">
+                  <Link key={match.id} href={`/matches/${match.id}${seasonQuery}`} className="entity-link group border border-slate-200 p-4 hover:border-blue-300">
                     <span><span className="stat-label">Week {match.week} · BO{match.bestOf}</span><strong className="mt-1 block">{match.teamA.name} vs {match.teamB.name}</strong></span>
                     <ChevronRight size={17} />
                   </Link>
@@ -98,7 +100,7 @@ export default async function TeamDetailPage({
           <section className="panel p-6">
             <div className="flex items-center gap-3"><Trophy className="text-blue-600" /><h2 className="text-xl font-black">Results</h2></div>
             {completed.length === 0 ? <p className="mt-5 text-sm text-slate-500">No official matches recorded.</p> : completed.slice(-5).map((match) => (
-              <Link key={match.id} href={`/matches/${match.id}`} className="entity-link group mt-3 border-t border-slate-100 py-4">
+              <Link key={match.id} href={`/matches/${match.id}${seasonQuery}`} className="entity-link group mt-3 border-t border-slate-100 py-4">
                 <span>{match.teamA.name} <strong>{match.teamAScore}–{match.teamBScore}</strong> {match.teamB.name}</span><ChevronRight size={16} />
               </Link>
             ))}
@@ -106,7 +108,7 @@ export default async function TeamDetailPage({
           <section className="panel p-6">
             <div className="flex items-center gap-3"><History className="text-blue-600" /><h2 className="text-xl font-black">History & connections</h2></div>
             <div className="mt-5 grid gap-3">
-              {team.franchise && <Link href={`/franchises/${team.franchise.slug}`} className="entity-link group bg-slate-50 p-4"><span><span className="stat-label">Franchise</span><strong className="mt-1 block">{team.franchise.name}</strong></span><ChevronRight size={16} /></Link>}
+              {team.franchise && <Link href={`/franchises/${team.franchise.slug}${seasonQuery}`} className="entity-link group bg-slate-50 p-4"><span><span className="stat-label">Franchise</span><strong className="mt-1 block">{team.franchise.name}</strong></span><ChevronRight size={16} /></Link>}
               <Link href={`/standings${snapshot.season ? `?season=${snapshot.season.slug}` : ""}`} className="entity-link group bg-slate-50 p-4"><strong>Season standings</strong><ChevronRight size={16} /></Link>
               <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">Previous rosters and transactions appear here when official history is recorded.</p>
             </div>

@@ -12,6 +12,7 @@ import {
   qualificationPointEvents,
   rosterMemberships,
   seasons,
+  teamSeasons,
   teams,
 } from "@/db/schema";
 
@@ -30,6 +31,7 @@ export type TeamSummary = {
   shortName: string;
   logoUrl: string | null;
   color: string;
+  tier: string | null;
   franchise: { name: string; slug: string } | null;
   wins: number;
   losses: number;
@@ -109,9 +111,10 @@ export async function getPublicSnapshot(seasonSlug?: string): Promise<PublicSnap
     };
   }
 
-  const [teamRows, franchiseRows, pointsRows, matchRows, eventRows, rosterRows, playerRows, playerSeasonRows, divisionRows] =
+  const [allTeamRows, teamSeasonRows, franchiseRows, pointsRows, matchRows, eventRows, rosterRows, playerRows, playerSeasonRows, divisionRows] =
     await Promise.all([
       db.select().from(teams).where(eq(teams.active, true)),
+      db.select().from(teamSeasons).where(and(eq(teamSeasons.seasonId, season.id), eq(teamSeasons.active, true))),
       db.select().from(franchises).where(eq(franchises.active, true)),
       db
         .select({
@@ -135,8 +138,11 @@ export async function getPublicSnapshot(seasonSlug?: string): Promise<PublicSnap
       db.select().from(playerSeasons).where(eq(playerSeasons.seasonId, season.id)),
       db.select().from(divisions).where(eq(divisions.seasonId, season.id)),
     ]);
+  const teamSeasonByTeam = new Map(teamSeasonRows.map((item) => [item.teamId, item]));
+  const teamRows = allTeamRows.filter((team) => teamSeasonByTeam.has(team.id));
 
   const franchiseById = new Map(franchiseRows.map((item) => [item.id, item]));
+  const divisionById = new Map(divisionRows.map((item) => [item.id, item]));
   const pointTotals = new Map<string, number>();
   for (const row of pointsRows) {
     pointTotals.set(row.teamId, (pointTotals.get(row.teamId) ?? 0) + numeric(row.points));
@@ -173,6 +179,9 @@ export async function getPublicSnapshot(seasonSlug?: string): Promise<PublicSnap
       shortName: team.shortName,
       logoUrl: team.logoUrl,
       color: team.primaryColor,
+      tier: teamSeasonByTeam.get(team.id)?.divisionId
+        ? divisionById.get(teamSeasonByTeam.get(team.id)!.divisionId!)?.code ?? null
+        : null,
       franchise: franchise ? { name: franchise.name, slug: franchise.slug } : null,
       wins: record.wins,
       losses: record.losses,
@@ -182,7 +191,6 @@ export async function getPublicSnapshot(seasonSlug?: string): Promise<PublicSnap
   });
   const teamById = new Map(teamSummaries.map((item) => [item.id, item]));
   const playerSeasonById = new Map(playerSeasonRows.map((item) => [item.playerId, item]));
-  const divisionById = new Map(divisionRows.map((item) => [item.id, item]));
   const rosterByPlayer = new Map(rosterRows.map((item) => [item.playerId, item]));
 
   const playerSummaries = playerRows

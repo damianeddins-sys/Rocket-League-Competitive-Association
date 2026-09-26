@@ -23,6 +23,7 @@ export default async function PlayerDetailPage({
   if (!player) notFound();
   const team = player.team ? snapshot.teams.find((item) => item.slug === player.team?.slug) : null;
   const matches = team ? snapshot.matches.filter((match) => match.teamA.id === team.id || match.teamB.id === team.id) : [];
+  const seasonQuery = snapshot.season ? `?season=${encodeURIComponent(snapshot.season.slug)}` : "";
 
   return (
     <div className="min-h-screen">
@@ -42,7 +43,7 @@ export default async function PlayerDetailPage({
           <div className="space-y-7">
             <section className="panel p-6">
               <div className="flex items-center gap-3"><Shield className="text-blue-600" /><h2 className="text-xl font-black">Current team</h2></div>
-              {team ? <Link href={`/teams/${team.slug}`} className="entity-link group mt-5 rounded-xl bg-slate-50 p-4"><span><strong>{team.name}</strong><span className="mt-1 block text-sm text-slate-500">{team.franchise?.name ?? "Independent team"}</span></span><ChevronRight size={16} /></Link> : <p className="mt-5 text-sm text-slate-500">No active team assignment recorded.</p>}
+              {team ? <div className="mt-5 grid gap-3"><Link href={`/teams/${team.slug}${seasonQuery}`} className="entity-link group rounded-xl bg-slate-50 p-4"><span><strong>{team.name}</strong><span className="mt-1 block text-sm text-slate-500">{team.franchise?.name ?? "Independent team"}</span></span><ChevronRight size={16} /></Link>{team.franchise && <Link href={`/franchises/${team.franchise.slug}${seasonQuery}`} className="entity-link group rounded-xl bg-slate-50 p-4"><span><span className="stat-label">Franchise</span><strong className="mt-1 block">{team.franchise.name}</strong></span><ChevronRight size={16} /></Link>}</div> : <p className="mt-5 text-sm text-slate-500">No active team assignment recorded.</p>}
             </section>
             <section className="panel p-6">
               <div className="flex items-center gap-3"><History className="text-blue-600" /><h2 className="text-xl font-black">Season history</h2></div>
@@ -54,7 +55,7 @@ export default async function PlayerDetailPage({
             {matches.length === 0 ? <p className="mt-6 text-sm text-slate-500">No official matches recorded.</p> : (
               <div className="mt-5 divide-y divide-slate-100">
                 {matches.slice(-8).reverse().map((match) => (
-                  <Link key={match.id} href={`/matches/${match.id}`} className="entity-link group py-4">
+                  <Link key={match.id} href={`/matches/${match.id}${seasonQuery}`} className="entity-link group py-4">
                     <span><span className="stat-label">{match.eventName ?? `Week ${match.week}`} · BO{match.bestOf}</span><strong className="mt-1 block">{match.teamA.name} {match.teamAScore ?? "—"}–{match.teamBScore ?? "—"} {match.teamB.name}</strong></span><ChevronRight size={16} />
                   </Link>
                 ))}

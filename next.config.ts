@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "cdn.discordapp.com" },
+      { protocol: "https", hostname: "**.public.blob.vercel-storage.com" },
+    ],
+  },
   async headers() {
     if (process.env.NODE_ENV !== "production") return [];
     return [
@@ -24,7 +30,7 @@ const nextConfig: NextConfig = {
               "default-src 'self'",
               "script-src 'self' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: https://cdn.discordapp.com",
+              "img-src 'self' data: https://cdn.discordapp.com https://*.public.blob.vercel-storage.com",
               "font-src 'self' data:",
               "connect-src 'self'",
               "frame-ancestors 'none'",

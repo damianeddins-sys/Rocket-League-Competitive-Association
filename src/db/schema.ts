@@ -281,6 +281,23 @@ export const teams = pgTable("teams", {
   active: boolean("active").default(true).notNull(),
 });
 
+export const teamSeasons = pgTable(
+  "team_seasons",
+  {
+    id: id(),
+    teamId: uuid("team_id").notNull().references(() => teams.id),
+    seasonId: uuid("season_id").notNull().references(() => seasons.id),
+    divisionId: uuid("division_id").references(() => divisions.id),
+    seed: integer("seed"),
+    active: boolean("active").default(true).notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("team_season_unique").on(table.teamId, table.seasonId),
+    index("team_season_division").on(table.seasonId, table.divisionId),
+  ],
+);
+
 export const players = pgTable("players", {
   id: id(),
   userId: uuid("user_id").references(() => users.id),

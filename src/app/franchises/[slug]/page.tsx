@@ -25,6 +25,7 @@ export default async function FranchiseDetailPage({
   ]);
   if (!franchise) notFound();
   const relatedTeams = snapshot.teams.filter((team) => team.franchise?.slug === slug);
+  const seasonQuery = snapshot.season ? `?season=${encodeURIComponent(snapshot.season.slug)}` : "";
 
   return (
     <div className="min-h-screen">
@@ -37,7 +38,7 @@ export default async function FranchiseDetailPage({
           <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="eyebrow text-slate-500">Organization</p><h2 className="mt-1 text-2xl font-black">Teams</h2></div><span className="text-sm font-bold text-slate-500">{franchise.active ? "Active franchise" : "Archived franchise"}</span></div>
           {relatedTeams.length === 0 ? <div className="mt-5"><EmptyState title="No teams associated" message="No published team is connected to this franchise for the selected season." /></div> : (
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              {relatedTeams.map((team) => <Link key={team.id} href={`/teams/${team.slug}`} className="entity-card group p-5"><TeamIdentity team={team} /><div className="mt-5 flex justify-between border-t border-slate-100 pt-4 text-sm"><span>{team.wins}–{team.losses} record</span><strong className="text-blue-700">Open team →</strong></div></Link>)}
+              {relatedTeams.map((team) => <Link key={team.id} href={`/teams/${team.slug}${seasonQuery}`} className="entity-card group p-5"><TeamIdentity team={team} /><div className="mt-5 flex justify-between border-t border-slate-100 pt-4 text-sm"><span>{team.tier ?? "Tier pending"} · {team.wins}–{team.losses}</span><strong className="text-blue-700">Open team →</strong></div></Link>)}
             </div>
           )}
         </section>
