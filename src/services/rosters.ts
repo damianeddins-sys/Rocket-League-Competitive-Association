@@ -59,6 +59,53 @@ export function calculateCapRange(playersByDivision: Record<Division, RosterPlay
   };
 }
 
+export function calculateSeasonOneCap(players: readonly RosterPlayer[]) {
+  if (players.length !== 24) {
+    return {
+      configured: false as const,
+      playerCount: players.length,
+      averageTeamValue: null,
+      floor: null,
+      cap: null,
+      reason: `Official cap requires protected roster values for all 24 placed players (${players.length}/24)`,
+    };
+  }
+  const total = players.reduce((sum, player) => sum + player.protectedValue, 0);
+  const averageTeamValue = total / 8;
+  return {
+    configured: true as const,
+    playerCount: players.length,
+    averageTeamValue,
+    floor: Math.ceil((averageTeamValue * 0.95) / 10) * 10,
+    cap: Math.floor((averageTeamValue * 1.05) / 10) * 10,
+    reason: null,
+  };
+}
+
+export function validateSeasonOneRoster(
+  roster: readonly RosterPlayer[],
+  capRange: ReturnType<typeof calculateSeasonOneCap>,
+) {
+  const reasons: string[] = [];
+  const value = roster.reduce((sum, player) => sum + player.protectedValue, 0);
+  if (roster.length !== 3) reasons.push("Roster cannot exceed 3 players and must contain 3 players when complete");
+  for (const division of ["MASTER", "CHALLENGER", "CONTENDER"] as const) {
+    if (roster.filter((player) => player.division === division).length !== 1) {
+      reasons.push(`Roster must contain exactly 1 ${division} player`);
+    }
+  }
+  if (!capRange.configured) reasons.push(capRange.reason);
+  if (capRange.configured && value < capRange.floor) reasons.push(`Team value ${value} is below league minimum ${capRange.floor}`);
+  if (capRange.configured && value > capRange.cap) reasons.push(`Team value ${value} exceeds league maximum ${capRange.cap}`);
+  return {
+    legal: reasons.length === 0,
+    value,
+    floor: capRange.floor,
+    cap: capRange.cap,
+    reasons,
+  };
+}
+
 export function validateRoster(
   roster: RosterPlayer[],
   range: { floor: number; cap: number },

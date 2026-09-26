@@ -325,6 +325,54 @@ export const playerSeasons = pgTable(
   (table) => [uniqueIndex("player_season_unique").on(table.playerId, table.seasonId)],
 );
 
+export const tierPlacementRuns = pgTable(
+  "tier_placement_runs",
+  {
+    id: id(),
+    seasonId: uuid("season_id").notNull().references(() => seasons.id),
+    status: text("status").default("PREVIEW").notNull(),
+    eligibleSnapshot: jsonb("eligible_snapshot").$type<Array<{
+      playerId: string;
+      playerSeasonId: string;
+      handle: string;
+      mmr: number;
+      rank: number;
+      previousDivisionId: string | null;
+      proposedDivisionCode: "MASTER" | "CHALLENGER" | "CONTENDER";
+    }>>().notNull(),
+    createdBy: uuid("created_by").notNull().references(() => users.id),
+    confirmedBy: uuid("confirmed_by").references(() => users.id),
+    createdAt: createdAt(),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  },
+  (table) => [index("tier_placement_run_season").on(table.seasonId, table.createdAt)],
+);
+
+export const tierHistory = pgTable(
+  "tier_history",
+  {
+    id: id(),
+    playerId: uuid("player_id").notNull().references(() => players.id),
+    playerSeasonId: uuid("player_season_id").notNull().references(() => playerSeasons.id),
+    seasonId: uuid("season_id").notNull().references(() => seasons.id),
+    previousDivisionId: uuid("previous_division_id").references(() => divisions.id),
+    newDivisionId: uuid("new_division_id").notNull().references(() => divisions.id),
+    previousMmr: numeric("previous_mmr", { precision: 10, scale: 3 }),
+    newMmr: numeric("new_mmr", { precision: 10, scale: 3 }).notNull(),
+    previousRank: integer("previous_rank"),
+    newRank: integer("new_rank").notNull(),
+    reason: text("reason").notNull(),
+    actorId: uuid("actor_id").notNull().references(() => users.id),
+    source: text("source").notNull(),
+    placementRunId: uuid("placement_run_id").references(() => tierPlacementRuns.id),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("tier_history_player").on(table.playerId, table.seasonId, table.createdAt),
+    index("tier_history_season").on(table.seasonId, table.createdAt),
+  ],
+);
+
 export const playerApplications = pgTable(
   "player_applications",
   {
@@ -508,7 +556,7 @@ export const ratingEvents = pgTable(
     previousRating: numeric("previous_rating", { precision: 10, scale: 3 }).notNull(),
     delta: numeric("delta", { precision: 10, scale: 3 }).notNull(),
     nextRating: numeric("next_rating", { precision: 10, scale: 3 }).notNull(),
-    protectedRosterValue: numeric("protected_roster_value", { precision: 10, scale: 3 }).notNull(),
+    protectedRosterValue: numeric("protected_roster_value", { precision: 10, scale: 3 }),
     reason: text("reason").notNull(),
     createdAt: createdAt(),
   },
@@ -685,6 +733,12 @@ export const waiverWindows = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
     status: waiverStatus("status").default("OPEN").notNull(),
+    releasedFromTeamId: uuid("released_from_team_id").references(() => teams.id),
+    reason: text("reason"),
+    prioritySnapshot: jsonb("priority_snapshot").$type<Array<{ teamId: string; priority: number }>>().default([]).notNull(),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolution: text("resolution"),
     claimedByTeamId: uuid("claimed_by_team_id").references(() => teams.id),
     exceptionId: uuid("exception_id").references(() => exceptions.id),
     createdAt: createdAt(),
@@ -699,6 +753,10 @@ export const waiverClaims = pgTable(
     waiverWindowId: uuid("waiver_window_id").notNull().references(() => waiverWindows.id),
     teamId: uuid("team_id").notNull().references(() => teams.id),
     priorityAtSubmission: integer("priority_at_submission").notNull(),
+    status: text("status").default("PENDING").notNull(),
+    reason: text("reason"),
+    reviewedBy: uuid("reviewed_by").references(() => users.id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     submittedBy: uuid("submitted_by").notNull().references(() => users.id),
     submittedAt: createdAt(),
     approvedAt: timestamp("approved_at", { withTimezone: true }),

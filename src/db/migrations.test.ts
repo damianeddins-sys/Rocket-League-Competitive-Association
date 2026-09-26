@@ -37,4 +37,12 @@ describe("migration consistency", () => {
     expect(sql).toContain('"submitted_by","content_hash"');
     expect(sql).not.toMatch(/\b(?:DELETE FROM|TRUNCATE|DROP TABLE)\b/i);
   });
+
+  it("adds immutable tier placement and waiver history without deleting records", () => {
+    const sql = migration("0013_brown_sister_grimm.sql");
+    expect(sql).toContain('CREATE TABLE "tier_history"');
+    expect(sql).toContain('CREATE TABLE "tier_placement_runs"');
+    expect(sql).toContain('"priority_snapshot"');
+    expect(sql).not.toMatch(/\b(?:DELETE FROM|TRUNCATE|DROP TABLE)\b/i);
+  });
 });
