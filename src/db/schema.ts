@@ -49,10 +49,12 @@ export const matchStatus = pgEnum("match_status", [
 ]);
 export const transactionStatus = pgEnum("transaction_status", [
   "PENDING",
+  "UNDER_REVIEW",
   "MORE_INFO_REQUIRED",
   "ON_HOLD",
   "EXCEPTION_REQUIRED",
   "APPROVED",
+  "COMPLETED",
   "DENIED",
   "EXPIRED",
   "CANCELLED",
@@ -392,11 +394,16 @@ export const rosterMemberships = pgTable(
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }),
     acquiredBy: text("acquired_by").notNull(),
+    role: text("role").default("STARTER").notNull(),
+    actorId: uuid("actor_id").references(() => users.id),
     createdAt: createdAt(),
   },
   (table) => [
     index("roster_team_season").on(table.teamId, table.seasonId),
     index("roster_player_season").on(table.playerId, table.seasonId),
+    uniqueIndex("roster_active_player_season")
+      .on(table.playerId, table.seasonId)
+      .where(sql`${table.endsAt} is null`),
   ],
 );
 
@@ -608,6 +615,11 @@ export const brackets = pgTable("brackets", {
   format: text("format").notNull(),
   seedSnapshot: jsonb("seed_snapshot").$type<Array<{ seed: number; teamId: string }>>().notNull(),
   lockedAt: timestamp("locked_at", { withTimezone: true }).notNull(),
+  status: text("status").default("DRAFT").notNull(),
+  lockedRounds: jsonb("locked_rounds").$type<number[]>().default([]).notNull(),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: createdAt(),
 });
 
 export const bracketMatches = pgTable("bracket_matches", {
@@ -620,6 +632,10 @@ export const bracketMatches = pgTable("bracket_matches", {
   awaySource: text("away_source").notNull(),
   sunday: integer("sunday").notNull(),
   bestOf: integer("best_of").notNull(),
+  winnerTeamId: uuid("winner_team_id").references(() => teams.id),
+  homeScore: integer("home_score"),
+  awayScore: integer("away_score"),
+  lockedAt: timestamp("locked_at", { withTimezone: true }),
 });
 
 export const transactionRequests = pgTable("transaction_requests", {
@@ -636,6 +652,12 @@ export const transactionRequests = pgTable("transaction_requests", {
   exceptionReason: text("exception_reason"),
   reviewedBy: uuid("reviewed_by").references(() => users.id),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  playerId: uuid("player_id").references(() => players.id),
+  oldTeamId: uuid("old_team_id").references(() => teams.id),
+  newTeamId: uuid("new_team_id").references(() => teams.id),
+  effectiveAt: timestamp("effective_at", { withTimezone: true }),
+  notes: text("notes"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
 
@@ -688,7 +710,8 @@ export const replays = pgTable(
   "replays",
   {
     id: id(),
-    matchId: uuid("match_id").notNull().references(() => matches.id),
+    matchId: uuid("match_id").references(() => matches.id),
+    playerId: uuid("player_id").references(() => players.id),
     submittedBy: uuid("submitted_by").notNull().references(() => users.id),
     contentHash: text("content_hash").notNull(),
     storageKey: text("storage_key").notNull(),
@@ -702,6 +725,70 @@ export const replays = pgTable(
   },
   (table) => [uniqueIndex("replay_content_hash").on(table.contentHash)],
 );
+
+export const coachingRequests = pgTable(
+  "coaching_requests",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    playerId: uuid("player_id").references(() => players.id),
+    replayId: uuid("replay_id").references(() => replays.id),
+    coachingType: text("coaching_type").notNull(),
+    coachingGoal: text("coaching_goal"),
+    status: text("status").default("DRAFT").notNull(),
+    reviewNotes: text("review_notes"),
+    results: jsonb("results").$type<Record<string, unknown>>(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("coaching_request_user").on(table.userId, table.createdAt),
+    index("coaching_request_player").on(table.playerId, table.createdAt),
+  ],
+);
+
+export const leagueDocuments = pgTable(
+  "league_documents",
+  {
+    id: id(),
+    title: text("title").notNull(),
+    fileName: text("file_name").notNull(),
+    contentType: text("content_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    storageKey: text("storage_key").notNull(),
+    seasonId: uuid("season_id").references(() => seasons.id),
+    teamId: uuid("team_id").references(() => teams.id),
+    playerId: uuid("player_id").references(() => players.id),
+    visibility: text("visibility").default("STAFF").notNull(),
+    uploadedBy: uuid("uploaded_by").notNull().references(() => users.id),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (table) => [index("league_document_scope").on(table.seasonId, table.teamId, table.playerId)],
+);
+
+export const siteContent = pgTable("site_content", {
+  id: id(),
+  key: text("key").notNull().unique(),
+  category: text("category").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  mediaUrl: text("media_url"),
+  published: boolean("published").default(false).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  updatedBy: uuid("updated_by").notNull().references(() => users.id),
+  createdAt: createdAt(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const siteSettings = pgTable("site_settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").$type<unknown>().notNull(),
+  updatedBy: uuid("updated_by").notNull().references(() => users.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 export const replayAnalyses = pgTable("replay_analyses", {
   id: id(),

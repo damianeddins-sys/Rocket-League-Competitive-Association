@@ -9,6 +9,38 @@ export type TransactionCheck = {
   message: string;
 };
 
+export type TransactionWorkflowStatus =
+  | "PENDING"
+  | "UNDER_REVIEW"
+  | "MORE_INFO_REQUIRED"
+  | "ON_HOLD"
+  | "EXCEPTION_REQUIRED"
+  | "APPROVED"
+  | "COMPLETED"
+  | "DENIED"
+  | "EXPIRED"
+  | "CANCELLED";
+
+const workflowTransitions: Record<TransactionWorkflowStatus, readonly TransactionWorkflowStatus[]> = {
+  PENDING: ["UNDER_REVIEW", "CANCELLED"],
+  UNDER_REVIEW: ["MORE_INFO_REQUIRED", "ON_HOLD", "EXCEPTION_REQUIRED", "APPROVED", "DENIED", "CANCELLED"],
+  MORE_INFO_REQUIRED: ["UNDER_REVIEW", "CANCELLED"],
+  ON_HOLD: ["UNDER_REVIEW", "CANCELLED"],
+  EXCEPTION_REQUIRED: ["UNDER_REVIEW", "DENIED", "CANCELLED"],
+  APPROVED: ["COMPLETED", "CANCELLED"],
+  COMPLETED: [],
+  DENIED: [],
+  EXPIRED: [],
+  CANCELLED: [],
+};
+
+export function canTransitionTransactionRequest(
+  from: TransactionWorkflowStatus,
+  to: TransactionWorkflowStatus,
+) {
+  return workflowTransitions[from].includes(to);
+}
+
 export type TransactionValidationInput = {
   type: "SIGNING" | "RELEASE" | "TRADE" | "WAIVER_CLAIM" | "FREE_AGENT_SIGNING";
   activeEvent: string | null;

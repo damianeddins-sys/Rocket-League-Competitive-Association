@@ -71,6 +71,20 @@
       "when": 1790453310940,
       "tag": "0009_dear_famine",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790458027311,
+      "tag": "0010_careful_maximus",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790458053421,
+      "tag": "0011_messy_colleen_wing",
+      "breakpoints": true
     }
   ]
 }
