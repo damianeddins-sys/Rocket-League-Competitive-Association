@@ -13,12 +13,14 @@ import {
   coachingRequests,
   divisions,
   events,
+  exceptions,
   franchises,
   matches,
   mmrSnapshots,
   mmrVerificationWindows,
   playerApplications,
   playerSeasons,
+  playerStatusHistory,
   players,
   ratingEvents,
   replays,
@@ -31,8 +33,12 @@ import {
   seasons,
   teamSeasons,
   teams,
+  tierHistory,
+  tierPlacementRuns,
   transactionRequests,
   users,
+  waiverClaims,
+  waiverWindows,
   leagueDocuments,
 } from "@/db/schema";
 import { authorizeLiveAction } from "@/services/auth/authorization";
@@ -44,6 +50,11 @@ import {
   resolveBracketSource,
 } from "@/services/brackets";
 import { verificationReadiness, VERIFICATION_DAYS } from "@/services/mmr";
+import {
+  buildSeasonOnePlacementPreview,
+} from "@/services/placement";
+import { type RosterPlayer } from "@/services/rosters";
+import { validateFreeAgentSigning, waiverPriority } from "@/services/free-agency";
 import { seasonActivationChecklist } from "@/services/season-management";
 import {
   canTransitionTransactionRequest,
@@ -465,6 +476,7 @@ export async function createTransaction(formData: FormData) {
     oldTeamId: z.union([z.literal(""), z.uuid()]),
     newTeamId: z.union([z.literal(""), z.uuid()]),
     role: z.enum(["STARTER", "SUBSTITUTE"]).optional(),
+    exceptionId: z.union([z.literal(""), z.uuid()]).optional(),
     effectiveAt: z.coerce.date(),
     notes: z.string().trim().min(3).max(2_000),
   }).safeParse(Object.fromEntries(formData));
@@ -491,6 +503,19 @@ export async function createTransaction(formData: FormData) {
     ]);
     if (!season[0] || season[0].status === "ARCHIVED") throw new Error("Archived or missing seasons are read-only");
     if (!player[0]) throw new Error("Player not found");
+    if (parsed.data.type === "TRADE") {
+      if (!parsed.data.exceptionId) {
+        throw new Error("Season 1 player-for-player trades require a published approved exception");
+      }
+      const [approvedException] = await tx.select().from(exceptions).where(and(
+        eq(exceptions.id, parsed.data.exceptionId),
+        eq(exceptions.seasonId, parsed.data.seasonId),
+        eq(exceptions.decision, "APPROVED"),
+      )).limit(1);
+      if (!approvedException || approvedException.type !== "TRADE") {
+        throw new Error("Approved Season 1 trade exception not found");
+      }
+    }
     const selectedTeamIds = [...new Set(
       [parsed.data.oldTeamId, parsed.data.newTeamId].filter(Boolean),
     )];
@@ -525,7 +550,10 @@ export async function createTransaction(formData: FormData) {
       type: parsed.data.type,
       submittedBy: session.user.id,
       idempotencyKey: randomUUID(),
-      requestData: { role: parsed.data.role ?? null },
+      requestData: {
+        role: parsed.data.role ?? null,
+        exceptionId: parsed.data.exceptionId || null,
+      },
       beforeState: { memberships: current },
       proposedState: {
         oldTeamId: parsed.data.oldTeamId || null,
@@ -586,6 +614,27 @@ export async function transitionTransaction(formData: FormData) {
     }
     if (parsed.data.status === "COMPLETED") {
       if (!current.playerId) throw new Error("Transaction has no player");
+      if (current.type === "RELEASE") {
+        throw new Error("Use the dedicated Free Agency release workflow so a published waiver deadline is recorded");
+      }
+      if (current.type === "WAIVER_CLAIM") {
+        throw new Error("Use the dedicated waiver claim review workflow");
+      }
+      if (current.type === "TRADE") {
+        const exceptionId = z.string().uuid().safeParse(
+          (current.requestData as { exceptionId?: unknown }).exceptionId,
+        );
+        const [approvedException] = exceptionId.success
+          ? await tx.select().from(exceptions).where(and(
+              eq(exceptions.id, exceptionId.data),
+              eq(exceptions.seasonId, current.seasonId),
+              eq(exceptions.decision, "APPROVED"),
+            )).limit(1)
+          : [];
+        if (!approvedException || approvedException.type !== "TRADE") {
+          throw new Error("Season 1 trades require a published approved exception");
+        }
+      }
       const role = z.enum(["STARTER", "SUBSTITUTE"]).nullable()
         .parse((current.proposedState as { role?: unknown }).role ?? null);
       if (current.newTeamId && !role) throw new Error("A destination roster role is required");
@@ -616,6 +665,49 @@ export async function transitionTransaction(formData: FormData) {
           eq(playerSeasons.playerId, current.playerId),
         )).limit(1);
         if (!playerSeason?.divisionId) throw new Error("Player has no tier in this season");
+        if (current.type === "FREE_AGENT_SIGNING") {
+          if (playerSeason.currentMmr === null || playerSeason.protectedRosterValue === null) {
+            throw new Error("Free agent MMR or protected roster value is incomplete");
+          }
+          const [divisionRows, seasonEntries, openWaivers] = await Promise.all([
+            tx.select().from(divisions).where(eq(divisions.seasonId, current.seasonId)),
+            tx.select().from(playerSeasons).where(eq(playerSeasons.seasonId, current.seasonId)),
+            tx.select().from(waiverWindows).where(and(
+              eq(waiverWindows.playerSeasonId, playerSeason.id),
+              eq(waiverWindows.status, "OPEN"),
+            )),
+          ]);
+          const divisionById = new Map(divisionRows.map((division) => [division.id, division.code]));
+          const seasonByPlayer = new Map(seasonEntries.map((entry) => [entry.playerId, entry]));
+          const toRosterPlayer = (entry: typeof playerSeason): RosterPlayer | null => {
+            const code = entry.divisionId ? divisionById.get(entry.divisionId) : null;
+            if (!code || code === "PREMIER" || entry.protectedRosterValue === null) return null;
+            return {
+              playerId: entry.playerId,
+              division: code,
+              protectedValue: Number(entry.protectedRosterValue),
+            };
+          };
+          const placedPlayers = seasonEntries.map(toRosterPlayer)
+            .filter((entry): entry is RosterPlayer => Boolean(entry));
+          const currentRoster = destination.map((membership) => {
+            const entry = seasonByPlayer.get(membership.playerId);
+            const rosterPlayer = entry ? toRosterPlayer(entry) : null;
+            return rosterPlayer ? { ...rosterPlayer, role: membership.role } : null;
+          }).filter((entry): entry is RosterPlayer & { role: string } => Boolean(entry));
+          const rosterPlayer = toRosterPlayer(playerSeason);
+          if (!rosterPlayer) throw new Error("Free agent tier or protected roster value is incomplete");
+          const validation = validateFreeAgentSigning({
+            player: { ...rosterPlayer, status: playerSeason.status },
+            currentRoster,
+            placedPlayers,
+            requestedRole: role,
+            seasonArchived: false,
+            rosterLocked: season.settings.rosterLocked === true,
+            waiverOpen: openWaivers.some((window) => window.endsAt > new Date()),
+          });
+          if (!validation.legal) throw new Error(validation.reasons.join("; "));
+        }
         await tx.insert(rosterMemberships).values({
           seasonId: current.seasonId,
           teamId: current.newTeamId,
@@ -628,6 +720,15 @@ export async function transitionTransaction(formData: FormData) {
         });
         await tx.update(playerSeasons).set({ status: "ROSTERED" })
           .where(eq(playerSeasons.id, playerSeason.id));
+        await tx.insert(playerStatusHistory).values({
+          playerSeasonId: playerSeason.id,
+          fromStatus: playerSeason.status,
+          toStatus: "ROSTERED",
+          effectiveAt: now,
+          reason: parsed.data.reason,
+          actorId: session.user.id,
+          relatedTransactionId: current.id,
+        });
       }
     }
     await tx.update(transactionRequests).set({
@@ -795,7 +896,6 @@ export async function updatePlayerMmr(formData: FormData) {
     const previous = Number(entry.currentMmr ?? 1000);
     await tx.update(playerSeasons).set({
       currentMmr: String(parsed.data.currentMmr),
-      protectedRosterValue: entry.protectedRosterValue ?? String(parsed.data.currentMmr),
     }).where(eq(playerSeasons.id, entry.id));
     await tx.insert(ratingEvents).values({
       seasonId: entry.seasonId,
@@ -803,7 +903,7 @@ export async function updatePlayerMmr(formData: FormData) {
       previousRating: String(previous),
       delta: String(parsed.data.currentMmr - previous),
       nextRating: String(parsed.data.currentMmr),
-      protectedRosterValue: entry.protectedRosterValue ?? String(parsed.data.currentMmr),
+      protectedRosterValue: entry.protectedRosterValue,
       reason: parsed.data.reason,
     });
     await tx.insert(auditLogs).values({
@@ -819,6 +919,736 @@ export async function updatePlayerMmr(formData: FormData) {
   });
   revalidatePath("/admin/mmr");
   revalidatePath("/players");
+}
+
+async function requirePlacementAccess() {
+  const session = await getSession();
+  if (!session) throw new Error("Authentication required");
+  const authorization = await authorizeLiveAction(session.user, { permission: "statistics.review" });
+  if (!authorization.decision.allowed) throw new Error("Player placement is not authorized");
+  return { session, authorization };
+}
+
+export async function previewTierPlacement(formData: FormData) {
+  const parsed = z.object({
+    seasonId: z.uuid(),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Select a season");
+  const { session, authorization } = await requirePlacementAccess();
+  const db = getDatabase();
+  const [season] = await db.select().from(seasons).where(eq(seasons.id, parsed.data.seasonId)).limit(1);
+  if (!season || season.status === "ARCHIVED") throw new Error("Archived or missing seasons are read-only");
+  const [entries, playerRows, windows, snapshots] = await Promise.all([
+    db.select().from(playerSeasons).where(eq(playerSeasons.seasonId, season.id)),
+    db.select().from(players),
+    db.select().from(mmrVerificationWindows).where(eq(mmrVerificationWindows.seasonId, season.id)),
+    db.select().from(mmrSnapshots).where(eq(mmrSnapshots.accepted, true)),
+  ]);
+  const playerById = new Map(playerRows.map((player) => [player.id, player]));
+  const acceptedWindowIds = new Set(snapshots.map((snapshot) => snapshot.windowId));
+  const now = new Date();
+  const eligible = entries.flatMap((entry) => {
+    const window = windows
+      .filter((item) => item.playerId === entry.playerId)
+      .sort((left, right) => right.closesAt.getTime() - left.closesAt.getTime())[0];
+    const player = playerById.get(entry.playerId);
+    if (
+      !player ||
+      entry.currentMmr === null ||
+      !window ||
+      window.closesAt > now ||
+      window.rankedGamesPlayed < 50 ||
+      !acceptedWindowIds.has(window.id)
+    ) return [];
+    return [{
+      playerId: entry.playerId,
+      playerSeasonId: entry.id,
+      handle: player.handle,
+      mmr: Number(entry.currentMmr),
+      previousDivisionId: entry.divisionId,
+    }];
+  });
+  const preview = buildSeasonOnePlacementPreview(eligible);
+  await db.transaction(async (tx) => {
+    const [created] = await tx.insert(tierPlacementRuns).values({
+      seasonId: season.id,
+      status: "PREVIEW",
+      eligibleSnapshot: preview.placements,
+      createdBy: session.user.id,
+    }).returning();
+    await tx.insert(auditLogs).values({
+      actorId: session.user.id,
+      actorDiscordRoleIds: authorization.access.roleIds,
+      action: "TIER_PLACEMENT_PREVIEW_CREATED",
+      entityType: "TIER_PLACEMENT_RUN",
+      entityId: created.id,
+      nextState: {
+        eligibleCount: eligible.length,
+        placementCount: preview.placements.length,
+        needsReviewCount: preview.needsReview.length,
+      },
+    });
+  });
+  revalidatePath("/admin/mmr");
+  revalidatePath("/admin/tiers");
+}
+
+export async function confirmTierPlacement(formData: FormData) {
+  const parsed = z.object({
+    runId: z.uuid(),
+    confirmation: z.literal("CONFIRM PLACEMENT"),
+    reason: z.string().trim().min(3).max(2_000),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Type CONFIRM PLACEMENT and provide a reason");
+  const { session, authorization } = await requirePlacementAccess();
+  const db = getDatabase();
+  await db.transaction(async (tx) => {
+    const [run] = await tx.select().from(tierPlacementRuns)
+      .where(eq(tierPlacementRuns.id, parsed.data.runId)).for("update").limit(1);
+    if (!run || run.status !== "PREVIEW") throw new Error("Placement preview is missing or already confirmed");
+    const [season] = await tx.select().from(seasons).where(eq(seasons.id, run.seasonId)).limit(1);
+    if (!season || season.status === "ARCHIVED") throw new Error("Archived or missing seasons are read-only");
+    if (run.eligibleSnapshot.length !== 24) {
+      throw new Error(`Season 1 placement requires exactly 24 eligible verified players (${run.eligibleSnapshot.length}/24)`);
+    }
+    const divisionRows = await tx.select().from(divisions).where(eq(divisions.seasonId, season.id));
+    const divisionByCode = new Map(divisionRows.map((division) => [division.code, division]));
+    for (const placement of run.eligibleSnapshot) {
+      const [current] = await tx.select().from(playerSeasons)
+        .where(eq(playerSeasons.id, placement.playerSeasonId)).for("update").limit(1);
+      const division = divisionByCode.get(placement.proposedDivisionCode);
+      if (!current || current.seasonId !== season.id || !division) {
+        throw new Error("Placement data changed; create a new preview");
+      }
+      if (Number(current.currentMmr) !== placement.mmr || current.divisionId !== placement.previousDivisionId) {
+        throw new Error("MMR or tier data changed; create a new preview");
+      }
+      const [previousHistory] = await tx.select().from(tierHistory).where(and(
+        eq(tierHistory.playerId, current.playerId),
+        eq(tierHistory.seasonId, season.id),
+      )).orderBy(desc(tierHistory.createdAt)).limit(1);
+      await tx.update(playerSeasons).set({
+        divisionId: division.id,
+        status: current.status === "ROSTERED" ? "ROSTERED" : "ACTIVE",
+      }).where(eq(playerSeasons.id, current.id));
+      await tx.insert(tierHistory).values({
+        playerId: current.playerId,
+        playerSeasonId: current.id,
+        seasonId: season.id,
+        previousDivisionId: current.divisionId,
+        newDivisionId: division.id,
+        previousMmr: previousHistory?.newMmr ?? current.currentMmr,
+        newMmr: String(placement.mmr),
+        previousRank: previousHistory?.newRank ?? null,
+        newRank: placement.rank,
+        reason: parsed.data.reason,
+        actorId: session.user.id,
+        source: current.divisionId ? "MMR_UPDATE" : "INITIAL_PLACEMENT",
+        placementRunId: run.id,
+      });
+    }
+    await tx.update(tierPlacementRuns).set({
+      status: "CONFIRMED",
+      confirmedBy: session.user.id,
+      confirmedAt: new Date(),
+    }).where(eq(tierPlacementRuns.id, run.id));
+    await tx.insert(auditLogs).values({
+      actorId: session.user.id,
+      actorDiscordRoleIds: authorization.access.roleIds,
+      action: "TIER_PLACEMENT_CONFIRMED",
+      entityType: "TIER_PLACEMENT_RUN",
+      entityId: run.id,
+      previousState: { status: run.status },
+      nextState: { status: "CONFIRMED", placements: run.eligibleSnapshot.length },
+      reason: parsed.data.reason,
+    });
+  });
+  revalidatePath("/admin/mmr");
+  revalidatePath("/admin/tiers");
+  revalidatePath("/players");
+}
+
+export async function updateProtectedRosterValue(formData: FormData) {
+  const parsed = z.object({
+    playerSeasonId: z.uuid(),
+    protectedRosterValue: z.coerce.number().min(0).max(10_000),
+    reason: z.string().trim().min(3).max(2_000),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Enter a valid protected roster value and reason");
+  const { session, authorization } = await requireOperations();
+  const db = getDatabase();
+  await db.transaction(async (tx) => {
+    const [entry] = await tx.select().from(playerSeasons)
+      .where(eq(playerSeasons.id, parsed.data.playerSeasonId)).for("update").limit(1);
+    if (!entry) throw new Error("Player season not found");
+    const [season] = await tx.select().from(seasons).where(eq(seasons.id, entry.seasonId)).limit(1);
+    if (!season || season.status === "ARCHIVED") throw new Error("Archived or missing seasons are read-only");
+    await tx.update(playerSeasons).set({
+      protectedRosterValue: String(parsed.data.protectedRosterValue),
+    }).where(eq(playerSeasons.id, entry.id));
+    await tx.insert(auditLogs).values({
+      actorId: session.user.id,
+      actorDiscordRoleIds: authorization.access.roleIds,
+      action: "PROTECTED_ROSTER_VALUE_UPDATED",
+      entityType: "PLAYER_SEASON",
+      entityId: entry.id,
+      previousState: { protectedRosterValue: entry.protectedRosterValue },
+      nextState: { protectedRosterValue: parsed.data.protectedRosterValue },
+      reason: parsed.data.reason,
+    });
+  });
+  revalidatePath("/admin/mmr");
+  revalidatePath("/admin/transactions");
+}
+
+export async function overridePlayerTier(formData: FormData) {
+  const parsed = z.object({
+    playerSeasonId: z.uuid(),
+    divisionId: z.uuid(),
+    rank: z.coerce.number().int().min(1),
+    reason: z.string().trim().min(5).max(2_000),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Tier override requires a tier, rank, and reason");
+  const { session, authorization } = await requirePlacementAccess();
+  const db = getDatabase();
+  await db.transaction(async (tx) => {
+    const [entry] = await tx.select().from(playerSeasons)
+      .where(eq(playerSeasons.id, parsed.data.playerSeasonId)).for("update").limit(1);
+    const [division] = await tx.select().from(divisions)
+      .where(eq(divisions.id, parsed.data.divisionId)).limit(1);
+    if (!entry || !division || division.seasonId !== entry.seasonId || entry.currentMmr === null) {
+      throw new Error("Player season or tier is invalid");
+    }
+    const [season] = await tx.select().from(seasons).where(eq(seasons.id, entry.seasonId)).limit(1);
+    if (!season || season.status === "ARCHIVED") throw new Error("Archived or missing seasons are read-only");
+    const [previous] = await tx.select().from(tierHistory).where(and(
+      eq(tierHistory.playerId, entry.playerId),
+      eq(tierHistory.seasonId, entry.seasonId),
+    )).orderBy(desc(tierHistory.createdAt)).limit(1);
+    await tx.update(playerSeasons).set({ divisionId: division.id })
+      .where(eq(playerSeasons.id, entry.id));
+    await tx.insert(tierHistory).values({
+      playerId: entry.playerId,
+      playerSeasonId: entry.id,
+      seasonId: entry.seasonId,
+      previousDivisionId: entry.divisionId,
+      newDivisionId: division.id,
+      previousMmr: previous?.newMmr ?? entry.currentMmr,
+      newMmr: entry.currentMmr,
+      previousRank: previous?.newRank ?? null,
+      newRank: parsed.data.rank,
+      reason: parsed.data.reason,
+      actorId: session.user.id,
+      source: "STAFF_OVERRIDE",
+    });
+    await tx.insert(auditLogs).values({
+      actorId: session.user.id,
+      actorDiscordRoleIds: authorization.access.roleIds,
+      action: "PLAYER_TIER_OVERRIDDEN",
+      entityType: "PLAYER_SEASON",
+      entityId: entry.id,
+      previousState: { divisionId: entry.divisionId, rank: previous?.newRank ?? null },
+      nextState: { divisionId: division.id, rank: parsed.data.rank },
+      reason: parsed.data.reason,
+    });
+  });
+  revalidatePath("/admin/tiers");
+  revalidatePath("/players");
+}
+
+export async function releasePlayerToWaivers(formData: FormData) {
+  const parsed = z.object({
+    playerSeasonId: z.uuid(),
+    teamId: z.uuid(),
+    deadline: z.coerce.date(),
+    reason: z.string().trim().min(5).max(2_000),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success || parsed.data.deadline <= new Date()) {
+    throw new Error("A future published waiver deadline and release reason are required");
+  }
+  const { session, authorization } = await requireOperations();
+  const db = getDatabase();
+  await db.transaction(async (tx) => {
+    const [entry] = await tx.select().from(playerSeasons)
+      .where(eq(playerSeasons.id, parsed.data.playerSeasonId)).for("update").limit(1);
+    if (!entry || entry.status !== "ROSTERED") throw new Error("Only a rostered player can be released");
+    const [season] = await tx.select().from(seasons).where(eq(seasons.id, entry.seasonId)).limit(1);
+    if (!season || season.status === "ARCHIVED") throw new Error("Archived or missing seasons are read-only");
+    const [membership] = await tx.select().from(rosterMemberships).where(and(
+      eq(rosterMemberships.seasonId, entry.seasonId),
+      eq(rosterMemberships.teamId, parsed.data.teamId),
+      eq(rosterMemberships.playerId, entry.playerId),
+      isNull(rosterMemberships.endsAt),
+    )).limit(1);
+    if (!membership) throw new Error("Active roster membership not found");
+    const teamEntries = await tx.select().from(teamSeasons).where(and(
+      eq(teamSeasons.seasonId, entry.seasonId),
+      eq(teamSeasons.active, true),
+    ));
+    const priority = waiverPriority(teamEntries
+      .filter((team) => team.teamId !== parsed.data.teamId)
+      .map((team) => ({ teamId: team.teamId, standing: team.seed })));
+    const now = new Date();
+    const [transaction] = await tx.insert(transactionRequests).values({
+      seasonId: entry.seasonId,
+      teamId: parsed.data.teamId,
+      playerId: entry.playerId,
+      oldTeamId: parsed.data.teamId,
+      newTeamId: null,
+      type: "RELEASE",
+      status: "COMPLETED",
+      submittedBy: session.user.id,
+      idempotencyKey: randomUUID(),
+      requestData: { waiverDeadline: parsed.data.deadline.toISOString() },
+      beforeState: { membership },
+      proposedState: { status: "WAIVER" },
+      effectiveAt: now,
+      notes: parsed.data.reason,
+      reviewedBy: session.user.id,
+      reviewedAt: now,
+      completedAt: now,
+    }).returning();
+    await tx.update(rosterMemberships).set({ endsAt: now })
+      .where(eq(rosterMemberships.id, membership.id));
+    await tx.update(playerSeasons).set({ status: "WAIVER" })
+      .where(eq(playerSeasons.id, entry.id));
+    const [window] = await tx.insert(waiverWindows).values({
+      playerSeasonId: entry.id,
+      startedAt: now,
+      endsAt: parsed.data.deadline,
+      status: "OPEN",
+      releasedFromTeamId: parsed.data.teamId,
+      reason: parsed.data.reason,
+      prioritySnapshot: priority,
+      publishedAt: now,
+    }).returning();
+    await tx.insert(playerStatusHistory).values({
+      playerSeasonId: entry.id,
+      fromStatus: entry.status,
+      toStatus: "WAIVER",
+      effectiveAt: now,
+      reason: parsed.data.reason,
+      actorId: session.user.id,
+      relatedTransactionId: transaction.id,
+    });
+    await tx.insert(auditLogs).values({
+      actorId: session.user.id,
+      actorDiscordRoleIds: authorization.access.roleIds,
+      action: "PLAYER_RELEASED_TO_WAIVERS",
+      entityType: "WAIVER_WINDOW",
+      entityId: window.id,
+      previousState: { status: entry.status, teamId: parsed.data.teamId },
+      nextState: {
+        status: "WAIVER",
+        deadline: parsed.data.deadline.toISOString(),
+        priority,
+      },
+      reason: parsed.data.reason,
+    });
+  });
+  revalidatePath("/admin/free-agency");
+  revalidatePath("/free-agency");
+  revalidatePath("/teams");
+}
+
+export async function submitWaiverClaim(formData: FormData) {
+  const parsed = z.object({
+    waiverWindowId: z.uuid(),
+    teamId: z.uuid(),
+    reason: z.string().trim().min(3).max(2_000),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Select an eligible team and provide a claim reason");
+  const session = await getSession();
+  if (!session) throw new Error("Authentication required");
+  let authorization = await authorizeLiveAction(session.user, { permission: "franchise.submit_transaction" });
+  if (!authorization.decision.allowed) {
+    authorization = await authorizeLiveAction(session.user, { permission: "transaction.approve" });
+  }
+  if (!authorization.decision.allowed) throw new Error("Waiver claim is not authorized");
+  const db = getDatabase();
+  await db.transaction(async (tx) => {
+    const [window] = await tx.select().from(waiverWindows)
+      .where(eq(waiverWindows.id, parsed.data.waiverWindowId)).for("update").limit(1);
+    if (!window || window.status !== "OPEN" || window.endsAt <= new Date()) {
+      throw new Error("Waiver window is closed");
+    }
+    const priority = window.prioritySnapshot.find((item) => item.teamId === parsed.data.teamId);
+    if (!priority) throw new Error("Team is not eligible for this waiver");
+    const [team] = await tx.select().from(teams).where(eq(teams.id, parsed.data.teamId)).limit(1);
+    if (!team) throw new Error("Team not found");
+    if (
+      !authorization.access.permissions.includes("transaction.approve") &&
+      !authorization.access.permissions.includes("league.full") &&
+      team.franchiseNumber !== authorization.access.franchiseNumber
+    ) throw new Error("Waiver claim is outside your franchise scope");
+    const [claim] = await tx.insert(waiverClaims).values({
+      waiverWindowId: window.id,
+      teamId: team.id,
+      priorityAtSubmission: priority.priority,
+      submittedBy: session.user.id,
+      reason: parsed.data.reason,
+    }).returning();
+    await tx.insert(auditLogs).values({
+      actorId: session.user.id,
+      actorDiscordRoleIds: authorization.access.roleIds,
+      action: "WAIVER_CLAIM_SUBMITTED",
+      entityType: "WAIVER_CLAIM",
+      entityId: claim.id,
+      nextState: {
+        teamId: team.id,
+        priority: priority.priority,
+        status: claim.status,
+      },
+      reason: parsed.data.reason,
+    });
+  });
+  revalidatePath("/admin/free-agency");
+}
+
+export async function reviewWaiverClaim(formData: FormData) {
+  const parsed = z.object({
+    claimId: z.uuid(),
+    decision: z.enum(["APPROVE", "DENY"]),
+    role: z.enum(["STARTER", "SUBSTITUTE"]),
+    reason: z.string().trim().min(3).max(2_000),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Waiver decision, roster role, and reason are required");
+  const { session, authorization } = await requireOperations();
+  const db = getDatabase();
+  await db.transaction(async (tx) => {
+    const [claim] = await tx.select().from(waiverClaims)
+      .where(eq(waiverClaims.id, parsed.data.claimId)).for("update").limit(1);
+    if (!claim || claim.status !== "PENDING") throw new Error("Pending waiver claim not found");
+    const [window] = await tx.select().from(waiverWindows)
+      .where(eq(waiverWindows.id, claim.waiverWindowId)).for("update").limit(1);
+    if (!window || window.status !== "OPEN" || window.endsAt < new Date()) {
+      throw new Error("Waiver window is no longer reviewable");
+    }
+    if (parsed.data.decision === "DENY") {
+      await tx.update(waiverClaims).set({
+        status: "DENIED",
+        reviewedBy: session.user.id,
+        reviewedAt: new Date(),
+        reason: parsed.data.reason,
+      }).where(eq(waiverClaims.id, claim.id));
+      await tx.insert(auditLogs).values({
+        actorId: session.user.id,
+        actorDiscordRoleIds: authorization.access.roleIds,
+        action: "WAIVER_CLAIM_DENIED",
+        entityType: "WAIVER_CLAIM",
+        entityId: claim.id,
+        previousState: { status: claim.status },
+        nextState: { status: "DENIED" },
+        reason: parsed.data.reason,
+      });
+      return;
+    }
+    const pendingClaims = await tx.select().from(waiverClaims).where(and(
+      eq(waiverClaims.waiverWindowId, window.id),
+      eq(waiverClaims.status, "PENDING"),
+    ));
+    const highestPriority = [...pendingClaims].sort((a, b) =>
+      a.priorityAtSubmission - b.priorityAtSubmission || a.submittedAt.getTime() - b.submittedAt.getTime())[0];
+    if (highestPriority?.id !== claim.id) {
+      throw new Error("A higher-priority waiver claim must be resolved first");
+    }
+    const [entry] = await tx.select().from(playerSeasons)
+      .where(eq(playerSeasons.id, window.playerSeasonId)).for("update").limit(1);
+    if (!entry?.divisionId || entry.status !== "WAIVER" || entry.protectedRosterValue === null) {
+      throw new Error("Waiver player is not eligible for a claim");
+    }
+    const [season] = await tx.select().from(seasons).where(eq(seasons.id, entry.seasonId)).limit(1);
+    if (!season || season.status === "ARCHIVED") throw new Error("Archived or missing seasons are read-only");
+    const [divisionRows, seasonEntries, activeMemberships] = await Promise.all([
+      tx.select().from(divisions).where(eq(divisions.seasonId, season.id)),
+      tx.select().from(playerSeasons).where(eq(playerSeasons.seasonId, season.id)),
+      tx.select().from(rosterMemberships).where(and(
+        eq(rosterMemberships.seasonId, season.id),
+        isNull(rosterMemberships.endsAt),
+      )),
+    ]);
+    const divisionById = new Map(divisionRows.map((division) => [division.id, division.code]));
+    const seasonByPlayer = new Map(seasonEntries.map((item) => [item.playerId, item]));
+    const toRosterPlayer = (item: typeof entry): RosterPlayer | null => {
+      const code = item.divisionId ? divisionById.get(item.divisionId) : null;
+      if (!code || code === "PREMIER" || item.protectedRosterValue === null) return null;
+      return { playerId: item.playerId, division: code, protectedValue: Number(item.protectedRosterValue) };
+    };
+    const placedPlayers = seasonEntries.map(toRosterPlayer)
+      .filter((item): item is RosterPlayer => Boolean(item));
+    const currentRoster = activeMemberships.filter((item) => item.teamId === claim.teamId)
+      .map((membership) => {
+        const seasonPlayer = seasonByPlayer.get(membership.playerId);
+        const player = seasonPlayer ? toRosterPlayer(seasonPlayer) : null;
+        return player ? { ...player, role: membership.role } : null;
+      }).filter((item): item is RosterPlayer & { role: string } => Boolean(item));
+    const player = toRosterPlayer(entry);
+    if (!player) throw new Error("Waiver player tier or roster value is incomplete");
+    const validation = validateFreeAgentSigning({
+      player: { ...player, status: "FREE_AGENT" },
+      currentRoster,
+      placedPlayers,
+      requestedRole: parsed.data.role,
+      seasonArchived: false,
+      rosterLocked: season.settings.rosterLocked === true,
+      waiverOpen: false,
+    });
+    if (!validation.legal) throw new Error(validation.reasons.join("; "));
+    const now = new Date();
+    const [transaction] = await tx.insert(transactionRequests).values({
+      seasonId: season.id,
+      teamId: claim.teamId,
+      playerId: entry.playerId,
+      oldTeamId: window.releasedFromTeamId,
+      newTeamId: claim.teamId,
+      type: "WAIVER_CLAIM",
+      status: "COMPLETED",
+      submittedBy: claim.submittedBy,
+      idempotencyKey: randomUUID(),
+      requestData: { claimId: claim.id, role: parsed.data.role },
+      beforeState: { playerStatus: entry.status, roster: currentRoster },
+      proposedState: { validation },
+      effectiveAt: now,
+      notes: parsed.data.reason,
+      reviewedBy: session.user.id,
+      reviewedAt: now,
+      completedAt: now,
+    }).returning();
+    await tx.insert(rosterMemberships).values({
+      seasonId: season.id,
+      teamId: claim.teamId,
+      playerId: entry.playerId,
+      divisionId: entry.divisionId,
+      role: parsed.data.role,
+      startsAt: now,
+      acquiredBy: "WAIVER_CLAIM",
+      actorId: session.user.id,
+    });
+    await tx.update(playerSeasons).set({ status: "ROSTERED" })
+      .where(eq(playerSeasons.id, entry.id));
+    await tx.update(waiverClaims).set({
+      status: "APPROVED",
+      approvedAt: now,
+      reviewedBy: session.user.id,
+      reviewedAt: now,
+      reason: parsed.data.reason,
+    }).where(eq(waiverClaims.id, claim.id));
+    await tx.update(waiverClaims).set({
+      status: "DENIED",
+      reviewedBy: session.user.id,
+      reviewedAt: now,
+      reason: "Resolved by higher-priority approved claim",
+    }).where(and(
+      eq(waiverClaims.waiverWindowId, window.id),
+      eq(waiverClaims.status, "PENDING"),
+    ));
+    await tx.update(waiverWindows).set({
+      status: "CLAIMED",
+      claimedByTeamId: claim.teamId,
+      resolvedAt: now,
+      resolution: "WAIVER_CLAIM_APPROVED",
+    }).where(eq(waiverWindows.id, window.id));
+    await tx.insert(playerStatusHistory).values({
+      playerSeasonId: entry.id,
+      fromStatus: "WAIVER",
+      toStatus: "ROSTERED",
+      effectiveAt: now,
+      reason: parsed.data.reason,
+      actorId: session.user.id,
+      relatedTransactionId: transaction.id,
+    });
+    await tx.insert(auditLogs).values({
+      actorId: session.user.id,
+      actorDiscordRoleIds: authorization.access.roleIds,
+      action: "WAIVER_CLAIM_APPROVED_AND_COMPLETED",
+      entityType: "WAIVER_CLAIM",
+      entityId: claim.id,
+      previousState: { status: claim.status, playerStatus: entry.status },
+      nextState: {
+        status: "APPROVED",
+        playerStatus: "ROSTERED",
+        teamId: claim.teamId,
+        validation,
+      },
+      reason: parsed.data.reason,
+    });
+  });
+  revalidatePath("/admin/free-agency");
+  revalidatePath("/free-agency");
+  revalidatePath("/teams");
+}
+
+export async function moveWaiverToFreeAgency(formData: FormData) {
+  const parsed = z.object({
+    waiverWindowId: z.uuid(),
+    reason: z.string().trim().min(3).max(2_000),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Waiver resolution reason is required");
+  const { session, authorization } = await requireOperations();
+  const db = getDatabase();
+  await db.transaction(async (tx) => {
+    const [window] = await tx.select().from(waiverWindows)
+      .where(eq(waiverWindows.id, parsed.data.waiverWindowId)).for("update").limit(1);
+    if (!window || window.status !== "OPEN") throw new Error("Open waiver window not found");
+    if (window.endsAt > new Date()) throw new Error("Published waiver deadline has not passed");
+    const approved = await tx.select().from(waiverClaims).where(and(
+      eq(waiverClaims.waiverWindowId, window.id),
+      eq(waiverClaims.status, "APPROVED"),
+    )).limit(1);
+    if (approved.length) throw new Error("An approved claim must be resolved as a signing");
+    const [entry] = await tx.select().from(playerSeasons)
+      .where(eq(playerSeasons.id, window.playerSeasonId)).for("update").limit(1);
+    if (!entry || entry.status !== "WAIVER") throw new Error("Player is no longer on waivers");
+    const now = new Date();
+    await tx.update(waiverWindows).set({
+      status: "EXPIRED",
+      resolvedAt: now,
+      resolution: "UNCLAIMED_FREE_AGENCY",
+    }).where(eq(waiverWindows.id, window.id));
+    await tx.update(playerSeasons).set({ status: "FREE_AGENT" })
+      .where(eq(playerSeasons.id, entry.id));
+    await tx.insert(playerStatusHistory).values({
+      playerSeasonId: entry.id,
+      fromStatus: "WAIVER",
+      toStatus: "FREE_AGENT",
+      effectiveAt: now,
+      reason: parsed.data.reason,
+      actorId: session.user.id,
+    });
+    await tx.insert(auditLogs).values({
+      actorId: session.user.id,
+      actorDiscordRoleIds: authorization.access.roleIds,
+      action: "WAIVER_MOVED_TO_FREE_AGENCY",
+      entityType: "WAIVER_WINDOW",
+      entityId: window.id,
+      previousState: { status: window.status },
+      nextState: { status: "EXPIRED", playerStatus: "FREE_AGENT" },
+      reason: parsed.data.reason,
+    });
+  });
+  revalidatePath("/admin/free-agency");
+  revalidatePath("/free-agency");
+}
+
+export async function createFreeAgentSigning(formData: FormData) {
+  const parsed = z.object({
+    playerSeasonId: z.uuid(),
+    teamId: z.uuid(),
+    role: z.enum(["STARTER", "SUBSTITUTE"]),
+    effectiveAt: z.coerce.date(),
+    reason: z.string().trim().min(3).max(2_000),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Enter a valid free-agent signing request");
+  const session = await getSession();
+  if (!session) throw new Error("Authentication required");
+  let authorization = await authorizeLiveAction(session.user, { permission: "franchise.submit_transaction" });
+  if (!authorization.decision.allowed) {
+    authorization = await authorizeLiveAction(session.user, { permission: "transaction.approve" });
+  }
+  if (!authorization.decision.allowed) throw new Error("Free-agent signing is not authorized");
+  const db = getDatabase();
+  await db.transaction(async (tx) => {
+    const [entry] = await tx.select().from(playerSeasons)
+      .where(eq(playerSeasons.id, parsed.data.playerSeasonId)).limit(1);
+    if (!entry?.divisionId || entry.currentMmr === null || entry.protectedRosterValue === null) {
+      throw new Error("Free agent must have an official tier, MMR, and protected roster value");
+    }
+    const [season] = await tx.select().from(seasons).where(eq(seasons.id, entry.seasonId)).limit(1);
+    const [team] = await tx.select().from(teams).where(eq(teams.id, parsed.data.teamId)).limit(1);
+    if (!season || !team) throw new Error("Season or team not found");
+    if (
+      !authorization.access.permissions.includes("transaction.approve") &&
+      !authorization.access.permissions.includes("league.full") &&
+      team.franchiseNumber !== authorization.access.franchiseNumber
+    ) throw new Error("Signing request is outside your franchise scope");
+    const [teamEntry] = await tx.select().from(teamSeasons).where(and(
+      eq(teamSeasons.seasonId, season.id),
+      eq(teamSeasons.teamId, team.id),
+      eq(teamSeasons.active, true),
+    )).limit(1);
+    if (!teamEntry) throw new Error("Team is not active in this season");
+    const [divisionRows, seasonEntries, activeMemberships, openWaivers] = await Promise.all([
+      tx.select().from(divisions).where(eq(divisions.seasonId, season.id)),
+      tx.select().from(playerSeasons).where(eq(playerSeasons.seasonId, season.id)),
+      tx.select().from(rosterMemberships).where(and(
+        eq(rosterMemberships.seasonId, season.id),
+        isNull(rosterMemberships.endsAt),
+      )),
+      tx.select().from(waiverWindows).where(and(
+        eq(waiverWindows.playerSeasonId, entry.id),
+        eq(waiverWindows.status, "OPEN"),
+      )),
+    ]);
+    const divisionById = new Map(divisionRows.map((division) => [division.id, division.code]));
+    const seasonByPlayer = new Map(seasonEntries.map((item) => [item.playerId, item]));
+    const toRosterPlayer = (item: typeof entry): RosterPlayer | null => {
+      const code = item.divisionId ? divisionById.get(item.divisionId) : null;
+      if (!code || code === "PREMIER" || item.protectedRosterValue === null) return null;
+      return {
+        playerId: item.playerId,
+        division: code,
+        protectedValue: Number(item.protectedRosterValue),
+      };
+    };
+    const placedPlayers = seasonEntries.map(toRosterPlayer)
+      .filter((item): item is RosterPlayer => Boolean(item));
+    const currentRoster = activeMemberships
+      .filter((membership) => membership.teamId === team.id)
+      .map((membership) => {
+        const playerSeason = seasonByPlayer.get(membership.playerId);
+        const player = playerSeason ? toRosterPlayer(playerSeason) : null;
+        return player ? { ...player, role: membership.role } : null;
+      }).filter((item): item is RosterPlayer & { role: string } => Boolean(item));
+    const player = toRosterPlayer(entry);
+    if (!player) throw new Error("Free agent roster value or tier is incomplete");
+    const validation = validateFreeAgentSigning({
+      player: { ...player, status: entry.status },
+      currentRoster,
+      placedPlayers,
+      requestedRole: parsed.data.role,
+      seasonArchived: season.status === "ARCHIVED",
+      rosterLocked: season.settings.rosterLocked === true,
+      waiverOpen: openWaivers.some((window) => window.endsAt > new Date()),
+    });
+    if (!validation.legal) throw new Error(validation.reasons.join("; "));
+    const [created] = await tx.insert(transactionRequests).values({
+      seasonId: season.id,
+      teamId: team.id,
+      playerId: entry.playerId,
+      oldTeamId: null,
+      newTeamId: team.id,
+      type: "FREE_AGENT_SIGNING",
+      submittedBy: session.user.id,
+      idempotencyKey: randomUUID(),
+      requestData: { role: parsed.data.role, validation },
+      beforeState: { roster: currentRoster, value: validation.currentValue },
+      proposedState: {
+        playerId: entry.playerId,
+        role: parsed.data.role,
+        value: validation.newValue,
+        floor: validation.floor,
+        cap: validation.cap,
+      },
+      effectiveAt: parsed.data.effectiveAt,
+      notes: parsed.data.reason,
+    }).returning();
+    await tx.insert(auditLogs).values({
+      actorId: session.user.id,
+      actorDiscordRoleIds: authorization.access.roleIds,
+      action: "FREE_AGENT_SIGNING_REQUESTED",
+      entityType: "TRANSACTION_REQUEST",
+      entityId: created.id,
+      nextState: {
+        playerId: entry.playerId,
+        teamId: team.id,
+        role: parsed.data.role,
+        validation,
+      },
+      reason: parsed.data.reason,
+    });
+  });
+  revalidatePath("/admin/free-agency");
+  revalidatePath("/admin/transactions");
 }
 
 export async function generateBracket(formData: FormData) {
