@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "rocket_account_one_primary_per_player" ON "rocket_league_accounts" USING btree ("player_id") WHERE "rocket_league_accounts"."is_primary" = true;

@@ -13,11 +13,26 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 const id = () => uuid("id").defaultRandom().primaryKey();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).defaultNow().notNull();
 
-export const divisionCode = pgEnum("division_code", ["MASTER", "CHALLENGER", "CONTENDER"]);
+export const divisionCode = pgEnum("division_code", [
+  "CONTENDER",
+  "CHALLENGER",
+  "MASTER",
+  "PREMIER",
+]);
+export const applicationStatus = pgEnum("application_status", [
+  "PENDING",
+  "UNDER_REVIEW",
+  "APPROVED",
+  "DENIED",
+  "WITHDRAWN",
+  "CLOSED",
+  "NEEDS_CHANGES",
+]);
 export const eventType = pgEnum("event_type", [
   "REGULAR_SEASON",
   "MAJOR_1",
@@ -54,7 +69,14 @@ export const replayStatus = pgEnum("replay_status", [
   "REQUIRES_REVIEW",
 ]);
 export const decisionStatus = pgEnum("decision_status", ["PENDING", "APPROVED", "DENIED"]);
-export const seasonStatus = pgEnum("season_status", ["DRAFT", "ACTIVE", "ARCHIVED"]);
+export const seasonStatus = pgEnum("season_status", [
+  "DRAFT",
+  "SETUP",
+  "READY",
+  "ACTIVE",
+  "COMPLETED",
+  "ARCHIVED",
+]);
 export const playerStatus = pgEnum("player_status", [
   "APPLIED",
   "VERIFICATION_PENDING",
@@ -236,8 +258,19 @@ export const divisions = pgTable(
   (table) => [uniqueIndex("division_season_code").on(table.seasonId, table.code)],
 );
 
+export const franchises = pgTable("franchises", {
+  id: id(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  logoUrl: text("logo_url"),
+  ownerDisplayName: text("owner_display_name"),
+  active: boolean("active").default(true).notNull(),
+  createdAt: createdAt(),
+});
+
 export const teams = pgTable("teams", {
   id: id(),
+  franchiseId: uuid("franchise_id").references(() => franchises.id),
   franchiseNumber: integer("franchise_number").unique(),
   discordFranchiseRoleId: text("discord_franchise_role_id").unique(),
   name: text("name").notNull(),
@@ -278,7 +311,7 @@ export const playerApplications = pgTable(
   {
     id: id(),
     playerSeasonId: uuid("player_season_id").notNull().references(() => playerSeasons.id),
-    status: playerStatus("status").default("APPLIED").notNull(),
+    status: applicationStatus("status").default("PENDING").notNull(),
     alternateAccountsDeclared: boolean("alternate_accounts_declared").default(false).notNull(),
     submittedAt: createdAt(),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
@@ -319,9 +352,16 @@ export const rocketLeagueAccounts = pgTable(
     platform: text("platform").notNull(),
     platformAccountId: text("platform_account_id").notNull(),
     trackerUrl: text("tracker_url"),
+    isPrimary: boolean("is_primary").default(false).notNull(),
+    declaration: text("declaration"),
     verifiedAt: timestamp("verified_at", { withTimezone: true }),
   },
-  (table) => [uniqueIndex("rocket_account_platform_id").on(table.platform, table.platformAccountId)],
+  (table) => [
+    uniqueIndex("rocket_account_platform_id").on(table.platform, table.platformAccountId),
+    uniqueIndex("rocket_account_one_primary_per_player")
+      .on(table.playerId)
+      .where(sql`${table.isPrimary} = true`),
+  ],
 );
 
 export const rosterMemberships = pgTable(
