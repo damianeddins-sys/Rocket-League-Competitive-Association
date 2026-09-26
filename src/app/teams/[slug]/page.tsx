@@ -3,7 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarDays, ChevronRight, History, Trophy, Users } from "lucide-react";
 import { EmptyState, PageHero, TeamIdentity } from "@/components/league-ui";
+import { getDatabase } from "@/db";
+import { divisions, playerSeasons, rosterMemberships } from "@/db/schema";
 import { getPublicSnapshot } from "@/lib/public-data";
+import { calculateSeasonOneCap, validateSeasonOneRoster, type RosterPlayer } from "@/services/rosters";
+import { and, eq, isNull } from "drizzle-orm";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -32,6 +36,40 @@ export default async function TeamDetailPage({
   const upcoming = teamMatches.filter((match) => match.scheduledAt > new Date());
   const completed = teamMatches.filter((match) => match.status === "VERIFIED");
   const seasonQuery = snapshot.season ? `?season=${encodeURIComponent(snapshot.season.slug)}` : "";
+  const db = process.env.DATABASE_URL && snapshot.season ? getDatabase() : null;
+  const [membershipRows, seasonPlayerRows, divisionRows] = db && snapshot.season
+    ? await Promise.all([
+        db.select().from(rosterMemberships).where(and(
+          eq(rosterMemberships.teamId, team.id),
+          eq(rosterMemberships.seasonId, snapshot.season.id),
+          isNull(rosterMemberships.endsAt),
+        )),
+        db.select().from(playerSeasons).where(eq(playerSeasons.seasonId, snapshot.season.id)),
+        db.select().from(divisions).where(eq(divisions.seasonId, snapshot.season.id)),
+      ])
+    : [[], [], []];
+  const divisionById = new Map(divisionRows.map((division) => [division.id, division.code]));
+  const seasonByPlayer = new Map(seasonPlayerRows.map((entry) => [entry.playerId, entry]));
+  const toRosterPlayer = (entry: typeof playerSeasons.$inferSelect): RosterPlayer | null => {
+    const division = entry.divisionId ? divisionById.get(entry.divisionId) : null;
+    if (!division || division === "PREMIER" || entry.protectedRosterValue === null) return null;
+    return { playerId: entry.playerId, division, protectedValue: Number(entry.protectedRosterValue) };
+  };
+  const placed = seasonPlayerRows.map(toRosterPlayer).filter((entry): entry is RosterPlayer => Boolean(entry));
+  const teamRosterValues = membershipRows.map((membership) => {
+    const entry = seasonByPlayer.get(membership.playerId);
+    return entry ? toRosterPlayer(entry) : null;
+  }).filter((entry): entry is RosterPlayer => Boolean(entry));
+  const capRange = calculateSeasonOneCap(placed);
+  const capValidation = teamRosterValues.length === 3
+    ? validateSeasonOneRoster(teamRosterValues, capRange)
+    : {
+        legal: false,
+        value: teamRosterValues.reduce((sum, entry) => sum + entry.protectedValue, 0),
+        floor: capRange.floor,
+        cap: capRange.cap,
+        reasons: ["Roster is incomplete"],
+      };
 
   return (
     <div className="min-h-screen">
@@ -60,6 +98,11 @@ export default async function TeamDetailPage({
           ].map(([label, value]) => (
             <div key={label} className="panel p-5"><p className="stat-label">{label}</p><p className="mt-2 text-xl font-black">{value}</p></div>
           ))}
+        </section>
+
+        <section className="panel mt-7 p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="eyebrow text-slate-500">Protected values</p><h2 className="text-xl font-black">Team cap</h2></div><span className={`rounded-full px-3 py-1 text-xs font-black ${capValidation.legal ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{capValidation.legal ? "LEGAL" : "ILLEGAL / INCOMPLETE"}</span></div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-3"><div><p className="stat-label">Team value</p><strong className="mt-1 block text-xl">{capValidation.value}</strong></div><div><p className="stat-label">League minimum</p><strong className="mt-1 block text-xl">{capValidation.floor ?? "Pending 24 values"}</strong></div><div><p className="stat-label">League maximum</p><strong className="mt-1 block text-xl">{capValidation.cap ?? "Pending 24 values"}</strong></div></div>{capValidation.reasons.length > 0 && <p className="mt-4 text-xs text-amber-700">{capValidation.reasons.join("; ")}</p>}
         </section>
 
         <div className="mt-7 grid gap-7 lg:grid-cols-[1.1fr_.9fr]">

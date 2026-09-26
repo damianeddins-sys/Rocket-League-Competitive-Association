@@ -4,7 +4,19 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight, Gamepad2, History, Shield, UserRound } from "lucide-react";
 import { PageHero } from "@/components/league-ui";
+import { getDatabase } from "@/db";
+import {
+  divisions,
+  rosterMemberships,
+  seasons,
+  teams,
+  tierHistory,
+  transactionRequests,
+  waiverWindows,
+  playerSeasons,
+} from "@/db/schema";
 import { getPublicSnapshot } from "@/lib/public-data";
+import { desc, eq } from "drizzle-orm";
 
 export async function generateMetadata({ params }: { params: Promise<{ handle: string }> }): Promise<Metadata> {
   return { title: (await params).handle };
@@ -24,6 +36,24 @@ export default async function PlayerDetailPage({
   const team = player.team ? snapshot.teams.find((item) => item.slug === player.team?.slug) : null;
   const matches = team ? snapshot.matches.filter((match) => match.teamA.id === team.id || match.teamB.id === team.id) : [];
   const seasonQuery = snapshot.season ? `?season=${encodeURIComponent(snapshot.season.slug)}` : "";
+  const db = process.env.DATABASE_URL ? getDatabase() : null;
+  const [tierRows, seasonRows, divisionRows, membershipRows, transactionRows, playerSeasonRows, waiverRows, teamRows] = db
+    ? await Promise.all([
+        db.select().from(tierHistory).where(eq(tierHistory.playerId, player.id)).orderBy(desc(tierHistory.createdAt)),
+        db.select().from(seasons),
+        db.select().from(divisions),
+        db.select().from(rosterMemberships).where(eq(rosterMemberships.playerId, player.id)).orderBy(desc(rosterMemberships.startsAt)),
+        db.select().from(transactionRequests).where(eq(transactionRequests.playerId, player.id)).orderBy(desc(transactionRequests.createdAt)),
+        db.select().from(playerSeasons).where(eq(playerSeasons.playerId, player.id)),
+        db.select().from(waiverWindows).orderBy(desc(waiverWindows.startedAt)),
+        db.select().from(teams),
+      ])
+    : [[], [], [], [], [], [], [], []];
+  const seasonById = new Map(seasonRows.map((item) => [item.id, item]));
+  const divisionById = new Map(divisionRows.map((item) => [item.id, item]));
+  const teamById = new Map(teamRows.map((item) => [item.id, item]));
+  const playerSeasonIds = new Set(playerSeasonRows.map((item) => item.id));
+  const playerWaivers = waiverRows.filter((item) => playerSeasonIds.has(item.playerSeasonId));
 
   return (
     <div className="min-h-screen">
@@ -47,7 +77,11 @@ export default async function PlayerDetailPage({
             </section>
             <section className="panel p-6">
               <div className="flex items-center gap-3"><History className="text-blue-600" /><h2 className="text-xl font-black">Season history</h2></div>
-              <p className="mt-5 rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">Historical seasons and public transactions appear when official records are available.</p>
+              {tierRows.length === 0 ? <p className="mt-5 rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">No official tier history recorded.</p> : <div className="mt-5 space-y-3">{tierRows.map((item) => <div key={item.id} className="rounded-xl bg-slate-50 p-4 text-sm"><div className="flex justify-between gap-3"><strong>{seasonById.get(item.seasonId)?.name ?? "Season"}</strong><span className="text-xs font-black">{divisionById.get(item.newDivisionId)?.code}</span></div><p className="mt-2">Rank #{item.newRank} · MMR {item.newMmr}</p><p className="mt-1 text-xs text-slate-500">{item.source.replaceAll("_", " ")} · {item.reason}</p></div>)}</div>}
+            </section>
+            <section className="panel p-6">
+              <div className="flex items-center gap-3"><History className="text-blue-600" /><h2 className="text-xl font-black">Roster & free-agency history</h2></div>
+              {membershipRows.length === 0 && transactionRows.length === 0 && playerWaivers.length === 0 ? <p className="mt-5 text-sm text-slate-500">No public league movement recorded.</p> : <div className="mt-5 space-y-3">{membershipRows.map((item) => <div key={item.id} className="rounded-xl border p-3 text-sm"><strong>{teamById.get(item.teamId)?.name ?? "Team"}</strong><p className="mt-1 text-xs text-slate-500">{item.role} · {item.startsAt.toLocaleDateString()} – {item.endsAt?.toLocaleDateString() ?? "Present"}</p></div>)}{playerWaivers.map((item) => <div key={item.id} className="rounded-xl border p-3 text-sm"><strong>Waiver {item.status.toLowerCase()}</strong><p className="mt-1 text-xs text-slate-500">{item.startedAt.toLocaleDateString()} – {item.endsAt.toLocaleDateString()}</p></div>)}{transactionRows.map((item) => <div key={item.id} className="rounded-xl border p-3 text-sm"><strong>{item.type.replaceAll("_", " ")}</strong><p className="mt-1 text-xs text-slate-500">{item.status} · {item.effectiveAt?.toLocaleDateString() ?? item.createdAt.toLocaleDateString()}</p></div>)}</div>}
             </section>
           </div>
           <section className="panel p-6">

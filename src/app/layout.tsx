@@ -68,6 +68,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 <summary className="cursor-pointer list-none">More</summary>
                 <div className="absolute right-0 mt-5 grid min-w-48 gap-1 rounded-xl border border-slate-200 bg-white p-2 text-slate-800 shadow-xl">
                   <Link href="/franchises">Franchises</Link>
+                  <Link href="/free-agency">Free Agency</Link>
                   <Link href="/news">News</Link>
                   <Link href="/rules">Rules</Link>
                 </div>
@@ -108,7 +109,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 {[
                   ["Tiers", "/tiers"], ["Teams", "/teams"], ["Players", "/players"],
                   ["Standings", "/standings"], ["Matches", "/matches"], ["Statistics", "/statistics"],
-                  ["Franchises", "/franchises"], ["News", "/news"], ["Rules", "/rules"],
+                  ["Franchises", "/franchises"], ["Free Agency", "/free-agency"], ["News", "/news"], ["Rules", "/rules"],
                 ].map(([label, href]) => <Link key={href} href={href} className="rounded-lg px-3 py-2 hover:bg-slate-100">{label}</Link>)}
                 <Link href="/apply" className="rounded-lg px-3 py-2 hover:bg-slate-100 sm:hidden">Apply</Link>
               </nav>
