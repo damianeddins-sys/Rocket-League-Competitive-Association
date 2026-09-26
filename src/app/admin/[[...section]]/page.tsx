@@ -13,6 +13,7 @@ import {
   auditLogs,
   bracketMatches,
   brackets,
+  coachingRequests,
   divisions,
   events,
   franchises,
@@ -54,6 +55,7 @@ import {
   manageRoleAssignment,
   openMmrVerification,
   recordMmrEvidence,
+  reviewCoachingRequest,
   reviewApplication,
   saveSiteContent,
   saveSiteSetting,
@@ -357,8 +359,18 @@ async function BracketsSection({ snapshot }: { snapshot: Awaited<ReturnType<type
 }
 
 async function ReplaysSection() {
-  const rows = await getDatabase().select().from(replays).orderBy(desc(replays.submittedAt));
-  return <section className="panel mt-8 overflow-hidden"><div className="p-5"><h2 className="text-xl font-black">Replay processing</h2><p className="mt-2 text-sm text-slate-500">Storage keys and raw private files are not exposed.</p></div>{rows.length === 0 ? <p className="border-t border-slate-100 p-5 text-sm text-slate-500">No replays submitted.</p> : <div className="divide-y divide-slate-100">{rows.map((row) => <div key={row.id} className="flex justify-between gap-4 p-5"><span><strong>{row.matchId ? `Match ${row.matchId.slice(0, 8)}` : "Private coaching replay"}</strong><span className="mt-1 block text-xs text-slate-500">{row.submittedAt.toLocaleString()}</span></span><span className="text-xs font-black">{row.status.replaceAll("_", " ")}</span></div>)}</div>}</section>;
+  const db = getDatabase();
+  const [rows, requests, playerRows] = await Promise.all([
+    db.select().from(replays).orderBy(desc(replays.submittedAt)),
+    db.select().from(coachingRequests).orderBy(desc(coachingRequests.createdAt)),
+    db.select().from(players),
+  ]);
+  const replayById = new Map(rows.map((row) => [row.id, row]));
+  const playerById = new Map(playerRows.map((row) => [row.id, row]));
+  return <section className="panel mt-8 overflow-hidden"><div className="p-5"><h2 className="text-xl font-black">Private coaching review</h2><p className="mt-2 text-sm text-slate-500">Raw storage keys remain private. Staff conclusions must be grounded in the uploaded replay and state evidence limitations.</p></div>{requests.length === 0 ? <p className="border-t border-slate-100 p-5 text-sm text-slate-500">No coaching replays submitted.</p> : <div className="divide-y divide-slate-100">{requests.map((request) => {
+    const replay = request.replayId ? replayById.get(request.replayId) : undefined;
+    return <details key={request.id} className="p-5"><summary className="flex cursor-pointer list-none flex-wrap justify-between gap-4"><span><strong>{request.playerId ? playerById.get(request.playerId)?.handle ?? "Linked player" : "Authenticated member"}</strong><span className="mt-1 block text-xs text-slate-500">{request.coachingType.replaceAll("_", " ")} · {request.coachingGoal?.replaceAll("_", " ")} · {replay?.submittedAt.toLocaleString()}</span></span><span className="text-xs font-black">{request.status.replaceAll("_", " ")}</span></summary>{request.status !== "COMPLETE" ? <form action={reviewCoachingRequest} className="mt-5 grid gap-3 rounded-xl border p-4 md:grid-cols-2"><input type="hidden" name="requestId" value={request.id} /><select className={fieldClass} name="operation"><option value="START_PROCESSING">Start processing</option><option value="COMPLETE">Complete with results</option></select><input className={fieldClass} name="summary" placeholder="Evidence-based summary" /><textarea className={fieldClass} name="positioning" placeholder="Positioning and spacing" /><textarea className={fieldClass} name="rotations" placeholder="Rotations, passing, and team play" /><textarea className={fieldClass} name="decisionMaking" placeholder="Challenges, decisions, boost management" /><textarea className={fieldClass} name="offense" placeholder="Offense" /><textarea className={fieldClass} name="defense" placeholder="Defense" /><textarea className={fieldClass} name="trainingPriorities" placeholder="Repeated mistakes and training priorities" />{request.coachingType === "TEAM_2V2" && request.coachingGoal !== "GAMEPLAY_IMPROVEMENT" && <textarea className={fieldClass} name="rosterRecommendation" placeholder="Recommended 2-player roster, fit, and possible substitute" />}<textarea className={`${fieldClass} md:col-span-2`} name="evidenceLimitations" placeholder="Required evidence limitations when completing" /><button className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-black text-white md:col-span-2">Save coaching review</button></form> : <div className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-900"><strong>Results available to the player</strong><p className="mt-2">{String((request.results as { summary?: unknown } | null)?.summary ?? "Review completed.")}</p></div>}</details>;
+  })}</div>}</section>;
 }
 
 async function AuditSection() {

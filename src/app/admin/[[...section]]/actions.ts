@@ -10,6 +10,7 @@ import {
   auditLogs,
   bracketMatches,
   brackets,
+  coachingRequests,
   divisions,
   events,
   franchises,
@@ -1229,4 +1230,75 @@ export async function manageRoleAssignment(formData: FormData) {
     });
   });
   revalidatePath("/admin/rbac");
+}
+
+export async function reviewCoachingRequest(formData: FormData) {
+  const parsed = z.object({
+    requestId: z.uuid(),
+    operation: z.enum(["START_PROCESSING", "COMPLETE"]),
+    summary: z.string().trim().max(5_000),
+    positioning: z.string().trim().max(3_000),
+    rotations: z.string().trim().max(3_000),
+    decisionMaking: z.string().trim().max(3_000),
+    offense: z.string().trim().max(3_000),
+    defense: z.string().trim().max(3_000),
+    trainingPriorities: z.string().trim().max(3_000),
+    rosterRecommendation: z.string().trim().max(3_000),
+    evidenceLimitations: z.string().trim().max(3_000),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Enter valid coaching review details");
+  if (
+    parsed.data.operation === "COMPLETE" &&
+    (parsed.data.summary.length < 10 || parsed.data.evidenceLimitations.length < 3)
+  ) {
+    throw new Error("Completed coaching requires a summary and evidence limitations");
+  }
+  const { session, authorization } = await requireOperations();
+  const db = getDatabase();
+  await db.transaction(async (tx) => {
+    const [request] = await tx.select().from(coachingRequests)
+      .where(eq(coachingRequests.id, parsed.data.requestId)).for("update").limit(1);
+    if (!request) throw new Error("Coaching request not found");
+    if (request.status === "COMPLETE") throw new Error("Completed coaching is immutable");
+    if (request.coachingType === "INDIVIDUAL_1V1" && parsed.data.rosterRecommendation) {
+      throw new Error("Individual coaching cannot include roster recommendations");
+    }
+    const nextStatus = parsed.data.operation === "START_PROCESSING" ? "PROCESSING" : "COMPLETE";
+    const results = parsed.data.operation === "COMPLETE" ? {
+      summary: parsed.data.summary,
+      positioning: parsed.data.positioning || null,
+      rotations: parsed.data.rotations || null,
+      decisionMaking: parsed.data.decisionMaking || null,
+      offense: parsed.data.offense || null,
+      defense: parsed.data.defense || null,
+      trainingPriorities: parsed.data.trainingPriorities || null,
+      rosterRecommendation: parsed.data.rosterRecommendation || null,
+      evidenceLimitations: parsed.data.evidenceLimitations,
+      reviewedBy: session.user.id,
+    } : request.results;
+    await tx.update(coachingRequests).set({
+      status: nextStatus,
+      results,
+      completedAt: nextStatus === "COMPLETE" ? new Date() : null,
+      updatedAt: new Date(),
+    }).where(eq(coachingRequests.id, request.id));
+    if (request.replayId) {
+      await tx.update(replays).set({
+        status: nextStatus === "COMPLETE" ? "COMPLETE" : "ANALYZING",
+      }).where(eq(replays.id, request.replayId));
+    }
+    await tx.insert(auditLogs).values({
+      actorId: session.user.id,
+      actorDiscordRoleIds: authorization.access.roleIds,
+      action: `COACHING_REQUEST_${nextStatus}`,
+      entityType: "COACHING_REQUEST",
+      entityId: request.id,
+      previousState: { status: request.status },
+      nextState: { status: nextStatus, hasResults: Boolean(results) },
+      reason: parsed.data.evidenceLimitations || "Coaching review started",
+    });
+  });
+  revalidatePath("/admin/replays");
+  revalidatePath("/dashboard/coach");
+  revalidatePath("/dashboard/progress");
 }
