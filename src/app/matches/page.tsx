@@ -19,6 +19,7 @@ export default async function MatchesPage({
         <SeasonSelector seasons={snapshot.seasons} current={snapshot.season} pathname="/matches" />
       </PageHero>
       <section className="mx-auto max-w-7xl px-5 py-10 lg:px-8">
+        <Link href="/rules#matches" className="mb-5 inline-flex text-sm font-black text-blue-700">Match operations rules →</Link>
         {snapshot.matches.length === 0 ? <EmptyState title="No official matches recorded" message="Published schedule items and verified results will appear here." /> : (
           <div className="grid gap-4 lg:grid-cols-2">
             {snapshot.matches.map((match) => (

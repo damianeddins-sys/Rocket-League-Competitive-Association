@@ -2025,6 +2025,128 @@ export async function uploadLeagueDocument(formData: FormData) {
   revalidatePath("/admin/documents");
 }
 
+export async function uploadRulebookDraft(formData: FormData) {
+  const parsed = z.object({
+    title: z.string().trim().min(2).max(160),
+    version: z.string().trim().min(1).max(32),
+    effectiveAt: z.coerce.date(),
+    revisionNote: z.string().trim().min(3).max(2_000),
+    seasonId: z.union([z.literal(""), z.uuid()]),
+  }).safeParse({
+    title: formData.get("title"),
+    version: formData.get("version"),
+    effectiveAt: formData.get("effectiveAt"),
+    revisionNote: formData.get("revisionNote"),
+    seasonId: formData.get("seasonId") ?? "",
+  });
+  const file = formData.get("file");
+  if (!parsed.success || !(file instanceof File)) throw new Error("Enter complete rulebook details");
+  if (file.type !== "application/pdf" || file.size < 1 || file.size > 25 * 1024 * 1024) {
+    throw new Error("Rulebooks must be PDF files no larger than 25 MB");
+  }
+  if (!process.env.BLOB_READ_WRITE_TOKEN) throw new Error("Private document storage is not configured");
+  const { session, authorization } = await requireOperations();
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120);
+  const blob = await put(`rulebooks/${randomUUID()}-${safeName}`, file, {
+    access: "private",
+    addRandomSuffix: false,
+    contentType: "application/pdf",
+  });
+  const db = getDatabase();
+  await db.transaction(async (tx) => {
+    if (parsed.data.seasonId) {
+      const [season] = await tx.select().from(seasons)
+        .where(eq(seasons.id, parsed.data.seasonId)).limit(1);
+      if (!season || season.status === "ARCHIVED") throw new Error("Archived or missing seasons are read-only");
+    }
+    const [existing] = await tx.select().from(leagueDocuments).where(and(
+      eq(leagueDocuments.documentType, "RULEBOOK"),
+      eq(leagueDocuments.version, parsed.data.version),
+    )).limit(1);
+    if (existing) throw new Error("This rulebook version already exists");
+    const [created] = await tx.insert(leagueDocuments).values({
+      title: parsed.data.title,
+      fileName: safeName,
+      contentType: "application/pdf",
+      sizeBytes: file.size,
+      storageKey: blob.url,
+      visibility: "PUBLIC",
+      documentType: "RULEBOOK",
+      version: parsed.data.version,
+      effectiveAt: parsed.data.effectiveAt,
+      revisionNote: parsed.data.revisionNote,
+      seasonId: parsed.data.seasonId || null,
+      uploadedBy: session.user.id,
+    }).returning();
+    await tx.insert(auditLogs).values({
+      actorId: session.user.id,
+      actorDiscordRoleIds: authorization.access.roleIds,
+      action: "RULEBOOK_DRAFT_UPLOADED",
+      entityType: "LEAGUE_DOCUMENT",
+      entityId: created.id,
+      nextState: {
+        title: created.title,
+        version: created.version,
+        effectiveAt: created.effectiveAt?.toISOString() ?? null,
+        revisionNote: created.revisionNote,
+      },
+    });
+  });
+  revalidatePath("/admin/rulebook");
+}
+
+export async function publishRulebook(formData: FormData) {
+  const parsed = z.object({
+    documentId: z.uuid(),
+    confirmation: z.literal("PUBLISH"),
+    reason: z.string().trim().min(3).max(2_000),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Type PUBLISH and provide a publication reason");
+  const { session, authorization } = await requireFullLeagueAccess();
+  const db = getDatabase();
+  await db.transaction(async (tx) => {
+    const [document] = await tx.select().from(leagueDocuments)
+      .where(eq(leagueDocuments.id, parsed.data.documentId)).for("update").limit(1);
+    if (
+      !document ||
+      document.documentType !== "RULEBOOK" ||
+      document.contentType !== "application/pdf" ||
+      document.archivedAt
+    ) throw new Error("Publishable rulebook draft not found");
+    const [previous] = await tx.select().from(leagueDocuments).where(and(
+      eq(leagueDocuments.documentType, "RULEBOOK"),
+      eq(leagueDocuments.isCurrent, true),
+    )).for("update").limit(1);
+    await tx.update(leagueDocuments).set({ isCurrent: false })
+      .where(and(eq(leagueDocuments.documentType, "RULEBOOK"), eq(leagueDocuments.isCurrent, true)));
+    const publishedAt = new Date();
+    await tx.update(leagueDocuments).set({
+      publishedAt,
+      isCurrent: true,
+      supersedesDocumentId: previous?.id ?? null,
+    }).where(eq(leagueDocuments.id, document.id));
+    await tx.insert(auditLogs).values({
+      actorId: session.user.id,
+      actorDiscordRoleIds: authorization.access.roleIds,
+      action: "RULEBOOK_PUBLISHED",
+      entityType: "LEAGUE_DOCUMENT",
+      entityId: document.id,
+      previousState: {
+        currentDocumentId: previous?.id ?? null,
+        currentVersion: previous?.version ?? null,
+      },
+      nextState: {
+        currentDocumentId: document.id,
+        currentVersion: document.version,
+        publishedAt: publishedAt.toISOString(),
+      },
+      reason: parsed.data.reason,
+    });
+  });
+  revalidatePath("/admin/rulebook");
+  revalidatePath("/rules");
+}
+
 export async function archiveLeagueDocument(formData: FormData) {
   const parsed = z.object({
     documentId: z.uuid(),
@@ -2037,6 +2159,9 @@ export async function archiveLeagueDocument(formData: FormData) {
     const [document] = await tx.select().from(leagueDocuments)
       .where(eq(leagueDocuments.id, parsed.data.documentId)).limit(1);
     if (!document || document.archivedAt) throw new Error("Active document not found");
+    if (document.documentType === "RULEBOOK") {
+      throw new Error("Official rulebook history cannot be archived or deleted");
+    }
     await tx.update(leagueDocuments).set({ archivedAt: new Date() })
       .where(eq(leagueDocuments.id, document.id));
     await tx.insert(auditLogs).values({

@@ -59,4 +59,13 @@ describe("migration consistency", () => {
     expect(sql).toContain('"tier_placement_runs"');
     expect(sql).not.toMatch(/\b(?:DELETE FROM|TRUNCATE|DROP TABLE)\b/i);
   });
+
+  it("adds versioned rulebook publication metadata without removing documents", () => {
+    const sql = migration("0016_crazy_major_mapleleaf.sql");
+    expect(sql).toContain('"document_type"');
+    expect(sql).toContain('"revision_note"');
+    expect(sql).toContain('"published_at"');
+    expect(sql).toContain("league_document_rulebook_version");
+    expect(sql).not.toMatch(/\b(?:DELETE FROM|TRUNCATE|DROP TABLE)\b/i);
+  });
 });

@@ -101,7 +101,7 @@ export default async function TeamDetailPage({
         </section>
 
         <section className="panel mt-7 p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="eyebrow text-slate-500">Protected values</p><h2 className="text-xl font-black">Team cap</h2></div><span className={`rounded-full px-3 py-1 text-xs font-black ${capValidation.legal ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{capValidation.legal ? "LEGAL" : "ILLEGAL / INCOMPLETE"}</span></div>
+          <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="eyebrow text-slate-500">Protected values</p><h2 className="text-xl font-black">Team cap</h2><Link href="/rules#rosters" className="mt-1 inline-flex text-xs font-black text-blue-700">Roster and cap rules →</Link></div><span className={`rounded-full px-3 py-1 text-xs font-black ${capValidation.legal ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{capValidation.legal ? "LEGAL" : "ILLEGAL / INCOMPLETE"}</span></div>
           <div className="mt-5 grid gap-4 sm:grid-cols-3"><div><p className="stat-label">Team value</p><strong className="mt-1 block text-xl">{capValidation.value}</strong></div><div><p className="stat-label">League minimum</p><strong className="mt-1 block text-xl">{capValidation.floor ?? "Pending 24 values"}</strong></div><div><p className="stat-label">League maximum</p><strong className="mt-1 block text-xl">{capValidation.cap ?? "Pending 24 values"}</strong></div></div>{capValidation.reasons.length > 0 && <p className="mt-4 text-xs text-amber-700">{capValidation.reasons.join("; ")}</p>}
         </section>
 

@@ -823,11 +823,26 @@ export const leagueDocuments = pgTable(
     teamId: uuid("team_id").references(() => teams.id),
     playerId: uuid("player_id").references(() => players.id),
     visibility: text("visibility").default("STAFF").notNull(),
+    documentType: text("document_type").default("GENERAL").notNull(),
+    version: text("version"),
+    effectiveAt: timestamp("effective_at", { withTimezone: true }),
+    revisionNote: text("revision_note"),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    isCurrent: boolean("is_current").default(false).notNull(),
+    supersedesDocumentId: uuid("supersedes_document_id"),
     uploadedBy: uuid("uploaded_by").notNull().references(() => users.id),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (table) => [index("league_document_scope").on(table.seasonId, table.teamId, table.playerId)],
+  (table) => [
+    index("league_document_scope").on(table.seasonId, table.teamId, table.playerId),
+    uniqueIndex("league_document_one_current_rulebook")
+      .on(table.documentType)
+      .where(sql`${table.documentType} = 'RULEBOOK' AND ${table.isCurrent} = true`),
+    uniqueIndex("league_document_rulebook_version")
+      .on(table.documentType, table.version)
+      .where(sql`${table.documentType} = 'RULEBOOK'`),
+  ],
 );
 
 export const siteContent = pgTable("site_content", {

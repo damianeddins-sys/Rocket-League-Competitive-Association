@@ -43,6 +43,7 @@ export default async function ApplyPage({
     <div className="min-h-screen">
       <PageHero eyebrow="Player applications" title="Apply to RLCA" description="Connect your identity, declare every Rocket League account, and submit one auditable application for the active season." />
       <main className="mx-auto max-w-4xl px-5 py-10 lg:px-8">
+        <Link href="/rules#eligibility" className="mb-5 inline-flex text-sm font-black text-blue-700">Player eligibility rules →</Link>
         {!session?.user ? (
           <section className="panel p-8 text-center"><ShieldCheck className="mx-auto text-[#5865f2]" size={34} /><h2 className="mt-4 text-2xl font-black">Discord sign-in required</h2><p className="mt-3 text-slate-600">Authentication is required before application information can be submitted or viewed.</p><Link href="/login?returnTo=%2Fapply" className="mt-6 inline-flex rounded-lg bg-[#5865f2] px-5 py-3 font-bold text-white">Continue with Discord</Link></section>
         ) : !applicationOpen && !staffOverride ? (

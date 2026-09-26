@@ -39,6 +39,7 @@ export default async function FreeAgencyPage() {
     <p className="eyebrow text-emerald-700">{season.name}</p>
     <h1 className="mt-3 text-4xl font-black">Free Agency</h1>
     <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-600">Official available players and published waiver status. Private evidence and account details are not displayed.</p>
+    <Link href="/rules#transactions" className="mt-3 inline-flex text-sm font-black text-blue-700">Free agency and transaction rules →</Link>
     {visible.length === 0 ? <div className="panel mt-8 p-7 text-sm text-slate-600">No players are currently available or on waivers.</div> : <div className="mt-8 grid gap-4 md:grid-cols-2">{visible.map((entry) => {
       const player = playerById.get(entry.playerId);
       const previous = memberships.find((membership) => membership.playerId === entry.playerId && membership.endsAt);
