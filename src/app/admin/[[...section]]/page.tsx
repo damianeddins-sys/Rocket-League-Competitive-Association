@@ -26,6 +26,7 @@ import {
   rocketLeagueAccounts,
   rosterMemberships,
   seasons,
+  teamSeasons,
   teams,
   transactionRequests,
   users,
@@ -184,14 +185,18 @@ async function OrganizationsSection({ snapshot }: { snapshot: Awaited<ReturnType
 
 async function ScheduleSection({ snapshot }: { snapshot: Awaited<ReturnType<typeof getPublicSnapshot>> }) {
   const db = getDatabase();
-  const [seasonRows, eventRows] = await Promise.all([
+  const [seasonRows, eventRows, teamRows, teamSeasonRows] = await Promise.all([
     db.select().from(seasons).orderBy(desc(seasons.startsAt)),
     db.select().from(events).orderBy(events.startsAt),
+    db.select().from(teams).orderBy(teams.name),
+    db.select().from(teamSeasons).where(eq(teamSeasons.active, true)),
   ]);
+  const teamById = new Map(teamRows.map((row) => [row.id, row]));
+  const seasonById = new Map(seasonRows.map((row) => [row.id, row]));
   return <div className="mt-8 space-y-7">
     <div className="grid gap-7 xl:grid-cols-2">
       <form action={createEvent} className="panel p-6"><h2 className="text-xl font-black">Create schedule event</h2><p className="mt-2 text-sm text-slate-500">Dates are required and are never generated or guessed.</p><div className="mt-5 grid gap-3 sm:grid-cols-2"><select className={fieldClass} name="seasonId" required><option value="">Season</option>{seasonRows.filter((row) => row.status !== "ARCHIVED").map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select><select className={fieldClass} name="type" required><option value="REGULAR_SEASON">Regular Season</option><option value="MAJOR_1">Major 1</option><option value="MAJOR_2">Major 2</option><option value="LAST_CHANCE">Last Chance</option><option value="CHAMPIONSHIP">Championship</option></select><input className={`${fieldClass} sm:col-span-2`} name="name" required placeholder="Event name" /><input className={fieldClass} name="startsAt" type="datetime-local" required /><input className={fieldClass} name="endsAt" type="datetime-local" required /><button className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-black text-white sm:col-span-2">Create event</button></div></form>
-      <form action={createMatch} className="panel p-6"><h2 className="text-xl font-black">Create official match</h2><p className="mt-2 text-sm text-slate-500">Regular Season uses BO5; major events, Last Chance, and Championship use BO7.</p><div className="mt-5 grid gap-3 sm:grid-cols-2"><select className={`${fieldClass} sm:col-span-2`} name="eventId" required><option value="">Event</option>{eventRows.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select><select className={fieldClass} name="teamAId" required><option value="">Team 1</option>{snapshot.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select><select className={fieldClass} name="teamBId" required><option value="">Team 2</option>{snapshot.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select><input className={fieldClass} name="week" type="number" min={1} required placeholder="Week" /><input className={fieldClass} name="scheduledAt" type="datetime-local" required /><button className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-black text-white sm:col-span-2">Create match</button></div></form>
+      <form action={createMatch} className="panel p-6"><h2 className="text-xl font-black">Create official match</h2><p className="mt-2 text-sm text-slate-500">Regular Season uses BO5; major events, Last Chance, and Championship use BO7. Both teams must belong to the event season.</p><div className="mt-5 grid gap-3 sm:grid-cols-2"><select className={`${fieldClass} sm:col-span-2`} name="eventId" required><option value="">Event</option>{eventRows.map((row) => <option key={row.id} value={row.id}>{row.name} · {seasonById.get(row.seasonId)?.name}</option>)}</select><select className={fieldClass} name="teamAId" required><option value="">Team 1</option>{teamSeasonRows.map((entry) => <option key={`a:${entry.id}`} value={entry.teamId}>{teamById.get(entry.teamId)?.name} · {seasonById.get(entry.seasonId)?.name}</option>)}</select><select className={fieldClass} name="teamBId" required><option value="">Team 2</option>{teamSeasonRows.map((entry) => <option key={`b:${entry.id}`} value={entry.teamId}>{teamById.get(entry.teamId)?.name} · {seasonById.get(entry.seasonId)?.name}</option>)}</select><input className={fieldClass} name="week" type="number" min={1} required placeholder="Week" /><input className={fieldClass} name="scheduledAt" type="datetime-local" required /><button className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-black text-white sm:col-span-2">Create match</button></div></form>
     </div>
     <section className="panel overflow-hidden"><div className="p-5"><h2 className="text-xl font-black">Official schedule</h2></div>{snapshot.matches.length === 0 ? <p className="border-t border-slate-100 p-5 text-sm text-slate-500">No official matches recorded.</p> : <div className="divide-y divide-slate-100">{snapshot.matches.map((match) => <Link key={match.id} href={`/matches/${match.id}`} className="flex flex-wrap items-center justify-between gap-4 p-5 hover:bg-blue-50/50"><span><span className="stat-label">{match.eventName ?? `Week ${match.week}`} · BO{match.bestOf}</span><strong className="mt-1 block">{match.teamA.name} vs {match.teamB.name}</strong></span><span className="text-right text-sm font-bold">{match.scheduledAt.toLocaleString("en-US", { timeZone: "UTC" })}<span className="block text-xs text-slate-500">UTC · {match.status}</span></span></Link>)}</div>}</section>
   </div>;

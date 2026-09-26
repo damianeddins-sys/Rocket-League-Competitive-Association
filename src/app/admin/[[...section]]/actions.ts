@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDatabase } from "@/db";
@@ -285,6 +285,20 @@ export async function createMatch(formData: FormData) {
     if (!event) throw new Error("Event not found");
     const [season] = await tx.select().from(seasons).where(eq(seasons.id, event.seasonId)).limit(1);
     if (!season || season.status === "ARCHIVED") throw new Error("Archived or missing seasons are read-only");
+    const enrolledTeams = await tx
+      .select({ teamId: teamSeasons.teamId })
+      .from(teamSeasons)
+      .where(and(
+        eq(teamSeasons.seasonId, event.seasonId),
+        eq(teamSeasons.active, true),
+        inArray(teamSeasons.teamId, [parsed.data.teamAId, parsed.data.teamBId]),
+      ));
+    if (new Set(enrolledTeams.map((row) => row.teamId)).size !== 2) {
+      throw new Error("Both teams must be active in the event season");
+    }
+    if (parsed.data.scheduledAt < event.startsAt || parsed.data.scheduledAt > event.endsAt) {
+      throw new Error("Match time must fall within the selected event");
+    }
     const bestOf = event.type === "REGULAR_SEASON" ? 5 : 7;
     const [created] = await tx.insert(matches).values({
       seasonId: event.seasonId,
