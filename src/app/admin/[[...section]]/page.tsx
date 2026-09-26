@@ -7,7 +7,7 @@ import {
   ShieldCheck, Trophy, UserCog, UsersRound, Workflow,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, eq, inArray, isNull } from "drizzle-orm";
 import { getDatabase } from "@/db";
 import {
   auditLogs,
@@ -22,10 +22,16 @@ import {
   players,
   playerSeasons,
   replays,
+  ratingEvents,
+  leagueDocuments,
+  matches,
   roleAssignments,
   rocketLeagueAccounts,
   rosterMemberships,
   seasons,
+  seasonRulesets,
+  siteContent,
+  siteSettings,
   teamSeasons,
   teams,
   transactionRequests,
@@ -35,13 +41,27 @@ import { getPublicSnapshot } from "@/lib/public-data";
 import { checkPortalAccess } from "@/services/auth/portal-access";
 import { verificationReadiness } from "@/services/mmr";
 import {
+  activateSeason,
+  archiveLeagueDocument,
   createEvent,
   createFranchise,
   createMatch,
   createSeason,
   createTeam,
+  createTransaction,
+  generateBracket,
+  manageRoleAssignment,
+  openMmrVerification,
+  recordMmrEvidence,
   reviewApplication,
+  saveSiteContent,
+  saveSiteSetting,
+  transitionTransaction,
+  updateBracket,
+  updatePlayerMmr,
+  uploadLeagueDocument,
 } from "./actions";
+import { seasonActivationChecklist, SEASON_SETUP_STEPS } from "@/services/season-management";
 
 export const metadata: Metadata = { title: "League Operations" };
 
@@ -140,6 +160,9 @@ async function OperationalSection({
   if (section === "replays") return <ReplaysSection />;
   if (section === "audit" || section === "logs") return <AuditSection />;
   if (section === "rbac") return <RbacSection />;
+  if (section === "documents") return <DocumentsSection />;
+  if (section === "content" || section === "news" || section === "rules" || section === "site-information") return <ContentSection />;
+  if (section === "settings") return <SettingsSection />;
   if (section === "standings" || section === "statistics") {
     return <section className="panel mt-8 p-7"><p className="eyebrow text-blue-700">Published records</p><h2 className="mt-2 text-2xl font-black">{name}</h2><p className="mt-3 text-sm text-slate-600">Published values are derived from verified results and the append-only points ledger.</p><Link href={`/${section}`} className="mt-6 inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-black text-white">Open public {section}</Link></section>;
   }
@@ -160,9 +183,42 @@ function HealthCard({ label, ready }: { label: string; ready: boolean }) {
 const fieldClass = "rounded-lg border border-slate-300 px-3 py-2.5 text-sm";
 
 async function SeasonsSection() {
-  const rows = await getDatabase().select().from(seasons).orderBy(desc(seasons.startsAt));
+  const db = getDatabase();
+  const [rows, entries, tierRows, seasonPlayers, memberships, matchRows, eventRows, rules, franchiseRows] = await Promise.all([
+    db.select().from(seasons).orderBy(desc(seasons.startsAt)),
+    db.select().from(teamSeasons).where(eq(teamSeasons.active, true)),
+    db.select().from(divisions),
+    db.select().from(playerSeasons),
+    db.select().from(rosterMemberships).where(isNull(rosterMemberships.endsAt)),
+    db.select().from(matches),
+    db.select().from(events),
+    db.select().from(seasonRulesets),
+    db.select().from(franchises).where(eq(franchises.active, true)),
+  ]);
   return <div className="mt-8 grid gap-7 xl:grid-cols-[1.2fr_.8fr]">
-    <section className="panel overflow-hidden"><div className="border-b border-slate-200 p-5"><h2 className="text-xl font-black">Season lifecycle</h2><p className="mt-2 text-sm text-slate-500">Archived seasons remain visible and read-only.</p></div>{rows.length === 0 ? <p className="p-6 text-sm text-slate-500">No seasons configured.</p> : <div className="divide-y divide-slate-100">{rows.map((season) => <div key={season.id} className="flex flex-wrap items-center justify-between gap-4 p-5"><div><strong>{season.name}</strong><p className="mt-1 text-xs text-slate-500">{season.startsAt.toLocaleDateString()} – {season.endsAt.toLocaleDateString()}</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black">{season.status}</span></div>)}</div>}</section>
+    <section className="space-y-5">{rows.length === 0 ? <div className="panel p-6 text-sm text-slate-500">No seasons configured.</div> : rows.map((season) => {
+      const seasonEntries = entries.filter((entry) => entry.seasonId === season.id);
+      const rosterFacts = seasonEntries.map((entry) => {
+        const roster = memberships.filter((membership) => membership.seasonId === season.id && membership.teamId === entry.teamId);
+        return { teamId: entry.teamId, starters: roster.filter((item) => item.role === "STARTER").length, substitutes: roster.filter((item) => item.role === "SUBSTITUTE").length };
+      });
+      const checklist = seasonActivationChecklist({
+        hasValidDates: season.endsAt > season.startsAt,
+        teamCount: seasonEntries.length,
+        franchiseCount: franchiseRows.length,
+        ineligiblePlayerCount: seasonPlayers.filter((entry) => entry.seasonId === season.id && !["ACTIVE", "ROSTERED"].includes(entry.status)).length,
+        tierCodes: tierRows.filter((tier) => tier.seasonId === season.id).map((tier) => tier.code),
+        rosters: rosterFacts,
+        scheduledMatchCount: matchRows.filter((match) => match.seasonId === season.id).length,
+        eventTypes: eventRows.filter((event) => event.seasonId === season.id).map((event) => event.type),
+        hasRules: rules.some((rule) => rule.seasonId === season.id && rule.publishedAt),
+        standingsTeamCount: seasonEntries.filter((entry) => entry.seed !== null).length,
+      });
+      return <article key={season.id} className="panel overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-3 border-b p-5"><div><h2 className="text-xl font-black">{season.name}</h2><p className="mt-1 text-xs text-slate-500">{season.startsAt.toLocaleDateString()} – {season.endsAt.toLocaleDateString()}</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black">{season.status}</span></div><div className="grid gap-2 p-5 sm:grid-cols-2">{SEASON_SETUP_STEPS.slice(0, 8).map((step, index) => {
+        const check = checklist.checks[index];
+        return <div key={step} className={`rounded-lg border p-3 text-xs font-bold ${check?.complete ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}><span className="mr-2">{index + 1}.</span>{step}<span className="ml-2">{check?.complete ? "✓" : "Required"}</span></div>;
+      })}<div className={`rounded-lg border p-3 text-xs font-bold ${checklist.complete ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}>9. Activate Season</div></div>{season.status !== "ARCHIVED" && season.status !== "ACTIVE" && <form action={activateSeason} className="flex flex-wrap gap-3 border-t p-5"><input type="hidden" name="seasonId" value={season.id} /><input className={fieldClass} name="confirmation" placeholder="Type ACTIVATE" required /><button disabled={!checklist.complete} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">Activate season</button>{!checklist.complete && <p className="w-full text-xs text-amber-700">Missing: {checklist.missing.join("; ")}</p>}</form>}</article>;
+    })}</section>
     <form action={createSeason} className="panel p-6"><p className="eyebrow text-blue-700">Step 1 of season setup</p><h2 className="mt-2 text-xl font-black">Create draft season</h2><p className="mt-2 text-sm text-slate-500">Creation never activates a season. Configuration and final review remain required.</p><div className="mt-5 grid gap-3"><input className={fieldClass} name="name" required placeholder="Season name" /><input className={fieldClass} name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="season-slug" /><label className="text-xs font-bold text-slate-600">Starts<input className={`${fieldClass} mt-1 w-full`} name="startsAt" type="datetime-local" required /></label><label className="text-xs font-bold text-slate-600">Ends<input className={`${fieldClass} mt-1 w-full`} name="endsAt" type="datetime-local" required /></label><button className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-black text-white">Create draft</button></div></form>
   </div>;
 }
@@ -208,9 +264,12 @@ function PlayersSection({ snapshot }: { snapshot: Awaited<ReturnType<typeof getP
 
 async function MmrSection({ snapshot }: { snapshot: Awaited<ReturnType<typeof getPublicSnapshot>> }) {
   const db = getDatabase();
-  const [windows, evidence] = await Promise.all([
+  const [windows, evidence, seasonEntries, accounts, history] = await Promise.all([
     db.select().from(mmrVerificationWindows),
     db.select().from(mmrSnapshots).orderBy(desc(mmrSnapshots.capturedAt)),
+    db.select().from(playerSeasons),
+    db.select().from(rocketLeagueAccounts),
+    db.select().from(ratingEvents).orderBy(desc(ratingEvents.createdAt)),
   ]);
   const windowByPlayer = new Map(windows.filter((row) => row.seasonId === snapshot.season?.id).map((row) => [row.playerId, row]));
   const evidenceByWindow = new Map<string, typeof evidence>();
@@ -222,6 +281,9 @@ async function MmrSection({ snapshot }: { snapshot: Awaited<ReturnType<typeof ge
   return <section className="panel mt-8 overflow-hidden"><div className="border-b border-slate-200 p-5"><h2 className="text-xl font-black">Ranked 2v2 verification</h2><p className="mt-2 text-sm text-slate-500">14-day window · minimum 50 ranked 2v2 games · approved starting MMR 1000. No tier cutoff or placement formula is assumed.</p></div>{snapshot.players.length === 0 ? <p className="p-5 text-sm text-slate-500">No players require verification.</p> : <div className="divide-y divide-slate-100">{snapshot.players.map((player) => {
     const window = windowByPlayer.get(player.id);
     const playerEvidence = window ? evidenceByWindow.get(window.id) ?? [] : [];
+    const playerSeason = seasonEntries.find((entry) => entry.playerId === player.id && entry.seasonId === snapshot.season?.id);
+    const playerAccounts = accounts.filter((account) => account.playerId === player.id);
+    const playerHistory = history.filter((entry) => entry.playerId === player.id && entry.seasonId === snapshot.season?.id);
     const status = verificationReadiness({
       currentMmr: player.mmr,
       opensAt: window?.opensAt ?? null,
@@ -230,7 +292,12 @@ async function MmrSection({ snapshot }: { snapshot: Awaited<ReturnType<typeof ge
       hasEvidence: playerEvidence.some((item) => item.accepted),
       now: new Date(),
     });
-    return <div key={player.id} className="grid gap-3 p-5 md:grid-cols-[1fr_.7fr_.7fr_1fr]"><Link href={`/players/${encodeURIComponent(player.handle)}`} className="font-black text-blue-700">{player.handle}</Link><span className="text-sm"><span className="stat-label">Current MMR</span><strong className="mt-1 block">{player.mmr ?? "Not placed"}</strong></span><span className="text-sm"><span className="stat-label">Ranked games</span><strong className="mt-1 block">{window?.rankedGamesPlayed ?? "No window"}</strong></span><span className="text-xs font-black text-slate-600">{status.replaceAll("_", " ")}</span></div>;
+    return <details key={player.id} className="group p-5"><summary className="grid cursor-pointer list-none gap-3 md:grid-cols-[1fr_.7fr_.7fr_1fr]"><Link href={`/players/${encodeURIComponent(player.handle)}`} className="font-black text-blue-700">{player.handle}</Link><span className="text-sm"><span className="stat-label">Current MMR</span><strong className="mt-1 block">{player.mmr ?? "Not placed"}</strong></span><span className="text-sm"><span className="stat-label">Ranked games</span><strong className="mt-1 block">{window?.rankedGamesPlayed ?? "No window"}</strong></span><span className="text-xs font-black text-slate-600">{status.replaceAll("_", " ")}</span></summary><div className="mt-5 grid gap-4 border-t pt-5 lg:grid-cols-3">
+      {!window && playerSeason && <form action={openMmrVerification} className="rounded-xl border p-4"><input type="hidden" name="playerSeasonId" value={playerSeason.id} /><h3 className="font-black">Open verification</h3><input className={`${fieldClass} mt-3 w-full`} name="reason" required placeholder="Audit reason" /><button className="mt-3 rounded-lg bg-blue-600 px-3 py-2 text-xs font-black text-white">Open 14-day window</button></form>}
+      {window && <form action={recordMmrEvidence} className="rounded-xl border p-4"><input type="hidden" name="windowId" value={window.id} /><h3 className="font-black">Ranked 2v2 evidence</h3><div className="mt-3 grid gap-2"><select className={fieldClass} name="accountId" required><option value="">Declared account</option>{playerAccounts.map((account) => <option key={account.id} value={account.id}>{account.platform} · {account.platformAccountId}</option>)}</select><input className={fieldClass} name="rankedGamesPlayed" type="number" min={0} required placeholder="Ranked 2v2 games" /><input className={fieldClass} name="evidenceMmr" type="number" min={0} required placeholder="Evidence MMR" /><input className={fieldClass} name="sourceReference" type="url" required placeholder="HTTPS evidence URL" /><select className={fieldClass} name="accepted"><option value="true">Accept evidence</option><option value="false">Reject evidence</option></select><input className={fieldClass} name="reason" required placeholder="Review reason" /><button className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-black text-white">Record evidence</button></div></form>}
+      {playerSeason && <form action={updatePlayerMmr} className="rounded-xl border p-4"><input type="hidden" name="playerSeasonId" value={playerSeason.id} /><h3 className="font-black">Audited MMR update</h3><p className="mt-1 text-xs text-slate-500">No formula or tier cutoff is applied.</p><div className="mt-3 grid gap-2"><input className={fieldClass} name="currentMmr" type="number" min={0} required defaultValue={player.mmr ?? 1000} /><input className={fieldClass} name="reason" required placeholder="Evidence-based reason" /><button className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white">Save MMR</button></div></form>}
+      <div className="rounded-xl bg-slate-50 p-4 text-xs"><h3 className="font-black">History & verification</h3><p className="mt-2">Verification: {window ? `${window.opensAt.toLocaleDateString()} – ${window.closesAt.toLocaleDateString()}` : "Not opened"}</p><p className="mt-1">Evidence records: {playerEvidence.length}</p><p className="mt-1">MMR changes: {playerHistory.length}</p>{playerEvidence[0] && <p className="mt-1">Last verified by: {playerEvidence[0].capturedBy ?? "System"}</p>}</div>
+    </div></details>;
   })}</div>}</section>;
 }
 
@@ -247,15 +314,18 @@ async function TiersSection() {
 
 async function TransactionsSection() {
   const db = getDatabase();
-  const [rows, teamRows, seasonRows, memberships] = await Promise.all([
+  const [rows, teamRows, seasonRows, memberships, playerRows, userRows] = await Promise.all([
     db.select().from(transactionRequests).orderBy(desc(transactionRequests.createdAt)),
     db.select().from(teams),
     db.select().from(seasons),
     db.select().from(rosterMemberships).orderBy(desc(rosterMemberships.startsAt)),
+    db.select().from(players).orderBy(players.handle),
+    db.select().from(users),
   ]);
   const teamById = new Map(teamRows.map((row) => [row.id, row]));
-  const seasonById = new Map(seasonRows.map((row) => [row.id, row]));
-  return <div className="mt-8 space-y-7"><section className="panel overflow-hidden"><div className="p-5"><h2 className="text-xl font-black">Transaction queue</h2><p className="mt-2 text-sm text-slate-500">Requests preserve before and proposed state. Completion is not offered unless the roster mutation can be applied atomically.</p></div>{rows.length === 0 ? <p className="border-t border-slate-100 p-5 text-sm text-slate-500">No transaction requests recorded.</p> : <div className="divide-y divide-slate-100">{rows.map((row) => <div key={row.id} className="grid gap-3 p-5 sm:grid-cols-[1fr_1fr_auto]"><span><span className="stat-label">{row.type}</span><strong className="mt-1 block">{teamById.get(row.teamId)?.name ?? "Unknown team"}</strong></span><span className="text-sm text-slate-600">{seasonById.get(row.seasonId)?.name ?? "Unknown season"}</span><span className="text-xs font-black">{row.status.replaceAll("_", " ")}</span></div>)}</div>}</section><section className="panel p-6"><h2 className="text-xl font-black">Roster history</h2><p className="mt-2 text-sm text-slate-500">{memberships.length} historical membership record{memberships.length === 1 ? "" : "s"} preserved.</p></section></div>;
+  const playerById = new Map(playerRows.map((row) => [row.id, row]));
+  const userById = new Map(userRows.map((row) => [row.id, row]));
+  return <div className="mt-8 space-y-7"><form action={createTransaction} className="panel p-6"><h2 className="text-xl font-black">Create transaction</h2><p className="mt-2 text-sm text-slate-500">Creates a pending, audited request. Roster history changes only when an approved request is completed.</p><div className="mt-5 grid gap-3 md:grid-cols-3"><select className={fieldClass} name="seasonId" required><option value="">Season</option>{seasonRows.filter((season) => season.status !== "ARCHIVED").map((season) => <option key={season.id} value={season.id}>{season.name}</option>)}</select><select className={fieldClass} name="playerId" required><option value="">Player</option>{playerRows.map((player) => <option key={player.id} value={player.id}>{player.handle}</option>)}</select><select className={fieldClass} name="type" required>{["SIGNING", "RELEASE", "TRADE", "TRANSFER", "WAIVER_CLAIM", "FREE_AGENT_SIGNING", "ROLE_CHANGE"].map((type) => <option key={type}>{type}</option>)}</select><select className={fieldClass} name="oldTeamId"><option value="">No old team</option>{teamRows.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select><select className={fieldClass} name="newTeamId"><option value="">No new team</option>{teamRows.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select><select className={fieldClass} name="role"><option value="STARTER">Starter</option><option value="SUBSTITUTE">Substitute</option></select><input className={fieldClass} name="effectiveAt" type="datetime-local" required /><input className={`${fieldClass} md:col-span-2`} name="notes" required placeholder="Transaction notes and reason" /><button className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-black text-white md:col-span-3">Create pending request</button></div></form><section className="panel overflow-hidden"><div className="p-5"><h2 className="text-xl font-black">Transaction queue</h2></div>{rows.length === 0 ? <p className="border-t border-slate-100 p-5 text-sm text-slate-500">No transaction requests recorded.</p> : <div className="divide-y divide-slate-100">{rows.map((row) => <details key={row.id} className="p-5"><summary className="grid cursor-pointer list-none gap-3 sm:grid-cols-[1fr_1fr_auto]"><span><span className="stat-label">{row.type}</span><strong className="mt-1 block">{row.playerId ? playerById.get(row.playerId)?.handle : "Legacy request"}</strong></span><span className="text-sm text-slate-600">{teamById.get(row.oldTeamId ?? "")?.name ?? "No old team"} → {teamById.get(row.newTeamId ?? "")?.name ?? "No new team"}<span className="mt-1 block text-xs">Effective {row.effectiveAt?.toLocaleString() ?? "Not set"} · by {userById.get(row.submittedBy)?.displayName ?? row.submittedBy}</span></span><span className="text-xs font-black">{row.status.replaceAll("_", " ")}</span></summary><div className="mt-4 rounded-xl bg-slate-50 p-4"><p className="text-sm">{row.notes ?? "No notes"}</p>{!["COMPLETED", "DENIED", "CANCELLED", "EXPIRED"].includes(row.status) && <form action={transitionTransaction} className="mt-4 flex flex-wrap gap-2"><input type="hidden" name="transactionId" value={row.id} /><select className={fieldClass} name="status" required>{row.status === "PENDING" && <option value="UNDER_REVIEW">Start review</option>}{row.status === "UNDER_REVIEW" && <><option value="APPROVED">Approve</option><option value="MORE_INFO_REQUIRED">Request information</option><option value="ON_HOLD">Place on hold</option><option value="DENIED">Deny</option></>}{row.status === "APPROVED" && <option value="COMPLETED">Complete & apply roster</option>}{["PENDING", "UNDER_REVIEW", "MORE_INFO_REQUIRED", "ON_HOLD", "APPROVED"].includes(row.status) && <option value="CANCELLED">Cancel</option>}</select><input className={`${fieldClass} min-w-60 flex-1`} name="reason" required placeholder="Required audit reason" /><button className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-black text-white">Apply status</button></form>}</div></details>)}</div>}</section><section className="panel p-6"><h2 className="text-xl font-black">Roster history</h2><p className="mt-2 text-sm text-slate-500">{memberships.length} historical membership record{memberships.length === 1 ? "" : "s"} preserved. Ended memberships are never overwritten.</p></section></div>;
 }
 
 async function BracketsSection({ snapshot }: { snapshot: Awaited<ReturnType<typeof getPublicSnapshot>> }) {
@@ -267,16 +337,17 @@ async function BracketsSection({ snapshot }: { snapshot: Awaited<ReturnType<type
   ]);
   const eventById = new Map(eventRows.map((row) => [row.id, row]));
   const teamById = new Map(snapshot.teams.map((team) => [team.id, team.name]));
-  return <div className="mt-8 space-y-7">{bracketRows.length === 0 ? <Unavailable title="Bracket Builder" message="No official bracket has been generated. Generation remains unavailable until complete seeding and event dates are persisted; dates and seeds are never invented." /> : bracketRows.map((bracket) => {
+  return <div className="mt-8 space-y-7"><form action={generateBracket} className="panel p-6"><h2 className="text-xl font-black">Generate bracket from official seeds</h2><p className="mt-2 text-sm text-slate-500">Major 1, Major 2, and Championship require 8 seeds. Last Chance uses official seeds 3–8. Every generation creates a preserved version.</p><div className="mt-4 flex flex-wrap gap-3"><select className={`${fieldClass} min-w-64`} name="eventId" required><option value="">Tournament event</option>{eventRows.filter((event) => event.type !== "REGULAR_SEASON").map((event) => <option key={event.id} value={event.id}>{event.name} · {event.type.replaceAll("_", " ")}</option>)}</select><input className={`${fieldClass} min-w-64 flex-1`} name="reason" required placeholder="Generation reason" /><button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-black text-white">Generate version</button></div></form>{bracketRows.length === 0 ? <Unavailable title="Bracket Builder" message="No official bracket has been generated. Complete standings seeds and event dates first." /> : bracketRows.map((bracket) => {
     const bracketSlots = slots.filter((slot) => slot.bracketId === bracket.id);
     const rounds = [...new Set(bracketSlots.map((slot) => slot.round))].sort((a, b) => a - b);
-    return <section key={bracket.id} className="panel overflow-hidden"><div className="border-b border-slate-200 p-5"><p className="eyebrow text-blue-700">{eventById.get(bracket.eventId)?.name ?? "Tournament"}</p><h2 className="mt-1 text-xl font-black">{bracket.format}</h2></div><div className="overflow-x-auto p-6"><div className="grid min-w-[720px] auto-cols-[240px] grid-flow-col gap-6">{rounds.map((round) => <div key={round} className="space-y-4"><p className="stat-label">Round {round}</p>{bracketSlots.filter((slot) => slot.round === round).map((slot) => <div key={slot.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm"><strong className="block">{teamById.get(slot.homeSource) ?? slot.homeSource}</strong><span className="my-2 block text-xs text-slate-400">vs · BO{slot.bestOf}</span><strong className="block">{teamById.get(slot.awaySource) ?? slot.awaySource}</strong></div>)}</div>)}</div></div></section>;
+    const seedTeams = bracket.seedSnapshot.map((seed) => ({ ...seed, name: teamById.get(seed.teamId) ?? seed.teamId }));
+    return <section key={bracket.id} className="panel overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-5"><div><p className="eyebrow text-blue-700">{eventById.get(bracket.eventId)?.name ?? "Tournament"}</p><h2 className="mt-1 text-xl font-black">{bracket.format} · version {bracket.version}</h2></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black">{bracket.status}</span></div><div className="overflow-x-auto p-6"><div className="grid min-w-[720px] auto-cols-[270px] grid-flow-col gap-6">{rounds.map((round) => <div key={round} className="space-y-4"><div className="flex items-center justify-between"><p className="stat-label">Round {round}</p>{bracket.lockedRounds.includes(round) && <span className="text-[10px] font-black text-emerald-700">LOCKED</span>}</div>{bracketSlots.filter((slot) => slot.round === round).map((slot) => <div key={slot.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm"><strong className="block">{teamById.get(slot.homeSource) ?? slot.homeSource}</strong><span className="my-2 block text-xs text-slate-400">{slot.homeScore ?? "–"} vs {slot.awayScore ?? "–"} · BO{slot.bestOf}</span><strong className="block">{teamById.get(slot.awaySource) ?? slot.awaySource}</strong>{slot.winnerTeamId && <p className="mt-2 text-xs font-black text-emerald-700">Winner: {teamById.get(slot.winnerTeamId) ?? slot.winnerTeamId}</p>}{!bracket.lockedRounds.includes(round) && <form action={updateBracket} className="mt-3 grid gap-2"><input type="hidden" name="bracketId" value={bracket.id} /><input type="hidden" name="operation" value="RESULT" /><input type="hidden" name="bracketMatchId" value={slot.id} /><input type="hidden" name="round" value={round} /><div className="grid grid-cols-2 gap-2"><input className={fieldClass} name="homeScore" type="number" min={0} required placeholder="Home" /><input className={fieldClass} name="awayScore" type="number" min={0} required placeholder="Away" /></div><select className={fieldClass} name="winnerTeamId" required><option value="">Winner</option>{seedTeams.map((team) => <option key={team.teamId} value={team.teamId}>{team.name}</option>)}</select><input className={fieldClass} name="reason" required placeholder="Result reason" /><button className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-black text-white">Save result</button></form>}</div>)}{!bracket.lockedRounds.includes(round) && <form action={updateBracket} className="rounded-xl border border-dashed p-3"><input type="hidden" name="bracketId" value={bracket.id} /><input type="hidden" name="operation" value="LOCK_ROUND" /><input type="hidden" name="bracketMatchId" value="" /><input type="hidden" name="winnerTeamId" value="" /><input type="hidden" name="round" value={round} /><input className={`${fieldClass} w-full`} name="reason" required placeholder="Round lock reason" /><button className="mt-2 w-full rounded-lg bg-slate-800 px-3 py-2 text-xs font-black text-white">Lock round</button></form>}</div>)}</div></div>{bracket.status !== "PUBLISHED" && <form action={updateBracket} className="flex flex-wrap gap-3 border-t p-5"><input type="hidden" name="bracketId" value={bracket.id} /><input type="hidden" name="operation" value="PUBLISH" /><input type="hidden" name="bracketMatchId" value="" /><input type="hidden" name="winnerTeamId" value="" /><input type="hidden" name="round" value={Math.max(...rounds)} /><input className={`${fieldClass} flex-1`} name="reason" required placeholder="Publication reason" /><button className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-black text-white">Publish locked bracket</button></form>}</section>;
   })}</div>;
 }
 
 async function ReplaysSection() {
   const rows = await getDatabase().select().from(replays).orderBy(desc(replays.submittedAt));
-  return <section className="panel mt-8 overflow-hidden"><div className="p-5"><h2 className="text-xl font-black">Replay processing</h2><p className="mt-2 text-sm text-slate-500">Storage keys and raw private files are not exposed.</p></div>{rows.length === 0 ? <p className="border-t border-slate-100 p-5 text-sm text-slate-500">No replays submitted.</p> : <div className="divide-y divide-slate-100">{rows.map((row) => <div key={row.id} className="flex justify-between gap-4 p-5"><span><strong>Match {row.matchId.slice(0, 8)}</strong><span className="mt-1 block text-xs text-slate-500">{row.submittedAt.toLocaleString()}</span></span><span className="text-xs font-black">{row.status.replaceAll("_", " ")}</span></div>)}</div>}</section>;
+  return <section className="panel mt-8 overflow-hidden"><div className="p-5"><h2 className="text-xl font-black">Replay processing</h2><p className="mt-2 text-sm text-slate-500">Storage keys and raw private files are not exposed.</p></div>{rows.length === 0 ? <p className="border-t border-slate-100 p-5 text-sm text-slate-500">No replays submitted.</p> : <div className="divide-y divide-slate-100">{rows.map((row) => <div key={row.id} className="flex justify-between gap-4 p-5"><span><strong>{row.matchId ? `Match ${row.matchId.slice(0, 8)}` : "Private coaching replay"}</strong><span className="mt-1 block text-xs text-slate-500">{row.submittedAt.toLocaleString()}</span></span><span className="text-xs font-black">{row.status.replaceAll("_", " ")}</span></div>)}</div>}</section>;
 }
 
 async function AuditSection() {
@@ -291,7 +362,33 @@ async function RbacSection() {
     db.select().from(users),
   ]);
   const userById = new Map(userRows.map((row) => [row.id, row.displayName]));
-  return <section className="panel mt-8 overflow-hidden"><div className="p-5"><h2 className="text-xl font-black">Persisted role assignments</h2><p className="mt-2 text-sm text-slate-500">Privileged actions also re-check live Discord roles on the server.</p></div>{rows.length === 0 ? <p className="border-t border-slate-100 p-5 text-sm text-slate-500">No database role assignments recorded.</p> : <div className="divide-y divide-slate-100">{rows.map((row) => <div key={row.id} className="grid gap-2 p-5 sm:grid-cols-[1fr_1fr_auto]"><strong>{userById.get(row.userId) ?? row.userId}</strong><span className="text-sm">{row.role.replaceAll("_", " ")}</span><span className="text-xs font-black">{row.revokedAt ? "REVOKED" : "ACTIVE"}</span></div>)}</div>}</section>;
+  return <div className="mt-8 space-y-7"><form action={manageRoleAssignment} className="panel p-6"><h2 className="text-xl font-black">Permission assignment</h2><p className="mt-2 text-sm text-slate-500">League owner access is required. Live Discord roles remain authoritative for privileged website actions.</p><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><select className={fieldClass} name="operation"><option value="GRANT">Grant</option><option value="REVOKE">Revoke</option></select><select className={fieldClass} name="userId" required><option value="">User</option>{userRows.map((user) => <option key={user.id} value={user.id}>{user.displayName} · {user.email}</option>)}</select><select className={fieldClass} name="role" required>{["LEAGUE_OWNER", "LEAGUE_OPERATIONS_MANAGER", "HEAD_LEAGUE_ADMIN", "SENIOR_LEAGUE_ADMIN", "LEAGUE_ADMIN", "SIGN_UP_MANAGER", "ROSTER_ADMIN", "STATISTICS_ANALYST", "PRODUCTION_DIRECTOR", "PRODUCTION_CREW", "MODERATOR", "MODERATOR_TRAINEE", "GENERAL_MANAGER", "ASSISTANT_GENERAL_MANAGER", "TEAM_CAPTAIN"].map((role) => <option key={role}>{role}</option>)}</select><input className={fieldClass} name="reason" required placeholder="Required audit reason" /><button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-black text-white lg:col-span-4">Apply permission change</button></div></form><section className="panel overflow-hidden"><div className="p-5"><h2 className="text-xl font-black">Persisted role assignments</h2></div>{rows.length === 0 ? <p className="border-t border-slate-100 p-5 text-sm text-slate-500">No database role assignments recorded.</p> : <div className="divide-y divide-slate-100">{rows.map((row) => <div key={row.id} className="grid gap-2 p-5 sm:grid-cols-[1fr_1fr_auto]"><strong>{userById.get(row.userId) ?? row.userId}</strong><span className="text-sm">{row.role.replaceAll("_", " ")}</span><span className="text-xs font-black">{row.revokedAt ? "REVOKED" : "ACTIVE"}</span></div>)}</div>}</section></div>;
+}
+
+async function DocumentsSection() {
+  const db = getDatabase();
+  const [documents, seasonRows, teamRows, playerRows] = await Promise.all([
+    db.select().from(leagueDocuments).orderBy(desc(leagueDocuments.createdAt)),
+    db.select().from(seasons).orderBy(desc(seasons.startsAt)),
+    db.select().from(teams).orderBy(teams.name),
+    db.select().from(players).orderBy(players.handle),
+  ]);
+  return <div className="mt-8 space-y-7"><form action={uploadLeagueDocument} className="panel p-6"><h2 className="text-xl font-black">Upload private league document</h2><p className="mt-2 text-sm text-slate-500">PDF, PNG, JPEG, or text; 10 MB maximum. Files use private storage and protected downloads.</p><div className="mt-5 grid gap-3 md:grid-cols-3"><input className={fieldClass} name="title" required placeholder="Document title" /><input className={fieldClass} name="file" type="file" accept=".pdf,.png,.jpg,.jpeg,.txt" required /><select className={fieldClass} name="visibility"><option value="STAFF">Staff only</option><option value="TEAM">Team scoped</option><option value="PLAYER">Player scoped</option></select><select className={fieldClass} name="seasonId"><option value="">Any season</option>{seasonRows.map((season) => <option key={season.id} value={season.id}>{season.name}</option>)}</select><select className={fieldClass} name="teamId"><option value="">No team scope</option>{teamRows.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select><select className={fieldClass} name="playerId"><option value="">No player scope</option>{playerRows.map((player) => <option key={player.id} value={player.id}>{player.handle}</option>)}</select><button className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-black text-white md:col-span-3">Upload securely</button></div></form><section className="panel overflow-hidden">{documents.length === 0 ? <p className="p-6 text-sm text-slate-500">No league documents uploaded.</p> : documents.map((document) => <div key={document.id} className="grid gap-3 border-b p-5 sm:grid-cols-[1fr_auto_auto]"><span><strong>{document.title}</strong><span className="mt-1 block text-xs text-slate-500">{document.contentType} · {(document.sizeBytes / 1024).toFixed(1)} KB · {document.visibility}</span></span>{document.archivedAt ? <span className="text-xs font-black">ARCHIVED</span> : <a className="text-sm font-bold text-blue-700" href={`/api/admin/documents/${document.id}`}>Download</a>}{!document.archivedAt && <form action={archiveLeagueDocument} className="flex gap-2"><input type="hidden" name="documentId" value={document.id} /><input className={fieldClass} name="reason" required placeholder="Archive reason" /><button className="rounded-lg bg-slate-800 px-3 text-xs font-black text-white">Archive</button></form>}</div>)}</section></div>;
+}
+
+async function ContentSection() {
+  const rows = await getDatabase().select().from(siteContent).orderBy(siteContent.category, siteContent.sortOrder);
+  return <div className="mt-8 grid gap-7 xl:grid-cols-[.8fr_1.2fr]"><form action={saveSiteContent} className="panel p-6"><h2 className="text-xl font-black">Create or update content</h2><div className="mt-5 grid gap-3"><input className={fieldClass} name="key" required pattern="[a-z0-9.-]+" placeholder="canonical.content-key" /><select className={fieldClass} name="category"><option>NEWS</option><option>RULES</option><option>SITE_INFORMATION</option><option>PAGE</option></select><input className={fieldClass} name="title" required placeholder="Title" /><textarea className={`${fieldClass} min-h-40`} name="body" required placeholder="Published content" /><input className={fieldClass} name="mediaUrl" type="url" placeholder="HTTPS media URL (optional)" /><div className="grid grid-cols-2 gap-3"><select className={fieldClass} name="published"><option value="false">Draft</option><option value="true">Published</option></select><input className={fieldClass} name="sortOrder" type="number" defaultValue={0} /></div><button className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-black text-white">Save content</button></div></form><section className="panel overflow-hidden">{rows.length === 0 ? <p className="p-6 text-sm text-slate-500">No managed content.</p> : rows.map((row) => <div key={row.id} className="border-b p-5"><div className="flex justify-between gap-3"><strong>{row.title}</strong><span className="text-xs font-black">{row.published ? "PUBLISHED" : "DRAFT"}</span></div><p className="mt-1 text-xs text-slate-500">{row.key} · {row.category}</p><p className="mt-3 line-clamp-3 text-sm text-slate-600">{row.body}</p></div>)}</section></div>;
+}
+
+async function SettingsSection() {
+  const rows = await getDatabase().select().from(siteSettings);
+  const current = new Map(rows.map((row) => [row.key, row.value]));
+  return <div className="mt-8 grid gap-5 md:grid-cols-3">{[
+    ["applicationOpen", "Applications open", "true", "true or false"],
+    ["maintenanceMessage", "Maintenance message", String(current.get("maintenanceMessage") ?? ""), "Public maintenance notice"],
+    ["supportUrl", "Support URL", String(current.get("supportUrl") ?? ""), "HTTPS support URL"],
+  ].map(([key, label, fallback, placeholder]) => <form action={saveSiteSetting} key={key} className="panel p-5"><h2 className="font-black">{label}</h2><input type="hidden" name="key" value={key} />{key === "applicationOpen" ? <select className={`${fieldClass} mt-4 w-full`} name="value" defaultValue={String(current.get(key) ?? fallback)}><option value="true">Open</option><option value="false">Closed</option></select> : <input className={`${fieldClass} mt-4 w-full`} name="value" defaultValue={String(current.get(key) ?? fallback)} placeholder={placeholder} />}<input className={`${fieldClass} mt-3 w-full`} name="reason" required placeholder="Required audit reason" /><button className="mt-3 w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-black text-white">Save setting</button></form>)}</div>;
 }
 
 async function ApplicationsSection() {
