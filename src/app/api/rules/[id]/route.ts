@@ -14,13 +14,18 @@ export async function GET(
     return NextResponse.json({ error: "Published rulebook storage is unavailable" }, { status: 503 });
   }
   const { id } = await params;
-  const [document] = await getDatabase().select().from(leagueDocuments).where(and(
-    eq(leagueDocuments.id, id),
-    eq(leagueDocuments.documentType, "RULEBOOK"),
-    eq(leagueDocuments.visibility, "PUBLIC"),
-    isNotNull(leagueDocuments.publishedAt),
-    isNull(leagueDocuments.archivedAt),
-  )).limit(1);
+  let document: typeof leagueDocuments.$inferSelect | undefined;
+  try {
+    [document] = await getDatabase().select().from(leagueDocuments).where(and(
+      eq(leagueDocuments.id, id),
+      eq(leagueDocuments.documentType, "RULEBOOK"),
+      eq(leagueDocuments.visibility, "PUBLIC"),
+      isNotNull(leagueDocuments.publishedAt),
+      isNull(leagueDocuments.archivedAt),
+    )).limit(1);
+  } catch {
+    return NextResponse.json({ error: "Rulebook database migration is not ready" }, { status: 503 });
+  }
   if (!document) return NextResponse.json({ error: "Published rulebook not found" }, { status: 404 });
   const result = await get(document.storageKey, { access: "private" });
   if (!result?.stream) return NextResponse.json({ error: "Rulebook file not found" }, { status: 404 });
