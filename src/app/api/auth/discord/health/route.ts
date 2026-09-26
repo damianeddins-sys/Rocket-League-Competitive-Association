@@ -5,7 +5,8 @@ import { getDiscordOAuthHealth } from "@/services/auth/discord-oauth";
 export const runtime = "nodejs";
 
 export function GET(request: NextRequest) {
-  const response = NextResponse.json(getDiscordOAuthHealth(request.url));
+  const health = getDiscordOAuthHealth(request.url);
+  const response = NextResponse.json({ status: health.status });
   response.headers.set("Cache-Control", "no-store");
   return response;
 }

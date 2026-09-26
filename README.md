@@ -49,13 +49,13 @@ Set `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI`, and `S
 
 Use an explicit `DISCORD_REDIRECT_URI` for production and register that exact value in Discord. Preview deployments should use separate credentials and databases; never expose production Discord secrets or production data to untrusted preview branches. OAuth configuration is trimmed and validated server-side, callback addresses are pinned for the duration of login, and failures identify which configuration boundary needs attention without exposing credential values.
 
-Check deployment configuration without exposing values at:
+Check the aggregate deployment-auth status without exposing configuration details at:
 
 ```text
 https://YOUR_DOMAIN/api/auth/discord/health
 ```
 
-All checks must report `true`. If `databaseConfigured` is true, apply every committed migration with `npm run db:migrate` before attempting production login.
+The endpoint must report `{"status":"ready"}`. Apply every committed migration with `npm run db:migrate` before attempting production login.
 
 Discord commands use the signed HTTP interactions endpoint, which is compatible with Vercel's serverless runtime and remains available without a permanent Gateway process:
 

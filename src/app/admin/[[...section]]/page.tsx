@@ -7,7 +7,7 @@ import {
   ShieldCheck, Trophy, UserCog, UsersRound, Workflow,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { getDatabase } from "@/db";
 import {
   auditLogs,
@@ -314,7 +314,12 @@ async function ApplicationsSection() {
     .innerJoin(players, eq(playerSeasons.playerId, players.id))
     .innerJoin(seasons, eq(playerSeasons.seasonId, seasons.id))
     .orderBy(desc(playerApplications.submittedAt));
-  const accountRows = await db.select().from(rocketLeagueAccounts);
+  const accountRows = rows.length === 0
+    ? []
+    : await db
+        .select()
+        .from(rocketLeagueAccounts)
+        .where(inArray(rocketLeagueAccounts.playerId, rows.map((row) => row.playerId)));
   const accountsByPlayer = new Map<string, typeof accountRows>();
   for (const account of accountRows) {
     const list = accountsByPlayer.get(account.playerId) ?? [];

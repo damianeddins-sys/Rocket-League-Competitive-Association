@@ -17,6 +17,8 @@ const errors: Record<string, string> = {
   primary: "Choose one of your declared accounts as the primary account.",
   duplicate: "The same Rocket League account cannot be declared more than once.",
   season: "There is no open league season accepting applications.",
+  membership: "Your live Discord membership could not be verified. Sign in again or contact league staff.",
+  locked: "This application is currently under review or has a final decision and can no longer be edited.",
 };
 
 export default async function ApplyPage({
@@ -30,6 +32,7 @@ export default async function ApplyPage({
     : null;
   const error = typeof query.error === "string" ? errors[query.error] : null;
   const saved = query.saved === "1";
+  const editable = !state?.status || ["PENDING", "NEEDS_CHANGES"].includes(state.status);
 
   return (
     <div className="min-h-screen">
@@ -37,6 +40,8 @@ export default async function ApplyPage({
       <main className="mx-auto max-w-4xl px-5 py-10 lg:px-8">
         {!session?.user ? (
           <section className="panel p-8 text-center"><ShieldCheck className="mx-auto text-[#5865f2]" size={34} /><h2 className="mt-4 text-2xl font-black">Discord sign-in required</h2><p className="mt-3 text-slate-600">Authentication is required before application information can be submitted or viewed.</p><Link href="/login?returnTo=%2Fapply" className="mt-6 inline-flex rounded-lg bg-[#5865f2] px-5 py-3 font-bold text-white">Continue with Discord</Link></section>
+        ) : !editable ? (
+          <section className="panel p-8"><div className="flex items-center gap-3"><ShieldCheck className="text-blue-600" /><div><p className="eyebrow text-slate-500">Application status</p><h2 className="text-2xl font-black">{state?.status.replaceAll("_", " ")}</h2></div></div><p className="mt-5 text-sm leading-6 text-slate-600">This application is under staff review or has reached a final decision. Its reviewed identity and account declaration are now read-only. Staff must request changes before editing is enabled again.</p></section>
         ) : (
           <form action={saveApplication} className="panel overflow-hidden">
             <div className="border-b border-slate-200 bg-slate-50 p-6"><div className="flex items-center gap-3"><Gamepad2 className="text-blue-600" /><div><p className="eyebrow text-slate-500">Active season application</p><h2 className="text-2xl font-black">{state?.seasonName ?? "RLCA application"}</h2></div></div>{state?.status && <p className="mt-4 inline-flex rounded-full bg-blue-100 px-3 py-1 text-xs font-black text-blue-700">{state.status.replaceAll("_", " ")}</p>}</div>

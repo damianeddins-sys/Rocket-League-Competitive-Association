@@ -12,6 +12,7 @@ import {
   rocketLeagueAccounts,
   seasons,
 } from "@/db/schema";
+import { authorizeLiveAction } from "@/services/auth/authorization";
 import { getSession } from "@/services/auth/session";
 
 const accountSchema = z.object({
@@ -35,6 +36,9 @@ export async function saveApplication(formData: FormData) {
   const session = await getSession();
   if (!session) redirect("/login?returnTo=%2Fapply");
   if (!process.env.DATABASE_URL) redirect("/apply?error=database");
+  const authorization = await authorizeLiveAction(session.user, { permission: "player.self" })
+    .catch(() => null);
+  if (!authorization?.decision.allowed) redirect("/apply?error=membership");
 
   const parsed = applicationSchema.safeParse({
     handle: formData.get("handle"),
@@ -61,7 +65,8 @@ export async function saveApplication(formData: FormData) {
   if (new Set(normalizedKeys).size !== normalizedKeys.length) redirect("/apply?error=duplicate");
 
   const db = getDatabase();
-  await db.transaction(async (tx) => {
+  try {
+    await db.transaction(async (tx) => {
     const [season] = await tx.select().from(seasons).where(eq(seasons.active, true)).limit(1);
     if (!season || season.status === "ARCHIVED") redirect("/apply?error=season");
 
@@ -70,12 +75,6 @@ export async function saveApplication(formData: FormData) {
       [player] = await tx
         .insert(players)
         .values({ userId: session.user.id, handle: parsed.data.handle, avatarUrl: session.user.image })
-        .returning();
-    } else if (player.handle !== parsed.data.handle) {
-      [player] = await tx
-        .update(players)
-        .set({ handle: parsed.data.handle })
-        .where(eq(players.id, player.id))
         .returning();
     }
 
@@ -88,6 +87,26 @@ export async function saveApplication(formData: FormData) {
       [playerSeason] = await tx
         .insert(playerSeasons)
         .values({ playerId: player.id, seasonId: season.id, status: "APPLIED" })
+        .returning();
+    }
+
+    const [existingApplication] = await tx
+      .select()
+      .from(playerApplications)
+      .where(eq(playerApplications.playerSeasonId, playerSeason.id))
+      .for("update")
+      .limit(1);
+    if (
+      existingApplication &&
+      !["PENDING", "NEEDS_CHANGES"].includes(existingApplication.status)
+    ) {
+      throw new ApplicationLockedError();
+    }
+    if (player.handle !== parsed.data.handle) {
+      [player] = await tx
+        .update(players)
+        .set({ handle: parsed.data.handle })
+        .where(eq(players.id, player.id))
         .returning();
     }
 
@@ -145,11 +164,6 @@ export async function saveApplication(formData: FormData) {
         );
     }
 
-    const [existingApplication] = await tx
-      .select()
-      .from(playerApplications)
-      .where(eq(playerApplications.playerSeasonId, playerSeason.id))
-      .limit(1);
     const application = existingApplication
       ? (await tx
           .update(playerApplications)
@@ -173,7 +187,7 @@ export async function saveApplication(formData: FormData) {
 
     await tx.insert(auditLogs).values({
       actorId: session.user.id,
-      actorDiscordRoleIds: session.user.access.roleIds,
+      actorDiscordRoleIds: authorization.access.roleIds,
       action: existingApplication ? "APPLICATION_UPDATED" : "APPLICATION_SUBMITTED",
       entityType: "PLAYER_APPLICATION",
       entityId: application.id,
@@ -189,10 +203,16 @@ export async function saveApplication(formData: FormData) {
         })),
       },
     });
-  });
+    });
+  } catch (error) {
+    if (error instanceof ApplicationLockedError) redirect("/apply?error=locked");
+    throw error;
+  }
 
   redirect("/apply?saved=1");
 }
+
+class ApplicationLockedError extends Error {}
 
 function publicAccountAudit(account: typeof rocketLeagueAccounts.$inferSelect) {
   return {
