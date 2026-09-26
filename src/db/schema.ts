@@ -723,7 +723,7 @@ export const replays = pgTable(
     deletionBatchId: uuid("deletion_batch_id"),
     submittedAt: createdAt(),
   },
-  (table) => [uniqueIndex("replay_content_hash").on(table.contentHash)],
+  (table) => [uniqueIndex("replay_submitter_content_hash").on(table.submittedBy, table.contentHash)],
 );
 
 export const coachingRequests = pgTable(

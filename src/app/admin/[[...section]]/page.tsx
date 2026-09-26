@@ -92,7 +92,7 @@ export default async function AdminPage({
 
   const portal = key === "applications"
     ? "SIGN_UP_MANAGER"
-    : key === "statistics"
+    : key === "statistics" || key === "mmr"
       ? "STATISTICS"
       : "LEAGUE_OPERATIONS";
   const access = await checkPortalAccess(portal);

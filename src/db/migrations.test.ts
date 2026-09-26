@@ -31,4 +31,10 @@ describe("migration consistency", () => {
     expect(sql).toContain('"away_score"');
     expect(sql).not.toMatch(/\b(?:DELETE FROM|TRUNCATE|DROP TABLE)\b/i);
   });
+
+  it("scopes replay deduplication to the authenticated submitter", () => {
+    const sql = migration("0012_oval_xorn.sql");
+    expect(sql).toContain('"submitted_by","content_hash"');
+    expect(sql).not.toMatch(/\b(?:DELETE FROM|TRUNCATE|DROP TABLE)\b/i);
+  });
 });

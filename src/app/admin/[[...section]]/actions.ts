@@ -463,7 +463,7 @@ export async function createTransaction(formData: FormData) {
   }
   const session = await getSession();
   if (!session) throw new Error("Authentication required");
-  const authorization = await authorizeLiveAction(session.user, {
+  let authorization = await authorizeLiveAction(session.user, {
     permission: "franchise.submit_transaction",
   });
   if (!authorization.decision.allowed) {
@@ -471,6 +471,7 @@ export async function createTransaction(formData: FormData) {
       permission: "transaction.approve",
     });
     if (!staffAuthorization.decision.allowed) throw new Error("Transaction submission is not authorized");
+    authorization = staffAuthorization;
   }
   const db = getDatabase();
   await db.transaction(async (tx) => {
@@ -480,6 +481,26 @@ export async function createTransaction(formData: FormData) {
     ]);
     if (!season[0] || season[0].status === "ARCHIVED") throw new Error("Archived or missing seasons are read-only");
     if (!player[0]) throw new Error("Player not found");
+    const selectedTeamIds = [...new Set(
+      [parsed.data.oldTeamId, parsed.data.newTeamId].filter(Boolean),
+    )];
+    const selectedTeams = await tx.select().from(teams)
+      .where(inArray(teams.id, selectedTeamIds));
+    if (selectedTeams.length !== selectedTeamIds.length) throw new Error("Selected team not found");
+    if (
+      !authorization.access.permissions.includes("league.full") &&
+      !authorization.access.permissions.includes("transaction.approve") &&
+      selectedTeams.some((team) => team.franchiseNumber !== authorization.access.franchiseNumber)
+    ) {
+      throw new Error("Transaction is outside your franchise scope");
+    }
+    const enrolled = await tx.select().from(teamSeasons).where(and(
+      eq(teamSeasons.seasonId, parsed.data.seasonId),
+      inArray(teamSeasons.teamId, selectedTeamIds),
+    ));
+    if (enrolled.length !== selectedTeamIds.length) {
+      throw new Error("Every selected team must belong to the transaction season");
+    }
     const current = await tx.select().from(rosterMemberships).where(and(
       eq(rosterMemberships.seasonId, parsed.data.seasonId),
       eq(rosterMemberships.playerId, parsed.data.playerId),

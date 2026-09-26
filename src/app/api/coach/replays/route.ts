@@ -1,11 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import { put } from "@vercel/blob";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDatabase } from "@/db";
 import { auditLogs, coachingRequests, players, replays } from "@/db/schema";
 import { consumeAuthRateLimit } from "@/services/auth/rate-limit";
+import { authorizeLiveAction } from "@/services/auth/authorization";
 import { getSession } from "@/services/auth/session";
 import { validateCoachingSelection, validateReplayFile } from "@/services/coaching";
 
@@ -29,6 +30,11 @@ export async function POST(request: Request) {
   }
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  const authorization = await authorizeLiveAction(session.user, { permission: "player.self" })
+    .catch(() => null);
+  if (!authorization?.decision.allowed) {
+    return NextResponse.json({ error: "Live Discord membership is required" }, { status: 403 });
+  }
   if (!process.env.DATABASE_URL || !process.env.BLOB_READ_WRITE_TOKEN) {
     return NextResponse.json({ error: "Private replay storage is unavailable" }, { status: 503 });
   }
@@ -58,7 +64,10 @@ export async function POST(request: Request) {
   const db = getDatabase();
   const [player] = await db.select().from(players).where(eq(players.userId, session.user.id)).limit(1);
   const existing = await db.select({ id: replays.id }).from(replays)
-    .where(eq(replays.contentHash, contentHash)).limit(1);
+    .where(and(
+      eq(replays.submittedBy, session.user.id),
+      eq(replays.contentHash, contentHash),
+    )).limit(1);
   if (existing[0]) return NextResponse.json({ error: "This replay was already submitted" }, { status: 409 });
   const storageKey = `coaching/${session.user.id}/${randomUUID()}.replay`;
   const blob = await put(storageKey, bytes, {
@@ -88,7 +97,7 @@ export async function POST(request: Request) {
     }).returning();
     await tx.insert(auditLogs).values({
       actorId: session.user.id,
-      actorDiscordRoleIds: session.user.access.roleIds,
+      actorDiscordRoleIds: authorization.access.roleIds,
       action: "COACHING_REQUEST_SUBMITTED",
       entityType: "COACHING_REQUEST",
       entityId: coaching.id,

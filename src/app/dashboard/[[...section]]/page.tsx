@@ -13,6 +13,7 @@ import {
   seasons,
   teams,
 } from "@/db/schema";
+import { authorizeLiveAction } from "@/services/auth/authorization";
 import { getSession } from "@/services/auth/session";
 
 const sections = [
@@ -33,6 +34,11 @@ export default async function PlayerDashboard({
   const key = (await params).section?.join("/") ?? "";
   if (!sections.some(([path]) => path === key)) notFound();
   if (!session) redirect(`/login?returnTo=${encodeURIComponent(`/dashboard${key ? `/${key}` : ""}`)}`);
+  const authorization = await authorizeLiveAction(session.user, { permission: "player.self" })
+    .catch(() => null);
+  if (!authorization?.decision.allowed) {
+    redirect(`/login?error=membership&returnTo=${encodeURIComponent(`/dashboard${key ? `/${key}` : ""}`)}`);
+  }
   if (!process.env.DATABASE_URL) {
     return <main className="mx-auto max-w-4xl px-5 py-16"><div className="panel p-8"><h1 className="text-2xl font-black">Player dashboard unavailable</h1><p className="mt-3 text-sm text-slate-600">The league database is not configured in this environment.</p></div></main>;
   }
