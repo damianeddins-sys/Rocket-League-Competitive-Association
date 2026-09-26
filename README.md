@@ -7,8 +7,8 @@ Production-oriented foundation for the RLCA 2v2 league platform. The website is 
 - Responsive Next.js public experience using the supplied transparent RLCA logo
 - PostgreSQL/Drizzle relational schema with append-only point, rating, replay-analysis, and audit history
 - Deterministic league services for:
-  - 14-day / 50-game / 9-checkpoint MMR verification
-  - exact V2 Evidence Score, ranked Combine index, 80/20 placement, and 1000–1800 RLCA rating assignment
+  - 14-day / 50-game Ranked 2v2 MMR verification readiness
+  - approved 1000 starting MMR without an invented placement formula or tier cutoffs
   - audited player lifecycle, 7 × 24-hour activation holds, and seven-day waivers
   - Protected Roster Value and dynamic roster cap/floor
   - one-player-per-division roster validation and draft completion checks
@@ -19,7 +19,7 @@ Production-oriented foundation for the RLCA 2v2 league platform. The website is 
   - player event eligibility and Major transaction windows
 - Automated tests for the critical league invariants
 
-Public data currently uses clearly labeled demonstration records. Production writes must be added through authenticated server actions/API handlers backed by PostgreSQL; competitive state must never be accepted directly from a browser.
+Public pages read published league records from PostgreSQL and show truthful empty states when no official data exists. Competitive state must never be accepted directly from a browser.
 
 ## Local development
 

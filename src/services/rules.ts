@@ -7,17 +7,7 @@ export const SEASON_ONE_RULES = Object.freeze({
   verification: Object.freeze({
     windowDays: 14,
     rankedGamesRequired: 50,
-    snapshotsRequired: 9,
-    combineSeriesRequired: 6,
-    medianWeight: 0.5,
-    peakWeight: 0.25,
-    p20Weight: 0.25,
-    evidenceWeight: 0.8,
-    combineWeight: 0.2,
-    startingMmrMinimum: 1000,
-    startingMmrMaximum: 1800,
-    placementPoolSize: 24,
-    playersPerDivision: 8,
+    startingMmr: 1000,
   }),
   lifecycle: Object.freeze({
     activationHoldHours: 7 * 24,

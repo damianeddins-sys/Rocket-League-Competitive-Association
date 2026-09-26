@@ -6,11 +6,10 @@ import {
   resolveChampionshipSemifinals,
 } from "./brackets";
 import {
-  assignCombineRatings,
-  assignPlacement,
-  calculateRankedEvidence,
   isVerificationComplete,
   protectedRosterValue,
+  STARTING_RLCA_MMR,
+  verificationReadiness,
 } from "./mmr";
 import {
   activationHoldEndsAt,
@@ -97,21 +96,17 @@ describe("brackets", () => {
     expect(lastChanceBracket(eight.slice(2)).slice(0, 4).map((slot) => [slot.home, slot.away])).toEqual([
       ["t3", "t8"], ["t4", "t7"], ["t5", "WINNER:R1A"], ["t6", "WINNER:R1B"],
     ]);
-    expect(championshipBracket(eight.slice(0, 6)).map((slot) => slot.bestOf)).toEqual([7, 7, 7, 7, 7]);
-    expect(resolveChampionshipSemifinals(eight.slice(0, 6), ["t3", "t5"])).toEqual([
-      { id: "SF1", home: "t1", away: "t5" },
-      { id: "SF2", home: "t2", away: "t3" },
+    expect(championshipBracket(eight).map((slot) => slot.bestOf)).toEqual([7, 7, 7, 7, 7, 7, 7]);
+    expect(resolveChampionshipSemifinals(eight, ["t1", "t4", "t2", "t6"])).toEqual([
+      { id: "SF1", home: "t1", away: "t6" },
+      { id: "SF2", home: "t2", away: "t4" },
     ]);
   });
 });
 
 describe("MMR placement", () => {
-  it("calculates the hardened ranked evidence formula", () => {
-    const result = calculateRankedEvidence([1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800]);
-    expect(result.medianMmr).toBe(1400);
-    expect(result.p20Mmr).toBe(1100);
-    expect(result.peakMmr).toBe(1800);
-    expect(result.rawScore).toBe(1425);
+  it("uses the approved starting MMR without inventing a placement formula", () => {
+    expect(STARTING_RLCA_MMR).toBe(1000);
   });
 
   it("requires the full verification evidence", () => {
@@ -119,32 +114,23 @@ describe("MMR placement", () => {
       opensAt: new Date("2026-01-01T00:00:00Z"),
       closesAt: new Date("2026-01-15T00:00:00Z"),
       rankedGamesPlayed: 50,
-      acceptedCheckpoints: 9,
+      hasEvidence: true,
     })).toBe(true);
   });
 
-  it("assigns Combine ratings by unrounded performance rank", () => {
-    const ratings = assignCombineRatings(Array.from({ length: 24 }, (_, index) => ({
-      playerId: `p${String(index).padStart(2, "0")}`,
-      performance: index / 100,
-    })));
-    expect(ratings[0]).toMatchObject({ rank: 1, combineIndex: 0, combineRating: 1000 });
-    expect(ratings[23]).toMatchObject({ rank: 24, combineIndex: 100, combineRating: 1800 });
-  });
-
-  it("assigns exactly eight players per division on a 1000–1800 scale", () => {
-    const result = assignPlacement(Array.from({ length: 24 }, (_, index) => ({
-      playerId: `p${index}`,
-      rankedEvidence: 1000 + index * 20,
-      medianMmr: 1000 + index * 20,
-      peakMmr: 1100 + index * 20,
-      combineRating: 1000 + index * 20,
-    })));
-    expect(result[0].startingRlcaMmr).toBe(1000);
-    expect(result[23].startingRlcaMmr).toBe(1800);
-    expect(result.filter((player) => player.division === "MASTER")).toHaveLength(8);
-    expect(result.filter((player) => player.division === "CHALLENGER")).toHaveLength(8);
-    expect(result.filter((player) => player.division === "CONTENDER")).toHaveLength(8);
+  it("identifies verification blockers from persisted evidence", () => {
+    const base = {
+      currentMmr: null,
+      opensAt: new Date("2026-01-01T00:00:00Z"),
+      closesAt: new Date("2026-01-15T00:00:00Z"),
+      now: new Date("2026-01-16T00:00:00Z"),
+    };
+    expect(verificationReadiness({ ...base, rankedGamesPlayed: 49, hasEvidence: true }))
+      .toBe("MISSING_RANKED_GAMES");
+    expect(verificationReadiness({ ...base, rankedGamesPlayed: 50, hasEvidence: false }))
+      .toBe("MISSING_EVIDENCE");
+    expect(verificationReadiness({ ...base, rankedGamesPlayed: 50, hasEvidence: true }))
+      .toBe("ELIGIBLE_FOR_PLACEMENT");
   });
 
   it("never lets Protected Roster Value fall", () => {

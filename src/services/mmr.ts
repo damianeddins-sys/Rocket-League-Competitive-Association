@@ -2,143 +2,44 @@ import { SEASON_ONE_RULES } from "./rules";
 
 export const VERIFICATION_DAYS = SEASON_ONE_RULES.verification.windowDays;
 export const MINIMUM_RANKED_GAMES = SEASON_ONE_RULES.verification.rankedGamesRequired;
-export const MINIMUM_CHECKPOINTS = SEASON_ONE_RULES.verification.snapshotsRequired;
-export const COMBINE_SERIES_REQUIRED = SEASON_ONE_RULES.verification.combineSeriesRequired;
+export const STARTING_RLCA_MMR = SEASON_ONE_RULES.verification.startingMmr;
 
-export type Division = "MASTER" | "CHALLENGER" | "CONTENDER";
-
-export interface PlacementCandidate {
-  playerId: string;
-  rankedEvidence: number;
-  medianMmr: number;
-  peakMmr: number;
-  combineRating: number;
-}
-
-export interface PlacementResult extends PlacementCandidate {
-  placementScore: number;
-  rank: number;
-  startingRlcaMmr: number;
-  division: Division;
-}
-
-export interface CombinePerformance {
-  playerId: string;
-  performance: number;
-}
-
-export interface CombineResult extends CombinePerformance {
-  rank: number;
-  combineIndex: number;
-  combineRating: number;
-}
-
-export function calculateRankedEvidence(checkpoints: number[]) {
-  if (checkpoints.length !== MINIMUM_CHECKPOINTS) {
-    throw new Error(`Exactly ${MINIMUM_CHECKPOINTS} accepted checkpoints are required`);
-  }
-  if (checkpoints.some((value) => !Number.isFinite(value) || value < 0)) {
-    throw new Error("MMR checkpoints must be finite non-negative numbers");
-  }
-
-  const sorted = [...checkpoints].sort((a, b) => a - b);
-  const medianMmr = sorted[4];
-  const p20Mmr = sorted[1];
-  const peakMmr = sorted.at(-1)!;
-  const rawScore =
-    medianMmr * SEASON_ONE_RULES.verification.medianWeight +
-    peakMmr * SEASON_ONE_RULES.verification.peakWeight +
-    p20Mmr * SEASON_ONE_RULES.verification.p20Weight;
-
-  return { medianMmr, p20Mmr, peakMmr, rawScore };
-}
+export type Division = "PREMIER" | "MASTER" | "CHALLENGER" | "CONTENDER";
 
 export function isVerificationComplete(input: {
   opensAt: Date;
   closesAt: Date;
   rankedGamesPlayed: number;
-  acceptedCheckpoints: number;
+  hasEvidence: boolean;
 }) {
   const durationDays = (input.closesAt.getTime() - input.opensAt.getTime()) / 86_400_000;
   return (
     durationDays === VERIFICATION_DAYS &&
     input.rankedGamesPlayed >= MINIMUM_RANKED_GAMES &&
-    input.acceptedCheckpoints === MINIMUM_CHECKPOINTS
+    input.hasEvidence
   );
 }
 
-export function placementScore(rankedEvidence: number, combineRating: number) {
-  return (
-    rankedEvidence * SEASON_ONE_RULES.verification.evidenceWeight +
-    combineRating * SEASON_ONE_RULES.verification.combineWeight
-  );
-}
+export type VerificationReadiness =
+  | "ALREADY_PLACED"
+  | "ELIGIBLE_FOR_PLACEMENT"
+  | "MISSING_RANKED_GAMES"
+  | "MISSING_EVIDENCE"
+  | "NEEDS_VERIFICATION";
 
-export function assignCombineRatings(players: CombinePerformance[]): CombineResult[] {
-  const poolSize = SEASON_ONE_RULES.verification.placementPoolSize;
-  if (players.length !== poolSize || new Set(players.map((player) => player.playerId)).size !== poolSize) {
-    throw new Error(`Season 1 Combine rating requires exactly ${poolSize} unique players`);
-  }
-  if (players.some((player) => !Number.isFinite(player.performance))) {
-    throw new Error("Combine performance values must be finite");
-  }
-
-  return [...players]
-    .sort((a, b) => a.performance - b.performance || a.playerId.localeCompare(b.playerId))
-    .map((player, index) => {
-      const combineIndex = (index / (poolSize - 1)) * 100;
-      return {
-        ...player,
-        rank: index + 1,
-        combineIndex,
-        combineRating:
-          SEASON_ONE_RULES.verification.startingMmrMinimum +
-          (combineIndex / 100) *
-            (SEASON_ONE_RULES.verification.startingMmrMaximum -
-              SEASON_ONE_RULES.verification.startingMmrMinimum),
-      };
-    });
-}
-
-export function assignPlacement(candidates: PlacementCandidate[]): PlacementResult[] {
-  const { placementPoolSize, playersPerDivision, startingMmrMinimum, startingMmrMaximum } =
-    SEASON_ONE_RULES.verification;
-  if (
-    candidates.length !== placementPoolSize ||
-    new Set(candidates.map((candidate) => candidate.playerId)).size !== placementPoolSize
-  ) {
-    throw new Error(`Season 1 placement requires exactly ${placementPoolSize} unique verified players`);
-  }
-
-  const ordered = candidates
-    .map((candidate) => ({
-      ...candidate,
-      placementScore: placementScore(candidate.rankedEvidence, candidate.combineRating),
-    }))
-    .sort(
-      (a, b) =>
-        a.placementScore - b.placementScore ||
-        a.rankedEvidence - b.rankedEvidence ||
-        a.combineRating - b.combineRating ||
-        a.medianMmr - b.medianMmr ||
-        a.peakMmr - b.peakMmr ||
-        a.playerId.localeCompare(b.playerId),
-    );
-
-  return ordered.map((candidate, index) => ({
-    ...candidate,
-    rank: index + 1,
-    startingRlcaMmr: Math.round(
-      startingMmrMinimum +
-        index * ((startingMmrMaximum - startingMmrMinimum) / (placementPoolSize - 1)),
-    ),
-    division:
-      index < playersPerDivision
-        ? "CONTENDER"
-        : index < playersPerDivision * 2
-          ? "CHALLENGER"
-          : "MASTER",
-  }));
+export function verificationReadiness(input: {
+  currentMmr: number | null;
+  opensAt: Date | null;
+  closesAt: Date | null;
+  rankedGamesPlayed: number;
+  hasEvidence: boolean;
+  now: Date;
+}): VerificationReadiness {
+  if (input.currentMmr !== null) return "ALREADY_PLACED";
+  if (!input.opensAt || !input.closesAt) return "NEEDS_VERIFICATION";
+  if (input.rankedGamesPlayed < MINIMUM_RANKED_GAMES) return "MISSING_RANKED_GAMES";
+  if (!input.hasEvidence) return "MISSING_EVIDENCE";
+  return input.now >= input.closesAt ? "ELIGIBLE_FOR_PLACEMENT" : "NEEDS_VERIFICATION";
 }
 
 export function expectedResult(teamRating: number, opponentRating: number) {
