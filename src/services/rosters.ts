@@ -9,6 +9,31 @@ export type RosterPlayer = {
   protectedValue: number;
 };
 
+export type RosterRole = "STARTER" | "SUBSTITUTE";
+
+export function validateRosterRoles(
+  memberships: ReadonlyArray<{ playerId: string; role: string }>,
+  requireComplete = false,
+) {
+  const starters = memberships.filter((membership) => membership.role === "STARTER");
+  const substitutes = memberships.filter((membership) => membership.role === "SUBSTITUTE");
+  const unknown = memberships.filter((membership) =>
+    membership.role !== "STARTER" && membership.role !== "SUBSTITUTE");
+  const duplicatePlayers = memberships.length - new Set(memberships.map((item) => item.playerId)).size;
+  const reasons: string[] = [];
+  if (starters.length > 2) reasons.push("Roster cannot have more than 2 starters");
+  if (substitutes.length > 1) reasons.push("Roster cannot have more than 1 substitute");
+  if (requireComplete && starters.length !== 2) reasons.push("Complete roster requires exactly 2 starters");
+  if (unknown.length) reasons.push("Roster contains an unsupported role");
+  if (duplicatePlayers) reasons.push("A player cannot occupy multiple roster slots");
+  return {
+    legal: reasons.length === 0,
+    starters: starters.length,
+    substitutes: substitutes.length,
+    reasons,
+  };
+}
+
 export function calculateCapRange(playersByDivision: Record<Division, RosterPlayer[]>) {
   const average = (players: RosterPlayer[]) => {
     if (players.length === 0) throw new Error("Each active division needs players");

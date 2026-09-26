@@ -7,6 +7,7 @@ import { getDatabase } from "@/db";
 import { auditLogs, coachingRequests, players, replays } from "@/db/schema";
 import { consumeAuthRateLimit } from "@/services/auth/rate-limit";
 import { getSession } from "@/services/auth/session";
+import { validateCoachingSelection, validateReplayFile } from "@/services/coaching";
 
 export const runtime = "nodejs";
 
@@ -15,11 +16,9 @@ const requestSchema = z.object({
   coachingGoal: z.enum(["BEST_ROSTER", "GAMEPLAY_IMPROVEMENT", "BOTH", "INDIVIDUAL_REVIEW"]),
   reviewNotes: z.string().trim().max(2_000),
 }).superRefine((value, context) => {
-  if (value.coachingType === "INDIVIDUAL_1V1" && value.coachingGoal !== "INDIVIDUAL_REVIEW") {
-    context.addIssue({ code: "custom", message: "Individual coaching cannot request roster analysis" });
-  }
-  if (value.coachingType === "TEAM_2V2" && value.coachingGoal === "INDIVIDUAL_REVIEW") {
-    context.addIssue({ code: "custom", message: "Select a team coaching goal" });
+  const selection = validateCoachingSelection(value.coachingType, value.coachingGoal);
+  if (!selection.valid) {
+    context.addIssue({ code: "custom", message: selection.reason ?? "Invalid coaching selection" });
   }
 });
 
@@ -50,8 +49,9 @@ export async function POST(request: Request) {
   if (!parsed.success || !(file instanceof File)) {
     return NextResponse.json({ error: parsed.error?.issues[0]?.message ?? "Invalid coaching request" }, { status: 400 });
   }
-  if (!file.name.toLowerCase().endsWith(".replay") || file.size < 1 || file.size > 25 * 1024 * 1024) {
-    return NextResponse.json({ error: "Upload a Rocket League .replay file no larger than 25 MB" }, { status: 400 });
+  const replayValidation = validateReplayFile(file);
+  if (!replayValidation.valid) {
+    return NextResponse.json({ error: replayValidation.reason }, { status: 400 });
   }
   const bytes = Buffer.from(await file.arrayBuffer());
   const contentHash = createHash("sha256").update(bytes).digest("hex");
