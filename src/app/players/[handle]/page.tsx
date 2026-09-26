@@ -54,6 +54,7 @@ export default async function PlayerDetailPage({
   const teamById = new Map(teamRows.map((item) => [item.id, item]));
   const playerSeasonIds = new Set(playerSeasonRows.map((item) => item.id));
   const playerWaivers = waiverRows.filter((item) => playerSeasonIds.has(item.playerSeasonId));
+  const currentPlayerSeason = playerSeasonRows.find((item) => item.seasonId === snapshot.season?.id);
 
   return (
     <div className="min-h-screen">
@@ -64,8 +65,8 @@ export default async function PlayerDetailPage({
       </PageHero>
       <main className="mx-auto max-w-7xl px-5 py-8 lg:px-8">
         <nav className="flex items-center gap-2 text-sm font-semibold text-slate-500"><Link href="/players">Players</Link><ChevronRight size={14} /><span className="text-slate-900">{player.handle}</span></nav>
-        <section className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[["Tier", player.tier ?? "Pending"], ["Team", player.team?.name ?? "Unrostered"], ["Current MMR", player.mmr == null ? "Not published" : String(player.mmr)], ["Season", snapshot.season?.name ?? "Not configured"]].map(([label, value]) => (
+        <section className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          {[["Current tier", player.tier ?? "Pending"], ["Team", player.team?.name ?? "Unrostered"], ["Current MMR", player.mmr == null ? "Not published" : String(player.mmr)], ["Roster value", currentPlayerSeason?.protectedRosterValue ?? "Not published"], ["Player status", currentPlayerSeason?.status.replaceAll("_", " ") ?? "Not configured"], ["Season", snapshot.season?.name ?? "Not configured"]].map(([label, value]) => (
             <div key={label} className="panel p-5"><p className="stat-label">{label}</p><p className="mt-2 text-lg font-black">{value}</p></div>
           ))}
         </section>

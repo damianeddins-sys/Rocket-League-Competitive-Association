@@ -19,6 +19,7 @@ import {
   mmrSnapshots,
   mmrVerificationWindows,
   playerApplications,
+  placementCycles,
   playerSeasons,
   playerStatusHistory,
   players,
@@ -768,15 +769,36 @@ export async function transitionTransaction(formData: FormData) {
         });
         await tx.update(playerSeasons).set({ status: "ROSTERED" })
           .where(eq(playerSeasons.id, playerSeason.id));
-        await tx.insert(playerStatusHistory).values({
-          playerSeasonId: playerSeason.id,
-          fromStatus: playerSeason.status,
-          toStatus: "ROSTERED",
-          effectiveAt: now,
-          reason: parsed.data.reason,
-          actorId: session.user.id,
-          relatedTransactionId: current.id,
-        });
+        await tx.insert(playerStatusHistory).values(current.type === "FREE_AGENT_SIGNING"
+          ? [
+              {
+                playerSeasonId: playerSeason.id,
+                fromStatus: playerSeason.status,
+                toStatus: "SIGNED" as const,
+                effectiveAt: now,
+                reason: parsed.data.reason,
+                actorId: session.user.id,
+                relatedTransactionId: current.id,
+              },
+              {
+                playerSeasonId: playerSeason.id,
+                fromStatus: "SIGNED" as const,
+                toStatus: "ROSTERED" as const,
+                effectiveAt: now,
+                reason: "Approved free-agent signing completed",
+                actorId: session.user.id,
+                relatedTransactionId: current.id,
+              },
+            ]
+          : [{
+              playerSeasonId: playerSeason.id,
+              fromStatus: playerSeason.status,
+              toStatus: "ROSTERED" as const,
+              effectiveAt: now,
+              reason: parsed.data.reason,
+              actorId: session.user.id,
+              relatedTransactionId: current.id,
+            }]);
       }
     }
     await tx.update(transactionRequests).set({
@@ -986,11 +1008,12 @@ export async function previewTierPlacement(formData: FormData) {
   const db = getDatabase();
   const [season] = await db.select().from(seasons).where(eq(seasons.id, parsed.data.seasonId)).limit(1);
   if (!season || season.status === "ARCHIVED") throw new Error("Archived or missing seasons are read-only");
-  const [entries, playerRows, windows, snapshots] = await Promise.all([
+  const [entries, playerRows, windows, snapshots, divisionRows] = await Promise.all([
     db.select().from(playerSeasons).where(eq(playerSeasons.seasonId, season.id)),
     db.select().from(players),
     db.select().from(mmrVerificationWindows).where(eq(mmrVerificationWindows.seasonId, season.id)),
     db.select().from(mmrSnapshots).where(eq(mmrSnapshots.accepted, true)),
+    db.select().from(divisions).where(eq(divisions.seasonId, season.id)),
   ]);
   const playerById = new Map(playerRows.map((player) => [player.id, player]));
   const acceptedWindowIds = new Set(snapshots.map((snapshot) => snapshot.windowId));
@@ -1017,13 +1040,45 @@ export async function previewTierPlacement(formData: FormData) {
     }];
   });
   const preview = buildSeasonOnePlacementPreview(eligible);
+  const divisionByCode = new Map(divisionRows.map((division) => [division.code, division]));
+  if ((["MASTER", "CHALLENGER", "CONTENDER"] as const).some((code) => !divisionByCode.has(code))) {
+    throw new Error("Season 1 Master, Challenger, and Contender tiers must be configured");
+  }
   await db.transaction(async (tx) => {
+    const priorRuns = await tx.select({ id: tierPlacementRuns.id }).from(tierPlacementRuns).where(and(
+      eq(tierPlacementRuns.seasonId, season.id),
+      eq(tierPlacementRuns.status, "PREVIEW"),
+    ));
+    if (priorRuns.length) {
+      const priorRunIds = priorRuns.map((run) => run.id);
+      await tx.update(tierPlacementRuns).set({ status: "CANCELLED" })
+        .where(inArray(tierPlacementRuns.id, priorRunIds));
+      await tx.update(placementCycles).set({ status: "CANCELLED" })
+        .where(inArray(placementCycles.placementRunId, priorRunIds));
+    }
     const [created] = await tx.insert(tierPlacementRuns).values({
       seasonId: season.id,
       status: "PREVIEW",
       eligibleSnapshot: preview.placements,
       createdBy: session.user.id,
     }).returning();
+    await tx.insert(placementCycles).values(preview.placements.map((placement) => {
+      const window = windows
+        .filter((item) => item.playerId === placement.playerId)
+        .sort((left, right) => right.closesAt.getTime() - left.closesAt.getTime())[0];
+      const division = divisionByCode.get(placement.proposedDivisionCode);
+      if (!window || !division) throw new Error("Placement verification or division changed");
+      return {
+        playerSeasonId: placement.playerSeasonId,
+        type: placement.previousDivisionId ? "REVERIFICATION" as const : "INITIAL" as const,
+        status: "AWAITING_APPROVAL" as const,
+        startedAt: window.opensAt,
+        verificationDeadline: window.closesAt,
+        proposedMmr: String(placement.mmr),
+        proposedDivisionId: division.id,
+        placementRunId: created.id,
+      };
+    }));
     await tx.insert(auditLogs).values({
       actorId: session.user.id,
       actorDiscordRoleIds: authorization.access.roleIds,
@@ -1100,6 +1155,14 @@ export async function confirmTierPlacement(formData: FormData) {
       confirmedBy: session.user.id,
       confirmedAt: new Date(),
     }).where(eq(tierPlacementRuns.id, run.id));
+    await tx.update(placementCycles).set({
+      status: "APPROVED",
+      approvedBy: session.user.id,
+      approvedAt: new Date(),
+    }).where(and(
+      eq(placementCycles.placementRunId, run.id),
+      eq(placementCycles.status, "AWAITING_APPROVAL"),
+    ));
     await tx.insert(auditLogs).values({
       actorId: session.user.id,
       actorDiscordRoleIds: authorization.access.roleIds,
@@ -1211,8 +1274,9 @@ export async function releasePlayerToWaivers(formData: FormData) {
     deadline: z.coerce.date(),
     reason: z.string().trim().min(5).max(2_000),
   }).safeParse(Object.fromEntries(formData));
-  if (!parsed.success || parsed.data.deadline <= new Date()) {
-    throw new Error("A future published waiver deadline and release reason are required");
+  const eligibleTeams = z.array(z.uuid()).min(1).safeParse(formData.getAll("eligibleTeamIds"));
+  if (!parsed.success || !eligibleTeams.success || parsed.data.deadline <= new Date()) {
+    throw new Error("A future deadline, release reason, and at least one eligible team are required");
   }
   const { session, authorization } = await requireOperations();
   const db = getDatabase();
@@ -1233,8 +1297,15 @@ export async function releasePlayerToWaivers(formData: FormData) {
       eq(teamSeasons.seasonId, entry.seasonId),
       eq(teamSeasons.active, true),
     ));
-    const priority = waiverPriority(teamEntries
-      .filter((team) => team.teamId !== parsed.data.teamId)
+    const eligibleTeamIds = [...new Set(eligibleTeams.data)];
+    if (eligibleTeamIds.includes(parsed.data.teamId)) {
+      throw new Error("The releasing team cannot submit a waiver claim");
+    }
+    const eligibleEntries = teamEntries.filter((team) => eligibleTeamIds.includes(team.teamId));
+    if (eligibleEntries.length !== eligibleTeamIds.length) {
+      throw new Error("Every eligible waiver team must be active in this season");
+    }
+    const priority = waiverPriority(eligibleEntries
       .map((team) => ({ teamId: team.teamId, standing: team.seed })));
     const now = new Date();
     const [transaction] = await tx.insert(transactionRequests).values({
@@ -1270,15 +1341,26 @@ export async function releasePlayerToWaivers(formData: FormData) {
       prioritySnapshot: priority,
       publishedAt: now,
     }).returning();
-    await tx.insert(playerStatusHistory).values({
-      playerSeasonId: entry.id,
-      fromStatus: entry.status,
-      toStatus: "WAIVER",
-      effectiveAt: now,
-      reason: parsed.data.reason,
-      actorId: session.user.id,
-      relatedTransactionId: transaction.id,
-    });
+    await tx.insert(playerStatusHistory).values([
+      {
+        playerSeasonId: entry.id,
+        fromStatus: entry.status,
+        toStatus: "RELEASED",
+        effectiveAt: now,
+        reason: parsed.data.reason,
+        actorId: session.user.id,
+        relatedTransactionId: transaction.id,
+      },
+      {
+        playerSeasonId: entry.id,
+        fromStatus: "RELEASED",
+        toStatus: "WAIVER",
+        effectiveAt: now,
+        reason: "Published waiver period started",
+        actorId: session.user.id,
+        relatedTransactionId: transaction.id,
+      },
+    ]);
     await tx.insert(auditLogs).values({
       actorId: session.user.id,
       actorDiscordRoleIds: authorization.access.roleIds,
@@ -1497,15 +1579,26 @@ export async function reviewWaiverClaim(formData: FormData) {
       resolvedAt: now,
       resolution: "WAIVER_CLAIM_APPROVED",
     }).where(eq(waiverWindows.id, window.id));
-    await tx.insert(playerStatusHistory).values({
-      playerSeasonId: entry.id,
-      fromStatus: "WAIVER",
-      toStatus: "ROSTERED",
-      effectiveAt: now,
-      reason: parsed.data.reason,
-      actorId: session.user.id,
-      relatedTransactionId: transaction.id,
-    });
+    await tx.insert(playerStatusHistory).values([
+      {
+        playerSeasonId: entry.id,
+        fromStatus: "WAIVER",
+        toStatus: "SIGNED",
+        effectiveAt: now,
+        reason: parsed.data.reason,
+        actorId: session.user.id,
+        relatedTransactionId: transaction.id,
+      },
+      {
+        playerSeasonId: entry.id,
+        fromStatus: "SIGNED",
+        toStatus: "ROSTERED",
+        effectiveAt: now,
+        reason: "Approved waiver signing completed",
+        actorId: session.user.id,
+        relatedTransactionId: transaction.id,
+      },
+    ]);
     await tx.insert(auditLogs).values({
       actorId: session.user.id,
       actorDiscordRoleIds: authorization.access.roleIds,

@@ -51,7 +51,7 @@ export type TransactionValidationInput = {
     status: PlayerStatus;
     targetStatus: PlayerStatus;
     activatedAt?: Date;
-    waiverStartedAt?: Date;
+    waiverDeadline?: Date;
     participatedSeriesIds: readonly string[];
     suspended: boolean;
   };
@@ -109,7 +109,7 @@ export function validateTransaction(input: TransactionValidationInput): Transact
     to: input.player.targetStatus,
     now: input.now,
     activatedAt: input.player.activatedAt,
-    waiverStartedAt: input.player.waiverStartedAt,
+    waiverDeadline: input.player.waiverDeadline,
     approvedExceptionId: input.approvedExceptionId,
     transactionApproved: true,
     waiverClaimApproved: input.type === "WAIVER_CLAIM",

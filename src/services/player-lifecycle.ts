@@ -2,8 +2,6 @@ import { SEASON_ONE_RULES } from "./rules";
 
 export const ACTIVATION_HOLD_MS =
   SEASON_ONE_RULES.lifecycle.activationHoldHours * 60 * 60 * 1000;
-export const WAIVER_PERIOD_MS =
-  SEASON_ONE_RULES.lifecycle.waiverPeriodHours * 60 * 60 * 1000;
 
 export const PLAYER_STATUSES = [
   "APPLIED",
@@ -14,8 +12,10 @@ export const PLAYER_STATUSES = [
   "ACTIVE",
   "INACTIVE",
   "ROSTERED",
+  "RELEASED",
   "WAIVER",
   "FREE_AGENT",
+  "SIGNED",
   "RESTRICTED",
   "SUSPENDED",
   "ARCHIVED",
@@ -31,9 +31,11 @@ const allowedTransitions: Record<PlayerStatus, readonly PlayerStatus[]> = {
   PLACEMENT_PENDING: ["ACTIVE", "INACTIVE", "RESTRICTED"],
   ACTIVE: ["ROSTERED", "INACTIVE", "FREE_AGENT", "WAIVER"],
   INACTIVE: ["ACTIVE"],
-  ROSTERED: ["WAIVER", "INACTIVE"],
-  WAIVER: ["ROSTERED", "FREE_AGENT"],
-  FREE_AGENT: ["ROSTERED"],
+  ROSTERED: ["RELEASED", "INACTIVE"],
+  RELEASED: ["WAIVER"],
+  WAIVER: ["SIGNED", "FREE_AGENT"],
+  FREE_AGENT: ["SIGNED"],
+  SIGNED: ["ROSTERED"],
   RESTRICTED: ["ACTIVE", "SUSPENDED"],
   SUSPENDED: ["ACTIVE"],
   ARCHIVED: [],
@@ -44,7 +46,7 @@ export type TransitionContext = {
   to: PlayerStatus;
   now: Date;
   activatedAt?: Date;
-  waiverStartedAt?: Date;
+  waiverDeadline?: Date;
   approvedExceptionId?: string;
   suspensionResolved?: boolean;
   transactionApproved?: boolean;
@@ -57,10 +59,6 @@ export type TransitionDecision =
 
 export function activationHoldEndsAt(activatedAt: Date) {
   return new Date(activatedAt.getTime() + ACTIVATION_HOLD_MS);
-}
-
-export function waiverEndsAt(startedAt: Date) {
-  return new Date(startedAt.getTime() + WAIVER_PERIOD_MS);
 }
 
 export function evaluatePlayerStatusTransition(context: TransitionContext): TransitionDecision {
@@ -99,21 +97,21 @@ export function evaluatePlayerStatusTransition(context: TransitionContext): Tran
   }
 
   if (context.from === "WAIVER" && context.to === "FREE_AGENT") {
-    if (!context.waiverStartedAt) {
-      return { allowed: false, code: "MISSING_WAIVER_TIME", reason: "Waiver start time is required" };
+    if (!context.waiverDeadline) {
+      return { allowed: false, code: "MISSING_WAIVER_DEADLINE", reason: "A published waiver deadline is required" };
     }
-    const eligibleAt = waiverEndsAt(context.waiverStartedAt);
+    const eligibleAt = context.waiverDeadline;
     if (context.now.getTime() < eligibleAt.getTime() && !context.approvedExceptionId) {
       return {
         allowed: false,
         code: "WAIVER_PERIOD_ACTIVE",
-        reason: "Player has not completed the full 7-day waiver period",
+        reason: "The published waiver deadline has not passed",
         eligibleAt,
       };
     }
   }
 
-  if (context.from === "WAIVER" && context.to === "ROSTERED" && !context.waiverClaimApproved) {
+  if (context.from === "WAIVER" && context.to === "SIGNED" && !context.waiverClaimApproved) {
     return {
       allowed: false,
       code: "WAIVER_CLAIM_REQUIRED",

@@ -45,4 +45,18 @@ describe("migration consistency", () => {
     expect(sql).toContain('"priority_snapshot"');
     expect(sql).not.toMatch(/\b(?:DELETE FROM|TRUNCATE|DROP TABLE)\b/i);
   });
+
+  it("adds explicit released and signed lifecycle states additively", () => {
+    const sql = migration("0014_omniscient_bloodstrike.sql");
+    expect(sql).toContain("ADD VALUE 'RELEASED'");
+    expect(sql).toContain("ADD VALUE 'SIGNED'");
+    expect(sql).not.toMatch(/\b(?:DELETE FROM|TRUNCATE|DROP TABLE)\b/i);
+  });
+
+  it("connects the existing player placement cycles to owner previews", () => {
+    const sql = migration("0015_cynical_jane_foster.sql");
+    expect(sql).toContain('"placement_run_id"');
+    expect(sql).toContain('"tier_placement_runs"');
+    expect(sql).not.toMatch(/\b(?:DELETE FROM|TRUNCATE|DROP TABLE)\b/i);
+  });
 });

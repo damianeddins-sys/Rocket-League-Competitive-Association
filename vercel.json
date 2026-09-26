@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "installCommand": "npm install",
-  "buildCommand": "npm run build",
+  "buildCommand": "if [ -n \"$DATABASE_URL\" ]; then npm run db:migrate; fi && npm run build",
   "env": {
     "DISCORD_GUILD_ID": "1470225837742882969",
     "DISCORD_REDIRECT_URI": "https://rlcasystem.vercel.app/api/auth/discord/callback",

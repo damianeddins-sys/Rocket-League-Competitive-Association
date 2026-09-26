@@ -1,0 +1,2 @@
+ALTER TABLE "placement_cycles" ADD COLUMN "placement_run_id" uuid;--> statement-breakpoint
+ALTER TABLE "placement_cycles" ADD CONSTRAINT "placement_cycles_placement_run_id_tier_placement_runs_id_fk" FOREIGN KEY ("placement_run_id") REFERENCES "public"."tier_placement_runs"("id") ON DELETE no action ON UPDATE no action;

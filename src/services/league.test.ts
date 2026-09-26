@@ -14,7 +14,6 @@ import {
 import {
   activationHoldEndsAt,
   evaluatePlayerStatusTransition,
-  waiverEndsAt,
 } from "./player-lifecycle";
 import {
   LAST_CHANCE_POINTS,
@@ -161,17 +160,16 @@ describe("player lifecycle", () => {
   it("requires an approved transaction for roster release", () => {
     expect(evaluatePlayerStatusTransition({
       from: "ROSTERED",
-      to: "WAIVER",
+      to: "RELEASED",
       now: new Date(),
     })).toMatchObject({ allowed: false, code: "TRANSACTION_APPROVAL_REQUIRED" });
   });
 
-  it("enforces seven full waiver days before free agency", () => {
-    expect(waiverEndsAt(activatedAt)).toEqual(new Date("2026-01-08T20:00:00Z"));
+  it("enforces the configured waiver deadline before free agency", () => {
     expect(evaluatePlayerStatusTransition({
       from: "WAIVER",
       to: "FREE_AGENT",
-      waiverStartedAt: activatedAt,
+      waiverDeadline: new Date("2026-01-08T20:00:00Z"),
       now: new Date("2026-01-08T19:00:00Z"),
     })).toMatchObject({ allowed: false, code: "WAIVER_PERIOD_ACTIVE" });
   });

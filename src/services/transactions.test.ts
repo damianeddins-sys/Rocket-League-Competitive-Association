@@ -16,7 +16,7 @@ const base = {
   capRange: { floor: 4000, cap: 4400 },
   player: {
     status: "FREE_AGENT" as const,
-    targetStatus: "ROSTERED" as const,
+    targetStatus: "SIGNED" as const,
     participatedSeriesIds: ["series-1", "series-2"],
     suspended: false,
   },

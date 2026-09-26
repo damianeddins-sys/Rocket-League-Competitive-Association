@@ -11,7 +11,6 @@ export const SEASON_ONE_RULES = Object.freeze({
   }),
   lifecycle: Object.freeze({
     activationHoldHours: 7 * 24,
-    waiverPeriodHours: 7 * 24,
   }),
   points: Object.freeze({
     regularSeasonWin: 5,
@@ -22,8 +21,8 @@ export const SEASON_ONE_RULES = Object.freeze({
   }),
   roster: Object.freeze({
     size: 3,
-    capBandPercent: 0.03,
-    roundingUnit: 5,
+    capBandPercent: 0.05,
+    roundingUnit: 10,
   }),
   scheduling: Object.freeze({
     teamCount: 8,
