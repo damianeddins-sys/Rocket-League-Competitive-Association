@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   assertSundayLimit,
+  bracketSlotLabel,
   championshipBracket,
   lastChanceBracket,
   majorBracket,
+  resolveBracketSource,
   resolveChampionshipSemifinals,
 } from "./brackets";
 
@@ -55,5 +57,23 @@ describe("bracket generation constraints", () => {
       "WINNER:QF2": "team-1",
       "WINNER:SF1": "team-1",
     })).toThrow("exceeds two series");
+  });
+
+  it("advances persisted winners into the next matchup", () => {
+    const slots = [
+      { id: "qf1", round: 1, position: 1, homeSource: "team-1", awaySource: "team-8", winnerTeamId: "team-1" },
+      { id: "qf2", round: 1, position: 2, homeSource: "team-4", awaySource: "team-5", winnerTeamId: "team-5" },
+      { id: "sf1", round: 2, position: 5, homeSource: "WINNER:QF1", awaySource: "WINNER:QF2", winnerTeamId: null },
+    ];
+    expect(bracketSlotLabel("MAJOR_1", slots[0])).toBe("QF1");
+    expect(resolveBracketSource(slots[2].homeSource, "MAJOR_1", slots)).toBe("team-1");
+    expect(resolveBracketSource(slots[2].awaySource, "MAJOR_1", slots)).toBe("team-5");
+  });
+
+  it("keeps unresolved prior-round sources empty", () => {
+    const slots = [
+      { id: "r1", round: 1, position: 1, homeSource: "team-3", awaySource: "team-8", winnerTeamId: null },
+    ];
+    expect(resolveBracketSource("WINNER:R1A", "LAST_CHANCE", slots)).toBeNull();
   });
 });

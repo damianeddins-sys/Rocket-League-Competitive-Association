@@ -8,6 +8,36 @@ export type BracketSlot = {
   bestOf: 5 | 7;
 };
 
+export type PersistedBracketSlot = {
+  id: string;
+  round: number;
+  position: number;
+  homeSource: string;
+  awaySource: string;
+  winnerTeamId: string | null;
+};
+
+export function bracketSlotLabel(format: string, slot: Pick<PersistedBracketSlot, "round" | "position">) {
+  if (format === "LAST_CHANCE") {
+    if (slot.round === 1) return slot.position === 1 ? "R1A" : "R1B";
+    if (slot.round === 2) return slot.position === 3 ? "SF1" : "SF2";
+    return "F";
+  }
+  if (slot.round === 1) return `QF${slot.position}`;
+  if (slot.round === 2) return `SF${slot.position - 4}`;
+  return "F";
+}
+
+export function resolveBracketSource(
+  source: string,
+  format: string,
+  slots: readonly PersistedBracketSlot[],
+) {
+  if (!source.startsWith("WINNER:")) return source;
+  const label = source.slice("WINNER:".length);
+  return slots.find((slot) => bracketSlotLabel(format, slot) === label)?.winnerTeamId ?? null;
+}
+
 function bySeed(seeds: Seed[], number: number) {
   const team = seeds.find((seed) => seed.seed === number);
   if (!team) throw new Error(`Missing seed ${number}`);

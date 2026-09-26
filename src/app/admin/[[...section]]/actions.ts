@@ -35,7 +35,12 @@ import {
 } from "@/db/schema";
 import { authorizeLiveAction } from "@/services/auth/authorization";
 import { getSession } from "@/services/auth/session";
-import { championshipBracket, lastChanceBracket, majorBracket } from "@/services/brackets";
+import {
+  championshipBracket,
+  lastChanceBracket,
+  majorBracket,
+  resolveBracketSource,
+} from "@/services/brackets";
 import { verificationReadiness, VERIFICATION_DAYS } from "@/services/mmr";
 import { seasonActivationChecklist } from "@/services/season-management";
 import {
@@ -913,6 +918,18 @@ export async function updateBracket(formData: FormData) {
       )).limit(1);
       if (!slot) throw new Error("Bracket match not found");
       if (bracket.lockedRounds.includes(slot.round) || slot.lockedAt) throw new Error("This round is locked");
+      const allSlots = await tx.select().from(bracketMatches)
+        .where(eq(bracketMatches.bracketId, bracket.id));
+      const participants = [
+        resolveBracketSource(slot.homeSource, bracket.format, allSlots),
+        resolveBracketSource(slot.awaySource, bracket.format, allSlots),
+      ];
+      if (participants.some((participant) => !participant)) {
+        throw new Error("Prior-round winners must be recorded before this result");
+      }
+      if (!participants.includes(parsed.data.winnerTeamId)) {
+        throw new Error("Winner must be one of the teams in this matchup");
+      }
       await tx.update(bracketMatches).set({
         homeScore: parsed.data.homeScore,
         awayScore: parsed.data.awayScore,
@@ -936,8 +953,11 @@ export async function updateBracket(formData: FormData) {
     } else {
       const slots = await tx.select().from(bracketMatches)
         .where(eq(bracketMatches.bracketId, bracket.id));
-      const maxRound = Math.max(...slots.map((slot) => slot.round));
-      if (!bracket.lockedRounds.includes(maxRound) || slots.some((slot) => !slot.winnerTeamId)) {
+      const rounds = [...new Set(slots.map((slot) => slot.round))];
+      if (
+        rounds.some((round) => !bracket.lockedRounds.includes(round)) ||
+        slots.some((slot) => !slot.winnerTeamId)
+      ) {
         throw new Error("Complete and lock every bracket match before publishing");
       }
       await tx.update(brackets).set({ status: "PUBLISHED", publishedAt: new Date() })
