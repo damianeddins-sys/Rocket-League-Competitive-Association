@@ -31,8 +31,12 @@ const errorMessages: Record<string, string> = {
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const session = await getSession();
   if (session?.user) redirect("/");
-  const { error } = await searchParams;
+  const { error, returnTo } = await searchParams;
   const errorCode = typeof error === "string" ? error : undefined;
+  const safeReturnTo =
+    typeof returnTo === "string" && returnTo.startsWith("/") && !returnTo.startsWith("//")
+      ? returnTo
+      : undefined;
 
   return (
     <section className="flex min-h-[72vh] items-center bg-[#f4f7fa] px-5 py-16">
@@ -55,7 +59,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           </p>
         )}
         <a
-          href="/api/auth/discord/start"
+          href={`/api/auth/discord/start${safeReturnTo ? `?returnTo=${encodeURIComponent(safeReturnTo)}` : ""}`}
           className="mt-7 block w-full rounded-md bg-[#5865f2] px-5 py-3 font-bold text-white hover:bg-[#4752c4]"
         >
           Continue with Discord

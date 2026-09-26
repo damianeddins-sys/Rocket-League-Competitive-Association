@@ -1,26 +1,52 @@
 import type { Metadata } from "next";
-import { teams } from "@/lib/demo-data";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import { EmptyState, PageHero, SeasonSelector, TeamIdentity } from "@/components/league-ui";
+import { getPublicSnapshot } from "@/lib/public-data";
 
-export const metadata: Metadata = { title: "Franchises" };
+export const metadata: Metadata = { title: "Teams" };
 
-export default function TeamsPage() {
+export default async function TeamsPage({ searchParams }: PageProps<"/teams">) {
+  const { season: seasonSlug } = await searchParams;
+  const snapshot = await getPublicSnapshot(
+    typeof seasonSlug === "string" ? seasonSlug : undefined,
+  );
   return (
-    <div className="min-h-screen bg-[#f4f7fa]">
-      <section className="bg-[#0b1f3a] px-5 py-14 text-white"><div className="mx-auto max-w-7xl lg:px-3"><p className="eyebrow text-blue-300">Eight teams</p><h1 className="mt-3 text-4xl font-black">RLCA franchises</h1><p className="mt-4 text-slate-300">One Master, one Challenger, and one Contender on every legal roster.</p></div></section>
-      <section className="mx-auto grid max-w-7xl gap-5 px-5 py-12 sm:grid-cols-2 lg:grid-cols-4 lg:px-8">
-        {teams.map((team) => (
-          <article key={team.id} className="panel overflow-hidden">
-            <div className="h-2" style={{ backgroundColor: team.color }} />
-            <div className="p-6">
-              <span className="flex h-14 w-14 items-center justify-center rounded-lg text-sm font-black text-white" style={{ backgroundColor: team.color }}>{team.short}</span>
-              <h2 className="mt-5 text-xl font-black text-[#0b1f3a]">{team.name}</h2>
-              <p className="mt-1 text-sm font-semibold text-slate-500">{team.wins}–{team.losses} · {team.points} points</p>
-              <div className="mt-6 grid grid-cols-3 gap-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                {["Master", "Challenger", "Contender"].map((division) => <span key={division} className="rounded bg-slate-100 px-1 py-2">{division}</span>)}
-              </div>
-            </div>
-          </article>
-        ))}
+    <div className="min-h-screen">
+      <PageHero
+        eyebrow="League directory"
+        title="Teams"
+        description="Explore official RLCA teams, then open a team to see its roster, competition record, schedule, and history in one place."
+      >
+        <SeasonSelector seasons={snapshot.seasons} current={snapshot.season} pathname="/teams" />
+      </PageHero>
+      <section className="mx-auto max-w-7xl px-5 py-10 lg:px-8">
+        {snapshot.teams.length === 0 ? (
+          <EmptyState
+            title="No official teams published"
+            message={snapshot.configured ? "Teams will appear here after league operations publishes them for this season." : "The production database is not configured in this environment."}
+          />
+        ) : (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {snapshot.teams.map((team) => (
+              <Link key={team.id} href={`/teams/${team.slug}`} className="entity-card group block p-6">
+                <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: team.color }} />
+                <TeamIdentity team={team} />
+                <p className="mt-3 text-sm font-medium text-slate-500">
+                  {team.franchise?.name ?? "Independent team"}
+                </p>
+                <div className="mt-6 grid grid-cols-3 gap-3 border-t border-slate-100 pt-5">
+                  <div><p className="stat-label">Record</p><p className="mt-1 font-mono font-black">{team.wins}–{team.losses}</p></div>
+                  <div><p className="stat-label">QP</p><p className="mt-1 font-mono font-black">{team.points}</p></div>
+                  <div><p className="stat-label">Standing</p><p className="mt-1 font-mono font-black">{team.standing ? `#${team.standing}` : "—"}</p></div>
+                </div>
+                <span className="mt-6 flex items-center justify-between text-sm font-extrabold text-blue-700">
+                  Open team hub <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );
